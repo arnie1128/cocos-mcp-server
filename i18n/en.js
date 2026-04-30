@@ -2,7 +2,7 @@
 
 module.exports = {
     "extension_name": "Cocos MCP Server",
-    "description": "AI MCP Server for Cocos Creator 3.8",
+    "description": "MCP (Model Context Protocol) server for Cocos Creator 3.8+. Lets AI assistants (Claude, Cursor, etc.) drive the editor over HTTP — scene/node/component/prefab/project operations, 157 tools across 14 categories, built on the official @modelcontextprotocol/sdk Streamable HTTP transport. Fork of LiDaxian/cocos-mcp-server v1.4.0; see CHANGELOG.md for details.",
     "panel_title": "MCP Server",
     "open_panel": "Open MCP Panel",
     "start_server": "Start Server",

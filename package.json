@@ -12,6 +12,28 @@
     },
     "description": "i18n:cocos-mcp-server.description",
     "main": "./dist/main.js",
+    "releaseDate": "2026-05-01",
+    "homepage": "https://github.com/arnie1128/cocos-mcp-server",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/arnie1128/cocos-mcp-server.git"
+    },
+    "bugs": {
+        "url": "https://github.com/arnie1128/cocos-mcp-server/issues"
+    },
+    "license": "MIT",
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "cocos-creator",
+        "ai",
+        "claude",
+        "cursor",
+        "scene",
+        "node",
+        "prefab",
+        "editor-extension"
+    ],
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "fs-extra": "^11.3.0",

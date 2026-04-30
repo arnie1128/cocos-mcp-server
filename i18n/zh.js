@@ -2,7 +2,7 @@
 
 module.exports = {
     "extension_name": "Cocos MCP 服务器",
-    "description": "适用于 Cocos Creator 3.8 的 AI MCP 服务器",
+    "description": "适用于 Cocos Creator 3.8+ 的 MCP（Model Context Protocol）服务器，让 Claude / Cursor 等 AI 助手透过 HTTP/MCP 接口操作场景、节点、元件、预制体与专案资源；157 个工具分 14 类，使用官方 @modelcontextprotocol/sdk Streamable HTTP transport。Fork 自 LiDaxian/cocos-mcp-server v1.4.0，详见 CHANGELOG.md。",
     "panel_title": "MCP 服务器",
     "open_panel": "打开 MCP 面板",
     "start_server": "启动服务器",
