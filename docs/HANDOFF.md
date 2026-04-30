@@ -3,7 +3,7 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 進度快照（最後更新：2026-05-01）
+## 進度快照（最後更新：2026-05-01；含 P1 收尾的 review/simplifier 兩輪）
 
 ```
 P0 ✅ done
@@ -34,6 +34,15 @@ P2/P3/P4 ⏳ pending
 - `tools/call` 回應改為結構化：成功路徑帶 `structuredContent`（同時保留
   `content[].text` 為 JSON.stringify 結果做向後相容），失敗路徑帶
   `isError: true` + 錯誤訊息文字
+- 五代理 code review（`/code-review:code-review`）跑完一輪後修了兩條
+  ≥80 信心議題（`f327815`）：(1) `main.ts:updateSettings` 補
+  `updateEnabledTools()` 復原 panel「保存設定」流程（之前每次按下都會
+  重新暴露全部 157 工具）；(2) `CLAUDE.md` 架構地圖把已刪的
+  `mcp-server.ts` 換成 `mcp-server-sdk.ts` 並補 `lib/log.ts` /
+  `lib/schema.ts`。隨後 `code-simplifier:code-simplifier` subagent
+  再做一輪內部精簡：抽 `jsonRpcError()` helper、去除 `start()` 多餘
+  外層 try/catch、`executeToolCall` 用 destructuring + early return
+  等，public surface 不變、smoke / live test 仍 59/59 全綠
 
 ## 工作流規則（**動工前先讀**）
 

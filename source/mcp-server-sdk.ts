@@ -26,6 +26,10 @@ interface SessionEntry {
     lastActivityAt: number;
 }
 
+function jsonRpcError(code: number, message: string): string {
+    return JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null });
+}
+
 /**
  * MCP server backed by the official @modelcontextprotocol/sdk Server +
  * StreamableHTTPServerTransport (stateful mode).
@@ -79,17 +83,14 @@ export class MCPServer {
         return sdkServer;
     }
 
-    /**
-     * Convert ToolResponse → MCP CallToolResult with structured content (T-P1-5).
-     * - success === false → isError:true, text content carries the error message
-     * - success === true  → text content carries JSON.stringify(result) (back-compat),
-     *                       structuredContent carries the parsed object
-     */
-    private buildToolResult(result: any): { content: Array<{ type: 'text'; text: string }>; structuredContent?: any; isError?: boolean } {
+    // T-P1-5: ToolResponse → MCP CallToolResult. Failures carry the error
+    // message in text content + isError. Successes keep JSON.stringify(result)
+    // in text (back-compat) and the parsed object in structuredContent.
+    private buildToolResult(result: any) {
         if (result && typeof result === 'object' && result.success === false) {
             const msg = result.error ?? result.message ?? 'Tool failed';
             return {
-                content: [{ type: 'text', text: typeof msg === 'string' ? msg : JSON.stringify(msg) }],
+                content: [{ type: 'text' as const, text: typeof msg === 'string' ? msg : JSON.stringify(msg) }],
                 isError: true,
             };
         }
@@ -111,36 +112,32 @@ export class MCPServer {
 
         this.setupTools();
 
-        try {
-            logger.info(`[MCPServer] Starting HTTP server on port ${this.settings.port}...`);
-            this.httpServer = http.createServer(this.handleHttpRequest.bind(this));
+        const { port } = this.settings;
+        logger.info(`[MCPServer] Starting HTTP server on port ${port}...`);
+        this.httpServer = http.createServer(this.handleHttpRequest.bind(this));
 
-            await new Promise<void>((resolve, reject) => {
-                this.httpServer!.listen(this.settings.port, '127.0.0.1', () => {
-                    logger.info(`[MCPServer] ✅ HTTP server started on http://127.0.0.1:${this.settings.port}`);
-                    logger.info(`[MCPServer] Health check: http://127.0.0.1:${this.settings.port}/health`);
-                    logger.info(`[MCPServer] MCP endpoint:  http://127.0.0.1:${this.settings.port}/mcp`);
-                    resolve();
-                });
-                this.httpServer!.on('error', (err: any) => {
-                    logger.error('[MCPServer] ❌ Failed to start server:', err);
-                    if (err.code === 'EADDRINUSE') {
-                        logger.error(`[MCPServer] Port ${this.settings.port} is already in use. Please change the port in settings.`);
-                    }
-                    reject(err);
-                });
+        await new Promise<void>((resolve, reject) => {
+            this.httpServer!.listen(port, '127.0.0.1', () => {
+                logger.info(`[MCPServer] ✅ HTTP server started on http://127.0.0.1:${port}`);
+                logger.info(`[MCPServer] Health check: http://127.0.0.1:${port}/health`);
+                logger.info(`[MCPServer] MCP endpoint:  http://127.0.0.1:${port}/mcp`);
+                resolve();
             });
+            this.httpServer!.on('error', (err: NodeJS.ErrnoException) => {
+                logger.error('[MCPServer] ❌ Failed to start server:', err);
+                if (err.code === 'EADDRINUSE') {
+                    logger.error(`[MCPServer] Port ${port} is already in use. Please change the port in settings.`);
+                }
+                reject(err);
+            });
+        });
 
-            this.cleanupInterval = setInterval(() => this.sweepIdleSessions(), SESSION_CLEANUP_INTERVAL_MS);
-            // setInterval keeps the Node event loop alive; unref so we don't
-            // block extension teardown if stop() somehow doesn't run.
-            this.cleanupInterval.unref?.();
+        // setInterval keeps the Node event loop alive; unref so we don't
+        // block extension teardown if stop() somehow doesn't run.
+        this.cleanupInterval = setInterval(() => this.sweepIdleSessions(), SESSION_CLEANUP_INTERVAL_MS);
+        this.cleanupInterval.unref?.();
 
-            logger.info(`[MCPServer] 🚀 MCP Server ready (${this.toolsList.length} tools)`);
-        } catch (error) {
-            logger.error('[MCPServer] ❌ Failed to start server:', error);
-            throw error;
-        }
+        logger.info(`[MCPServer] 🚀 MCP Server ready (${this.toolsList.length} tools)`);
     }
 
     private sweepIdleSessions(): void {
@@ -164,11 +161,11 @@ export class MCPServer {
     private setupTools(): void {
         // Build the new list locally and only swap once it's ready, so that
         // a concurrent ListToolsRequest can never observe an empty list.
-        const next: ToolDefinition[] = [];
-        const enabledFilter = this.enabledTools && this.enabledTools.length > 0
+        const enabledFilter = this.enabledTools.length > 0
             ? new Set(this.enabledTools.map(t => `${t.category}_${t.name}`))
             : null;
 
+        const next: ToolDefinition[] = [];
         for (const [category, toolSet] of Object.entries(this.tools)) {
             for (const tool of toolSet.getTools()) {
                 const fqName = `${category}_${tool.name}`;
@@ -194,14 +191,12 @@ export class MCPServer {
     }
 
     public async executeToolCall(toolName: string, args: any): Promise<any> {
-        const parts = toolName.split('_');
-        const category = parts[0];
-        const toolMethodName = parts.slice(1).join('_');
-
-        if (this.tools[category]) {
-            return await this.tools[category].execute(toolMethodName, args);
+        const [category, ...rest] = toolName.split('_');
+        const executor = this.tools[category];
+        if (!executor) {
+            throw new Error(`Tool ${toolName} not found`);
         }
-        throw new Error(`Tool ${toolName} not found`);
+        return executor.execute(rest.join('_'), args);
     }
 
     public getAvailableTools(): ToolDefinition[] {
@@ -264,7 +259,7 @@ export class MCPServer {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Not found' }));
         } catch (error: any) {
-            logger.error('HTTP request error:', error);
+            logger.error('[MCPServer] HTTP request error:', error);
             if (!res.headersSent) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Internal server error', details: error?.message }));
@@ -281,16 +276,11 @@ export class MCPServer {
         if (req.method !== 'POST') {
             const entry = sessionId ? this.sessions.get(sessionId) : undefined;
             if (!entry) {
-                const status = req.method === 'GET' ? 405 : 404;
-                const message = req.method === 'GET'
+                const isGet = req.method === 'GET';
+                res.writeHead(isGet ? 405 : 404, { 'Content-Type': 'application/json' });
+                res.end(jsonRpcError(-32000, isGet
                     ? 'Method not allowed without active session'
-                    : 'Session not found';
-                res.writeHead(status, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    jsonrpc: '2.0',
-                    error: { code: -32000, message },
-                    id: null,
-                }));
+                    : 'Session not found'));
                 return;
             }
             entry.lastActivityAt = Date.now();
@@ -300,25 +290,18 @@ export class MCPServer {
 
         // POST: read body once so we can detect initialize before dispatch.
         const body = await readBody(req);
-        let parsedBody: any = undefined;
+        let parsedBody: any;
         if (body.length > 0) {
             try {
                 parsedBody = JSON.parse(body);
             } catch (parseError: any) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32700,
-                        message: `Parse error: ${parseError.message}. Body: ${body.substring(0, 200)}`,
-                    },
-                    id: null,
-                }));
+                res.end(jsonRpcError(-32700,
+                    `Parse error: ${parseError.message}. Body: ${body.substring(0, 200)}`));
                 return;
             }
         }
 
-        // Existing session?
         const existing = sessionId ? this.sessions.get(sessionId) : undefined;
         if (existing) {
             existing.lastActivityAt = Date.now();
@@ -329,11 +312,7 @@ export class MCPServer {
         // New session must come with an initialize request.
         if (!isInitializeRequest(parsedBody)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
-                id: null,
-            }));
+            res.end(jsonRpcError(-32000, 'Bad Request: No valid session ID provided'));
             return;
         }
 
@@ -390,36 +369,34 @@ export class MCPServer {
     }
 
     private async handleSimpleAPIRequest(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): Promise<void> {
+        const pathParts = pathname.split('/').filter(p => p);
+        if (pathParts.length < 3) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid API path. Use /api/{category}/{tool_name}' }));
+            return;
+        }
+        const fullToolName = `${pathParts[1]}_${pathParts[2]}`;
+
         const body = await readBody(req);
+        let params: any;
         try {
-            const pathParts = pathname.split('/').filter(p => p);
-            if (pathParts.length < 3) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid API path. Use /api/{category}/{tool_name}' }));
-                return;
-            }
-            const category = pathParts[1];
-            const toolName = pathParts[2];
-            const fullToolName = `${category}_${toolName}`;
+            params = body ? JSON.parse(body) : {};
+        } catch (parseError: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                error: 'Invalid JSON in request body',
+                details: parseError.message,
+                receivedBody: body.substring(0, 200),
+            }));
+            return;
+        }
 
-            let params: any;
-            try {
-                params = body ? JSON.parse(body) : {};
-            } catch (parseError: any) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: 'Invalid JSON in request body',
-                    details: parseError.message,
-                    receivedBody: body.substring(0, 200),
-                }));
-                return;
-            }
-
+        try {
             const result = await this.executeToolCall(fullToolName, params);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, tool: fullToolName, result }));
         } catch (error: any) {
-            logger.error('Simple API error:', error);
+            logger.error('[MCPServer] Simple API error:', error);
             if (!res.headersSent) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: error.message, tool: pathname }));

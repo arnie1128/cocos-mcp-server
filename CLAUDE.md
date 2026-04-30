@@ -92,11 +92,14 @@ cost is measured.
    the correct `{ uuid }` object instead of positional args.
 4. ~~**`console.log` is not gated**~~ — fixed in P0 + P1 T-P1-3.
    `source/lib/log.ts` exposes `logger.{debug,info,warn,error}` plus a
-   backwards-compat `debugLog` alias. All 14 tool files, `mcp-server.ts`,
+   backwards-compat `debugLog` alias. All 14 tool files, `mcp-server-sdk.ts`,
    and `main.ts` now route through it; debug output gated by
    `settings.enableDebugLog`, warn/error always emit, startup banners use
    `logger.info`. Adding new logs in this codebase: prefer `logger.debug`
    for traces, `logger.info` only for startup/shutdown state.
+   (Note: `source/panels/default/index.ts` still uses raw `console.log`
+   for trace output — pre-existing; covered as known issue rather than
+   a regression here.)
 5. ~~**Double-instantiation**~~ — fixed in P1 T-P1-2. `source/tools/registry.ts`
    exposes `createToolRegistry()`; both `MCPServer` and `ToolManager`
    accept the registry through their constructors and read from the same
