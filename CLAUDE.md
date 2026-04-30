@@ -84,16 +84,21 @@ cost is measured.
    (`load-asset` / `apply-prefab` / `revert-prefab`) have been rewritten or
    marked unsupported, and the two existing `restore-prefab` callers now pass
    the correct `{ uuid }` object instead of positional args.
-4. ~~**`console.log` is not gated**~~ — fixed in P0 for the two noisiest
-   files. `prefab-tools.ts` and `component-tools.ts` now route every
-   `console.log` through `debugLog` from `source/lib/log.ts`, which only
-   fires when `settings.enableDebugLog === true`. **Other tool files still
-   carry raw `console.log`** — full Logger sweep is P1 T-P1-3.
-5. **Double-instantiation**: every `ToolExecutor` is `new`'d twice — once
-   in `MCPServer.initializeTools` and once in `ToolManager.initializeAvailableTools`.
-   Constructors must stay side-effect free.
-6. **Hardcoded MCP protocol version `2024-11-05`** in `mcp-server.ts:248`.
-   No capability negotiation. No SSE, no streaming.
+4. ~~**`console.log` is not gated**~~ — fixed in P0 + P1 T-P1-3.
+   `source/lib/log.ts` exposes `logger.{debug,info,warn,error}` plus a
+   backwards-compat `debugLog` alias. All 14 tool files, `mcp-server.ts`,
+   and `main.ts` now route through it; debug output gated by
+   `settings.enableDebugLog`, warn/error always emit, startup banners use
+   `logger.info`. Adding new logs in this codebase: prefer `logger.debug`
+   for traces, `logger.info` only for startup/shutdown state.
+5. ~~**Double-instantiation**~~ — fixed in P1 T-P1-2. `source/tools/registry.ts`
+   exposes `createToolRegistry()`; both `MCPServer` and `ToolManager`
+   accept the registry through their constructors and read from the same
+   ToolExecutor instances. Constructors should still stay side-effect
+   free in case the registry is rebuilt in tests.
+6. **Hardcoded MCP protocol version `2024-11-05`** in `mcp-server.ts`.
+   No capability negotiation. No SSE, no streaming. Will be addressed by
+   P1 T-P1-1 (swap to `@modelcontextprotocol/sdk`).
 7. **No test runner wired up.** `source/test/*.ts` exists but is not
    invoked by any npm script.
 
