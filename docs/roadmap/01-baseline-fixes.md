@@ -1,9 +1,16 @@
 # P0 — 基線硬傷修復
 
-**Status**: pending
-**預估工時**: ~2 小時
+**Status**: done（2026-04-30）
+**預估工時**: ~2 小時（實際 ~1 小時）
 **風險**: 低（純機械修補，行為等價或更安全）
 **前置**: 無
+
+## 落地摘要（2026-04-30）
+
+- T-P0-1：debug-tools.ts 三處與 prefab-tools.ts 一處硬編碼路徑全清，改用 `Editor.Project.path`；debug-tools 抽 `resolveProjectLogPath()` helper 統一三個工具入口。`grep lizhiyong` 無殘留。
+- T-P0-2：移除 `fixCommonJsonIssues` 整個方法；`handleMCPRequest` / `handleSimpleAPIRequest` 改回標準 parse 失敗回應，`-32700` 與 400 路徑保留 200 字 body 截斷。
+- T-P0-3：新增 `source/lib/log.ts`（`debugLog` + `setDebugLogEnabled`），`MCPServer` constructor 與 `updateSettings` 透過 `setDebugLogEnabled` 連動 `enableDebugLog` 設定；`prefab-tools.ts`（67 處）與 `component-tools.ts`（57 處）的 `console.log` 全改為 `debugLog`。`console.warn/error` 維持原樣（fatal/警告永遠輸出）。
+- 建置驗證：`npm run build` 通過；source 行數淨減 ~200 行（含 P0-1 ladder 移除）。
 
 ## 範圍
 

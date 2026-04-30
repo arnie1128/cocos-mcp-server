@@ -16,11 +16,12 @@ docs/
 │   ├── upstream-status.md             # 與原作者 v1.5.0 規劃的落差
 │   └── tool-inventory.md              # 170 個工具的盤點與分類
 ├── roadmap/                           # 未來規劃（按優先序分階段）
-│   ├── README.md                      # P0–P3 總表
-│   ├── 01-baseline-fixes.md           # P0：硬傷修復
+│   ├── README.md                      # P0–P4 總表
+│   ├── 01-baseline-fixes.md           # P0：硬傷修復（done 2026-04-30）
 │   ├── 02-architecture.md             # P1：架構債清理
 │   ├── 03-tool-consolidation.md       # P2：工具收斂
-│   └── 04-protocol-extensions.md      # P3：MCP 進階能力
+│   ├── 04-protocol-extensions.md      # P3：MCP 進階能力
+│   └── 05-v15-spec-parity.md          # P4：v1.5.0 部分對齊
 └── adr/                               # Architectural Decision Records
     ├── README.md                      # ADR 總覽
     └── 0001-skip-v1.5.0-spec.md       # 不追原作者 v1.5.0 spec 的決議

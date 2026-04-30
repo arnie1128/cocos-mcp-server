@@ -88,6 +88,40 @@ HTTP endpoint 形式可能變更（從手寫 JSON-RPC 換成 SDK 標準 transpor
 - 傳入錯誤型別時回應為清晰的 zod error message，而非 runtime crash。
 - 程式碼行數略減（schema 從幾十行 JSON 變成幾行 zod）。
 
+### T-P1-6：預製體 Editor.Message channel 驗證 + ladder 清理
+
+**問題**：`prefab-tools.ts` 內兩段 fallback ladder 是憑空猜的：
+
+- `establishPrefabConnection`（line ~360）依序試
+  `connect-prefab-instance` / `set-prefab-connection` / `apply-prefab-link`
+  三個 channel。
+- `applyPrefabToNode`（line ~621）依序試
+  `apply-prefab` / `set-prefab` / `load-prefab-to-node`。
+
+依 CLAUDE.md「用 `@cocos/creator-types` 驗證頻道而非 try-catch 階梯」原則
+應改為單一已驗證 channel。
+
+**做法**：
+
+1. 對應目標 Cocos Creator 版本（3.8.x）打開 `@cocos/creator-types` 內
+   `editor` namespace 的 message map，逐一確認 `scene` 模組下哪些
+   prefab 相關 channel 真的存在。
+2. 兩段 ladder 各保留**一個** verified channel，其餘刪除；若三個都不存在，
+   保留 `manuallyEstablishPrefabConnection` 的 dump 路徑作為唯一實作，
+   並在註解寫明驗證來源。
+3. 出錯時 fail loudly，回 `success: false` + 具體錯誤訊息，不再吞錯誤
+   往下試。
+
+**驗證**：
+
+- `tsc --noEmit` 通過。
+- 實機（建立 prefab → 拖至場景 → 修改後 apply）一回合完整跑通。
+- ladder log（`預制體連接方法失败`、`所有預制體連接API都失败`）不再
+  出現於正常流程。
+
+**不在範圍**：「100% 對齊官方序列化格式」（`fileId` / `__id__` 全鏈路一致）
+屬另一階段工作，視 ladder 清理後的實機結果再決定是否加碼。
+
 ### T-P1-5：ToolResponse → MCP structured content
 
 **做法**：
@@ -106,7 +140,7 @@ HTTP endpoint 形式可能變更（從手寫 JSON-RPC 換成 SDK 標準 transpor
 
 ## 完成標準
 
-- [ ] 所有 5 個 task 完成。
+- [ ] 所有 6 個 task 完成。
 - [ ] `tsc --noEmit` 通過。
 - [ ] 實機 smoke test 過（覆蓋 scene/node/component/prefab/asset 各至少 1 工具）。
 - [ ] 程式碼總行數減少 ≥ 300（樣板移除）。
