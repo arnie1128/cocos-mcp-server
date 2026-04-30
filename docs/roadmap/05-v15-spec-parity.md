@@ -1,6 +1,6 @@
 # P4 — v1.5.0 部分對齊（選擇性）
 
-**Status**: in-progress（2026-05-01 開工）
+**Status**: done — 程式碼層（2026-05-01 落地）；⚠️ 實機驗證項見 HANDOFF.md
 **預估工時**：~3-5 天
 **風險**：中（事件綁定需 ground truth、prefab façade 需實機驗 url 格式）
 **前置**：P1 完成（依賴 SDK + zod schema 樣板）；與 P3 互不相依
@@ -144,11 +144,11 @@ composable，不動 template / style**。
 
 - [x] T-P4-3 prefab façade 工具集到位，`updatePrefab` 不再 fail loudly。
 - [x] T-P4-1 至少 `Button.clickEvents` 完整 add / remove / list 工具到位。
-- [x] T-P4-2 主面板 `index.ts` 行數降低、composable 拆完。
-- [ ] 全部跑過 `tsc --noEmit` 與 smoke test。
-- [ ] HANDOFF 更新到 P4 done。
-- [ ] CLAUDE.md Landmines 加註 prefab façade 路徑。
-- [ ] 實機測試：⚠️ 標未驗項目於 commit message。
+- [x] T-P4-2 主面板 `index.ts` 行數降低（384 → 80）、composable 拆完。
+- [x] 全部跑過 `tsc --noEmit` 與 smoke test（160 → 163 工具）。
+- [x] HANDOFF 更新到 P4 done。
+- [x] CLAUDE.md Landmines 加註 prefab façade 路徑。
+- [ ] 實機測試：⚠️ 未驗項目集中在 HANDOFF「未驗實機項」一節，等用戶上 Cocos Creator 測。
 
 ## 不在範圍
 

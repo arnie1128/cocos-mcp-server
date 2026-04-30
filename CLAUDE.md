@@ -57,6 +57,12 @@ source/
 │   ├── validation-tools.ts        #   3 tools
 │   └── tool-manager.ts            # Per-config enable/disable persistence
 ├── panels/                 # Vue 3 panel UI (default + tool-manager tabs)
+│   └── default/
+│       ├── index.ts                # Panel entry (80 lines after P4 T-P4-2)
+│       └── composables/
+│           ├── use-server-status.ts   # serverRunning / toggleServer / polling
+│           ├── use-settings.ts        # settings + saveSettings + watch
+│           └── use-tool-config.ts     # availableTools + per-tool toggles
 └── types/index.ts          # Shared interfaces (ToolDefinition, ToolExecutor, …)
 ```
 
@@ -116,9 +122,11 @@ to that target until token cost is measured.
    `settings.enableDebugLog`, warn/error always emit, startup banners use
    `logger.info`. Adding new logs in this codebase: prefer `logger.debug`
    for traces, `logger.info` only for startup/shutdown state.
-   (Note: `source/panels/default/index.ts` still uses raw `console.log`
-   for trace output — pre-existing; covered as known issue rather than
-   a regression here.)
+   (P4 T-P4-2 [2026-05-01]: `source/panels/default/index.ts` was split into
+   composables and now routes through `logger`; raw `console.log` is gone
+   from the panel. The panel toggle for `enableDebugLog` also calls
+   `setDebugLogEnabled` so panel-side debug honours the same gate as the
+   host process.)
 5. ~~**Double-instantiation**~~ — fixed in P1 T-P1-2. `source/tools/registry.ts`
    exposes `createToolRegistry()`; both `MCPServer` and `ToolManager`
    accept the registry through their constructors and read from the same

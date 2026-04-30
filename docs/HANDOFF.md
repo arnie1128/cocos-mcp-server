@@ -14,10 +14,10 @@ P1 ✅ done (主架構部分)
    ├── T-P1-6 預製體 channel 驗證     ✅ done
    ├── T-P1-1 換官方 MCP SDK          ✅ done
    └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
-P4 🚧 in-progress
+P4 ✅ done（程式碼層；實機驗證見「未驗實機項」）
    ├── T-P4-3 Prefab façade 工具集    ✅ code done（⚠️ 未實機驗證）
    ├── T-P4-1 EventHandler 工具集     ✅ code done（⚠️ 未實機驗證）
-   └── T-P4-2 Panel composable 拆分   ⏳ pending（Phase 3，可選）
+   └── T-P4-2 Panel composable 拆分   ✅ done
 P2/P3 ⏳ pending
 ```
 
@@ -208,7 +208,7 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 - façade 偵測順序：`cce.Prefab` → `cce.SceneFacadeManager.instance` →
   `cce.SceneFacadeManager`。實機若三者都不通，要回 scene.ts 補正確路徑。
 
-**Phase 2 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-1 EventHandler 工具：
+**Phase 2 已落地**（commit `951c051`）—— T-P4-1 EventHandler 工具：
 
 - `source/scene.ts`：補三個方法（addEventHandler / removeEventHandler /
   listEventHandlers）、加 `resolveComponentContext()` helper、加
@@ -228,9 +228,19 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   - `cc.EventHandler` 在 scene-script 進程是否可直接 `require('cc')` 取到。
   - issue #16517 workaround `_componentName` 的實際必要性。
 
-**Phase 3 入口** — T-P4-2 Panel composable：拆 `useServerStatus` /
-`useToolConfig` / `useSettings`，只動 `panels/default/index.ts`，不動
-template / style。
+**Phase 3 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-2 Panel composable：
+
+- `source/panels/default/composables/`：新增三檔
+  `use-server-status.ts` / `use-settings.ts` / `use-tool-config.ts`，各自
+  封裝相關 reactive state、computed、IPC handler。
+- `source/panels/default/index.ts`：384 → 80 行；setup() 內僅 `activeTab`
+  與三個 composable 組合 + 生命週期 hook。
+- 27 個 `console.log/warn/error` 全部換 `logger.{debug,error}`；面板的
+  `enableDebugLog` 切換現在會呼叫 `setDebugLogEnabled()`，讓面板與 host
+  共用同一個 debug gate。
+- 不動 `static/template/vue/mcp-server-app.html` 與 CSS（範圍縮小決策，
+  詳見 v15-feasibility 與 roadmap/05）。
+- tsc + smoke 通過。
 
 **未驗的實機項目**（每個 Phase 完成後再排）：
 - `cce.Prefab.createPrefab` url 參數格式（`db://` vs 絕對路徑）

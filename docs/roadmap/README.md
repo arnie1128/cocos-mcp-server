@@ -10,7 +10,7 @@
 | **P0** | 基線硬傷修復 ✅ done 2026-04-30 | ~2 小時 | 低 | [`01-baseline-fixes.md`](./01-baseline-fixes.md) |
 | **P1** | 架構債清理 ✅ done 2026-05-01 | ~7 天 | 中 | [`02-architecture.md`](./02-architecture.md) |
 | **P2** | 工具收斂（評估 + 選擇性執行） | ~1-2 週 | 中 | [`03-tool-consolidation.md`](./03-tool-consolidation.md) |
-| **P4** | v1.5.0 部分對齊（prefab façade + 事件綁定 + 面板 composable） 🚧 in-progress 2026-05-01 | ~3-5 天 | 中 | [`05-v15-spec-parity.md`](./05-v15-spec-parity.md) |
+| **P4** | v1.5.0 部分對齊（prefab façade + 事件綁定 + 面板 composable）✅ done 2026-05-01（程式碼層） | ~3-5 天 | 中 | [`05-v15-spec-parity.md`](./05-v15-spec-parity.md) |
 | **P3** | MCP 進階能力（Resources/Prompts/Notifications） | ~1-2 週 | 中-高 | [`04-protocol-extensions.md`](./04-protocol-extensions.md) |
 
 > P3 與 P4 互不相依，順序視當下需求。
