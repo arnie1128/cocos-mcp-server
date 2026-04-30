@@ -7,12 +7,12 @@
 
 ```
 P0 ✅ done
-P1 🚧 in-progress  (約 60% 完成)
-   ├── T-P1-3 Logger 全面化           ✅ done (c411a9b)
-   ├── T-P1-2 工具註冊表去重複實例化   ✅ done (c411a9b)
-   ├── T-P1-4 zod schema (14 檔全部)  ✅ done (8342036)
-   ├── T-P1-6 預製體 channel 驗證     ⏳ pending  ← 建議下一個做
-   ├── T-P1-1 換官方 MCP SDK          ⏳ pending
+P1 🚧 in-progress  (約 75% 完成)
+   ├── T-P1-3 Logger 全面化           ✅ done
+   ├── T-P1-2 工具註冊表去重複實例化   ✅ done
+   ├── T-P1-4 zod schema (14 檔全部)  ✅ done
+   ├── T-P1-6 預製體 channel 驗證     ✅ done
+   ├── T-P1-1 換官方 MCP SDK          ⏳ pending  ← 下一個做（最大改動）
    └── T-P1-5 structured content     ⏳ pending（與 T-P1-1 一起）
 P2/P3/P4 ⏳ pending
 ```

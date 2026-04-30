@@ -17,7 +17,14 @@
   改為 module-scope schema map + `validateArgs` dispatch；schema 行數從
   ~3200 縮為 ~1100；helper `relaxJsonSchema` 抹平 zod 4 與手寫版的差異
   （`additionalProperties:false`、`.default()` vs `required`）。
-- ⏳ T-P1-6 預製體 channel 驗證 — 待做。
+- ✅ T-P1-6 預製體 channel 驗證：對 `@cocos/creator-types` 內 scene 模組
+  message map 逐一比對，發現 8 個 prefab 相關 channel 中只有 `restore-prefab`
+  真實存在（簽章 `{ uuid: string }`）。落地：(a) 砍 7 個死代碼 method
+  （兩段 fallback ladder + 它們專屬的 `readPrefabFile` / private `getAssetInfo`
+  / private `createNode`）；(b) `loadPrefab` 改走 `asset-db query-asset-info`
+  回傳 metadata；(c) `updatePrefab` 改為 fail-loud（apply-back-to-asset 沒
+  公開 API）；(d) `revertPrefab`、`restorePrefabNode`、scene-advanced 的
+  `restorePrefab` 三處改用正確 channel 名稱與 `{ uuid }` 參數格式。
 - ⏳ T-P1-1 換官方 MCP SDK — 待做。
 - ⏳ T-P1-5 structured content — 待做（與 T-P1-1 一起）。
 

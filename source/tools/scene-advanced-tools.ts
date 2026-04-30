@@ -305,8 +305,13 @@ export class SceneAdvancedTools implements ToolExecutor {
     }
 
     private async restorePrefab(nodeUuid: string, assetUuid: string): Promise<ToolResponse> {
+        // scene/restore-prefab takes ResetComponentOptions = { uuid: string }
+        // per @cocos/creator-types. assetUuid is kept on the public schema for
+        // response context but does not flow into the editor message — passing
+        // extra positional args is silently dropped by Editor.Message.
+        void assetUuid;
         return new Promise((resolve) => {
-            (Editor.Message.request as any)('scene', 'restore-prefab', nodeUuid, assetUuid).then(() => {
+            Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
                 resolve({
                     success: true,
                     message: 'Prefab restored successfully'

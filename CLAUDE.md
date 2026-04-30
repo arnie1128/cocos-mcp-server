@@ -74,13 +74,16 @@ cost is measured.
    `handleMCPRequest` and `handleSimpleAPIRequest` now return standard
    parse-error responses (`-32700` for MCP, 400 for REST) with the body
    truncated to 200 chars.
-3. **Prefab API guesswork** in `prefab-tools.ts` — `establishPrefabConnection`
-   tries `connect-prefab-instance`, `set-prefab-connection`,
-   `apply-prefab-link` in sequence; `applyPrefabToNode` similarly tries
-   `apply-prefab`, `set-prefab`, `load-prefab-to-node`. Several of these
-   channels do not exist in current Cocos Editor. **Scheduled for cleanup
-   in P1 T-P1-6** — verify against `@cocos/creator-types` before adding
-   more.
+3. ~~**Prefab API guesswork**~~ — fixed in P1 T-P1-6. Verified against
+   `node_modules/@cocos/creator-types/editor/packages/scene/@types/message.d.ts`:
+   the only prefab-related channel that actually exists on the `scene` module
+   is `restore-prefab`, taking `ResetComponentOptions = { uuid: string }`.
+   Both fallback ladders (`establishPrefabConnection` and
+   `applyPrefabToNode`) were dead code calling non-existent channels and have
+   been removed; three live tools that called bogus channels
+   (`load-asset` / `apply-prefab` / `revert-prefab`) have been rewritten or
+   marked unsupported, and the two existing `restore-prefab` callers now pass
+   the correct `{ uuid }` object instead of positional args.
 4. ~~**`console.log` is not gated**~~ — fixed in P0 for the two noisiest
    files. `prefab-tools.ts` and `component-tools.ts` now route every
    `console.log` through `debugLog` from `source/lib/log.ts`, which only

@@ -129,23 +129,28 @@ export class PrefabTools implements ToolExecutor {
     }
 
     private async loadPrefab(prefabPath: string): Promise<ToolResponse> {
+        // Original implementation called scene `load-asset`, which is not a real
+        // channel on the scene module per @cocos/creator-types. There is no
+        // generic "load a prefab without instantiating" operation exposed to
+        // editor extensions. Return the asset metadata via asset-db instead;
+        // callers who actually want the prefab in the scene should use
+        // instantiate_prefab.
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
                 if (!assetInfo) {
-                    throw new Error('Prefab not found');
+                    resolve({ success: false, error: `Prefab not found: ${prefabPath}` });
+                    return;
                 }
-                
-                return Editor.Message.request('scene', 'load-asset', {
-                    uuid: assetInfo.uuid
-                });
-            }).then((prefabData: any) => {
                 resolve({
                     success: true,
                     data: {
-                        uuid: prefabData.uuid,
-                        name: prefabData.name,
-                        message: 'Prefab loaded successfully'
-                    }
+                        uuid: assetInfo.uuid,
+                        name: assetInfo.name,
+                        url: assetInfo.url,
+                        type: assetInfo.type,
+                        source: assetInfo.source,
+                        message: 'Prefab metadata retrieved (instantiate_prefab to add it to the scene)',
+                    },
                 });
             }).catch((err: Error) => {
                 resolve({ success: false, error: err.message });
@@ -219,143 +224,6 @@ export class PrefabTools implements ToolExecutor {
         });
     }
 
-    /**
-     * 建立节点与预制体的关联关系
-     * 这个方法创建必要的PrefabInfo和PrefabInstance结构
-     */
-    private async establishPrefabConnection(nodeUuid: string, prefabUuid: string, prefabPath: string): Promise<void> {
-        try {
-            // 读取预制体文件获取根节点的fileId
-            const prefabContent = await this.readPrefabFile(prefabPath);
-            if (!prefabContent || !prefabContent.data || !prefabContent.data.length) {
-                throw new Error('无法读取预制体文件内容');
-            }
-
-            // 找到预制体根节点的fileId (通常是第二个对象，即索引1)
-            const rootNode = prefabContent.data.find((item: any) => item.__type === 'cc.Node' && item._parent === null);
-            if (!rootNode || !rootNode._prefab) {
-                throw new Error('无法找到预制体根节点或其预制体信息');
-            }
-
-            // 获取根节点的PrefabInfo
-            const rootPrefabInfo = prefabContent.data[rootNode._prefab.__id__];
-            if (!rootPrefabInfo || rootPrefabInfo.__type !== 'cc.PrefabInfo') {
-                throw new Error('无法找到预制体根节点的PrefabInfo');
-            }
-
-            const rootFileId = rootPrefabInfo.fileId;
-
-            // 使用scene API建立预制体连接
-            const prefabConnectionData = {
-                node: nodeUuid,
-                prefab: prefabUuid,
-                fileId: rootFileId
-            };
-
-            // 尝试使用多种API方法建立预制体连接
-            const connectionMethods = [
-                () => Editor.Message.request('scene', 'connect-prefab-instance', prefabConnectionData),
-                () => Editor.Message.request('scene', 'set-prefab-connection', prefabConnectionData),
-                () => Editor.Message.request('scene', 'apply-prefab-link', prefabConnectionData)
-            ];
-
-            let connected = false;
-            for (const method of connectionMethods) {
-                try {
-                    await method();
-                    connected = true;
-                    break;
-                } catch (error) {
-                    console.warn('预制体连接方法失败，尝试下一个方法:', error);
-                }
-            }
-
-            if (!connected) {
-                // 如果所有API方法都失败，尝试手动修改场景数据
-                console.warn('所有预制体连接API都失败，尝试手动建立连接');
-                await this.manuallyEstablishPrefabConnection(nodeUuid, prefabUuid, rootFileId);
-            }
-
-        } catch (error) {
-            console.error('建立预制体连接失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 手动建立预制体连接（当API方法失败时的备用方案）
-     */
-    private async manuallyEstablishPrefabConnection(nodeUuid: string, prefabUuid: string, rootFileId: string): Promise<void> {
-        try {
-            // 尝试使用dump API修改节点的_prefab属性
-            const prefabConnectionData = {
-                [nodeUuid]: {
-                    '_prefab': {
-                        '__uuid__': prefabUuid,
-                        '__expectedType__': 'cc.Prefab',
-                        'fileId': rootFileId
-                    }
-                }
-            };
-
-            await Editor.Message.request('scene', 'set-property', {
-                uuid: nodeUuid,
-                path: '_prefab',
-                dump: {
-                    value: {
-                        '__uuid__': prefabUuid,
-                        '__expectedType__': 'cc.Prefab'
-                    }
-                }
-            });
-
-        } catch (error) {
-            console.error('手动建立预制体连接也失败:', error);
-            // 不抛出错误，因为基本的节点创建已经成功
-        }
-    }
-
-    /**
-     * 读取预制体文件内容
-     */
-    private async readPrefabFile(prefabPath: string): Promise<any> {
-        try {
-            // 尝试使用asset-db API读取文件内容
-            let assetContent: any;
-            try {
-                assetContent = await Editor.Message.request('asset-db', 'query-asset-info', prefabPath);
-                if (assetContent && assetContent.source) {
-                    // 如果有source路径，直接读取文件
-                    const fs = require('fs');
-                    const path = require('path');
-                    const fullPath = path.resolve(assetContent.source);
-                    const fileContent = fs.readFileSync(fullPath, 'utf8');
-                    return JSON.parse(fileContent);
-                }
-            } catch (error) {
-                console.warn('使用asset-db读取失败，尝试其他方法:', error);
-            }
-
-            // 备用方法：转换db://路径为实际文件路径
-            if (!Editor.Project || !Editor.Project.path) {
-                throw new Error('Editor.Project.path is not available; cannot resolve prefab file path.');
-            }
-            const fsPath = prefabPath.replace('db://assets/', 'assets/').replace('db://assets', 'assets');
-            const fs = require('fs');
-            const path = require('path');
-            const fullPath = path.resolve(Editor.Project.path, fsPath);
-
-            if (!fs.existsSync(fullPath)) {
-                throw new Error(`Prefab file not found at ${fullPath}`);
-            }
-            const fileContent = fs.readFileSync(fullPath, 'utf8');
-            return JSON.parse(fileContent);
-        } catch (error) {
-            console.error('读取预制体文件失败:', error);
-            throw error;
-        }
-    }
-
     private async tryCreateNodeWithPrefab(args: any): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-asset-info', args.prefabPath).then((assetInfo: any) => {
@@ -419,120 +287,6 @@ export class PrefabTools implements ToolExecutor {
                     error: `备用预制体实例化方法也失败: ${err.message}`
                 });
             });
-        });
-    }
-
-    private async tryAlternativeInstantiateMethods(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                // 方法1: 尝试使用 create-node 然后设置预制体
-                const assetInfo = await this.getAssetInfo(args.prefabPath);
-                if (!assetInfo) {
-                    resolve({ success: false, error: '无法获取预制体信息' });
-                    return;
-                }
-
-                // 创建空节点
-                const createResult = await this.createNode(args.parentUuid, args.position);
-                if (!createResult.success) {
-                    resolve(createResult);
-                    return;
-                }
-
-                // 尝试将预制体应用到节点
-                const applyResult = await this.applyPrefabToNode(createResult.data.nodeUuid, assetInfo.uuid);
-                if (applyResult.success) {
-                    resolve({
-                        success: true,
-                        data: {
-                            nodeUuid: createResult.data.nodeUuid,
-                            name: createResult.data.name,
-                            message: '预制体实例化成功（使用备选方法）'
-                        }
-                    });
-                } else {
-                    resolve({
-                        success: false,
-                        error: '无法将预制体应用到节点',
-                        data: {
-                            nodeUuid: createResult.data.nodeUuid,
-                            message: '已创建节点，但无法应用预制体数据'
-                        }
-                    });
-                }
-
-            } catch (error) {
-                resolve({ success: false, error: `备选实例化方法失败: ${error}` });
-            }
-        });
-    }
-
-    private async getAssetInfo(prefabPath: string): Promise<any> {
-        return new Promise((resolve) => {
-            Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
-                resolve(assetInfo);
-            }).catch(() => {
-                resolve(null);
-            });
-        });
-    }
-
-    private async createNode(parentUuid?: string, position?: any): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            const createNodeOptions: any = {
-                name: 'PrefabInstance'
-            };
-
-            // 设置父节点
-            if (parentUuid) {
-                createNodeOptions.parent = parentUuid;
-            }
-
-            // 设置位置
-            if (position) {
-                createNodeOptions.dump = {
-                    position: position
-                };
-            }
-
-            Editor.Message.request('scene', 'create-node', createNodeOptions).then((nodeUuid: string | string[]) => {
-                const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
-                resolve({
-                    success: true,
-                    data: {
-                        nodeUuid: uuid,
-                        name: 'PrefabInstance'
-                    }
-                });
-            }).catch((error: any) => {
-                resolve({ success: false, error: error.message || '创建节点失败' });
-            });
-        });
-    }
-
-    private async applyPrefabToNode(nodeUuid: string, prefabUuid: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            // 尝试多种方法来应用预制体数据
-            const methods = [
-                () => Editor.Message.request('scene', 'apply-prefab', { node: nodeUuid, prefab: prefabUuid }),
-                () => Editor.Message.request('scene', 'set-prefab', { node: nodeUuid, prefab: prefabUuid }),
-                () => Editor.Message.request('scene', 'load-prefab-to-node', { node: nodeUuid, prefab: prefabUuid })
-            ];
-
-            const tryMethod = (index: number) => {
-                if (index >= methods.length) {
-                    resolve({ success: false, error: '无法应用预制体数据' });
-                    return;
-                }
-
-                methods[index]().then(() => {
-                    resolve({ success: true });
-                }).catch(() => {
-                    tryMethod(index + 1);
-                });
-            };
-
-            tryMethod(0);
         });
     }
 
@@ -1197,35 +951,28 @@ export class PrefabTools implements ToolExecutor {
     }
 
     private async updatePrefab(prefabPath: string, nodeUuid: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
-                if (!assetInfo) {
-                    throw new Error('Prefab not found');
-                }
-
-                return Editor.Message.request('scene', 'apply-prefab', {
-                    node: nodeUuid,
-                    prefab: assetInfo.uuid
-                });
-            }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Prefab updated successfully'
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
+        // "Apply instance changes back to the prefab asset" is not exposed by
+        // the public scene Editor.Message API. The original implementation
+        // called scene `apply-prefab`, which does not exist per
+        // @cocos/creator-types. Fail loudly so callers know to use the editor
+        // UI's Apply button instead of relying on a silently broken tool.
+        return {
+            success: false,
+            error: 'Applying prefab instance edits back to the prefab asset is not supported via Editor.Message in current Cocos Creator (3.8.x). Use the editor UI Apply button on the prefab instance, or save changes through scene save and update the prefab asset manually.',
+            data: { prefabPath, nodeUuid },
+        };
     }
 
     private async revertPrefab(nodeUuid: string): Promise<ToolResponse> {
+        // The previous code called scene `revert-prefab`, which does not exist.
+        // The verified channel is `restore-prefab` taking `{ uuid: string }`
+        // (ResetComponentOptions). Per the editor convention this restores the
+        // node from its linked prefab asset, which matches the "revert" intent.
         return new Promise((resolve) => {
-            Editor.Message.request('scene', 'revert-prefab', {
-                node: nodeUuid
-            }).then(() => {
+            Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
                 resolve({
                     success: true,
-                    message: 'Prefab instance reverted successfully'
+                    message: 'Prefab instance reverted successfully',
                 });
             }).catch((err: Error) => {
                 resolve({ success: false, error: err.message });
@@ -2227,8 +1974,13 @@ export class PrefabTools implements ToolExecutor {
 
     private async restorePrefabNode(nodeUuid: string, assetUuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 使用官方API restore-prefab 还原预制体节点
-            (Editor.Message.request as any)('scene', 'restore-prefab', nodeUuid, assetUuid).then(() => {
+            // Verified signature per @cocos/creator-types: scene/restore-prefab
+            // takes a single ResetComponentOptions = { uuid: string }. The
+            // previous code passed (nodeUuid, assetUuid) as positional args,
+            // which the API ignores after the first one and silently misroutes.
+            // assetUuid is preserved on the request shape for response context
+            // but does not flow into the editor message.
+            Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
                 resolve({
                     success: true,
                     data: {
