@@ -1,4 +1,4 @@
-import { MCPServer } from './mcp-server';
+import { MCPServer } from './mcp-server-sdk';
 import { readSettings, saveSettings } from './settings';
 import { MCPServerSettings } from './types';
 import { ToolManager } from './tools/tool-manager';
@@ -45,7 +45,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
      */
     async stopServer() {
         if (mcpServer) {
-            mcpServer.stop();
+            await mcpServer.stop();
         } else {
             logger.warn('[MCP插件] mcpServer 未初始化');
         }
@@ -68,13 +68,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
      * @en Update server settings
      * @zh 更新服务器设置
      */
-    updateSettings(settings: MCPServerSettings) {
+    async updateSettings(settings: MCPServerSettings) {
         saveSettings(settings);
         if (mcpServer) {
-            mcpServer.stop();
+            await mcpServer.stop();
         }
         mcpServer = new MCPServer(settings, toolRegistry);
-        mcpServer.start();
+        await mcpServer.start();
     },
 
     /**
@@ -250,9 +250,9 @@ export function load() {
  * @en Method triggered when uninstalling the extension
  * @zh 卸载扩展时触发的方法
  */
-export function unload() {
+export async function unload() {
     if (mcpServer) {
-        mcpServer.stop();
+        await mcpServer.stop();
         mcpServer = null;
     }
 }

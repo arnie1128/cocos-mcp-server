@@ -120,14 +120,13 @@ module.exports = Editor.Panel.define({
                     
                     const saveSettings = async () => {
                         try {
-                            // 创建一个简单的对象，避免克隆错误
                             const settingsData = {
                                 port: settings.value.port,
                                 autoStart: settings.value.autoStart,
-                                debugLog: settings.value.debugLog,
+                                enableDebugLog: settings.value.debugLog,
                                 maxConnections: settings.value.maxConnections
                             };
-                            
+
                             const result = await Editor.Message.request('cocos-mcp-server', 'update-settings', settingsData);
                             console.log('[Vue App] Save settings result:', result);
                             settingsChanged.value = false;

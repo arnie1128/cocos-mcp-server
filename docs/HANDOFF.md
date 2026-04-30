@@ -3,17 +3,17 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 進度快照（最後更新：2026-04-30，HEAD `117d846`）
+## 進度快照（最後更新：2026-05-01）
 
 ```
 P0 ✅ done
-P1 🚧 in-progress  (~75% 完成)
+P1 ✅ done (主架構部分)
    ├── T-P1-3 Logger 全面化           ✅ done
    ├── T-P1-2 工具註冊表去重複實例化   ✅ done
    ├── T-P1-4 zod schema (14 檔全部)  ✅ done
    ├── T-P1-6 預製體 channel 驗證     ✅ done
-   ├── T-P1-1 換官方 MCP SDK          ⏳ ← 下一個做（最大改動）
-   └── T-P1-5 structured content     ⏳ 隨 T-P1-1 一起
+   ├── T-P1-1 換官方 MCP SDK          ✅ done
+   └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
 P2/P3/P4 ⏳ pending
 ```
 
@@ -27,7 +27,13 @@ P2/P3/P4 ⏳ pending
   warn/error 永遠輸出
 - 預製體 channel 全部對齊 `@cocos/creator-types`，砍掉 ~250 行死代碼+
   bogus channel 呼叫
-- `mcp-server.ts` 仍是手寫 HTTP+JSON-RPC，沒換 SDK——這就是 T-P1-1
+- `source/mcp-server-sdk.ts` 用官方 `@modelcontextprotocol/sdk` 的低階
+  `Server` + `StreamableHTTPServerTransport`（stateful 模式，
+  `mcp-session-id` 分流），取代手寫 HTTP+JSON-RPC 派遣；協議版本由 SDK
+  自動協商（已測過協商到 `2025-06-18`）
+- `tools/call` 回應改為結構化：成功路徑帶 `structuredContent`（同時保留
+  `content[].text` 為 JSON.stringify 結果做向後相容），失敗路徑帶
+  `isError: true` + 錯誤訊息文字
 
 ## 工作流規則（**動工前先讀**）
 
@@ -59,71 +65,69 @@ new Cls().getTools().forEach(t => console.log(t.name, JSON.stringify(t.inputSche
 跟 git history 上一版做 diff。已知 zod 4 vs 手寫差異列表見
 `source/lib/schema.ts` 的 `relaxJsonSchema` 註解。
 
-## 接下來：T-P1-1 換官方 MCP SDK
+## T-P1-1 / T-P1-5 完成記錄
 
-### 目標
+### 架構
 
-把 `source/mcp-server.ts` 的手寫 HTTP server + JSON-RPC dispatch 換成
-`@modelcontextprotocol/sdk` driven。預估砍掉 ~200 行樣板，並一次取得：
-- 自動的 `protocolVersion` 協商（目前寫死 `2024-11-05`）
-- streamable HTTP / SSE 支援
-- 標準 error code 與 structured content 處理（順便完成 T-P1-5）
-- 之後加 Resources / Prompts / Notifications（P3）有官方介面可用
+`source/mcp-server-sdk.ts` 用低階 `Server`（不是高階 `McpServer`）+
+`StreamableHTTPServerTransport` stateful 模式：
 
-### 必須保留的對外契約
+```
+http.Server (port: settings.port)
+├── /mcp              → handleMcpRequest
+│   ├── POST 帶現存 mcp-session-id  → 路由到對應 SessionEntry
+│   ├── POST initialize 無 session   → 建新 Server+Transport，登錄 sessions Map
+│   └── GET / DELETE                  → 路由到對應 SessionEntry（沒有回 404）
+├── /health            → JSON {status:'ok', tools:N}
+├── /api/tools         → JSON 工具清單 + curl 範例
+└── /api/{cat}/{tool}  → REST 短路，繞過 MCP 直接 dispatch
+```
 
-舊 client 配置已散布在使用者環境，**這些不能變**：
+每個 session = 一個 `Server` + 一個 `StreamableHTTPServerTransport`，
+keyed by sessionId（透過 `onsessioninitialized` callback 寫入 Map，
+`onsessionclosed` 與 `transport.onclose` 兩個地方做清理）。
 
-| 端點 / 行為 | 必須保留原因 |
+`updateEnabledTools(...)` 重新計算 `toolsList`，之後對所有 live sessions
+廣播 `sendToolListChanged()`。
+
+### 對外契約（驗證過保留）
+
+| 端點 / 行為 | 狀態 |
 |---|---|
-| `POST http://127.0.0.1:<port>/mcp` | Claude / Cursor 既有設定的 endpoint |
-| `GET /health` 回 `{status:"ok",tools:N}` | 面板會 ping |
-| `POST /api/{category}/{tool}` REST 短路 | 方便手動 curl 測試；面板也用 |
-| `GET /api/tools` 回工具清單 | 面板用 |
-| `updateEnabledTools(...)` 過濾出對外 tools/list | tool-manager 面板的核心功能 |
+| `POST http://127.0.0.1:<port>/mcp` | ✅（現由 SDK 處理 session 與協議協商） |
+| `GET /health` 回 `{status:"ok",tools:N}` | ✅ |
+| `POST /api/{category}/{tool}` REST 短路 | ✅ |
+| `GET /api/tools` 回工具清單 | ✅ |
+| `updateEnabledTools(...)` 過濾 tools/list | ✅（過濾在 ListToolsRequest handler 內） |
 
-→ 若 SDK 不直接支援共存，就用同一個 `http.Server` 接 SDK transport
-（`/mcp`）與既有 REST handler（`/api/*`、`/health`）並存。
+煙霧測試腳本：`scripts/smoke-mcp-sdk.js`，跑流程
+init → tools/list → tools/call (成功) → tools/call (失敗) → REST 一輪。
+要重跑：
 
-### 建議步驟
+```bash
+npm run build
+node scripts/smoke-mcp-sdk.js
+```
 
-1. **檢查點**：確保 HEAD = `117d846`（或更新後的乾淨點）已 push。
-   ```bash
-   git status; git log -1 --oneline
-   git rev-parse HEAD == git rev-parse origin/main  # 該相等
-   ```
-2. **裝相依**：
-   ```bash
-   npm install @modelcontextprotocol/sdk
-   ```
-3. **先讀 SDK 範例**：
-   - 看 `node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.d.ts`
-     了解 `Server` 介面
-   - 找 `StreamableHTTPServerTransport` 的 README
-4. **新增 `source/mcp-server-sdk.ts`** 而非直接改舊檔：先平行存在、能跑
-   再切換。舊檔暫時留著，等到 client 連線確認 OK 再刪。
-5. **registry 不動**：SDK 接受工具註冊的方式跟 `createToolRegistry()`
-   產出的 Map 介面相容（每個 ToolExecutor 有 `getTools()` + `execute()`）。
-   只要在 SDK 端註冊一次。
-6. **轉接 tools/call response**：SDK 期望 structured content
-   `{content: [...], isError?: bool}`。原本是
-   `{content:[{type:'text', text: JSON.stringify(toolResult)}]}` 一律純文字。
-   改為依 `toolResult.success` 分流（這就是 T-P1-5）：
-   - 成功：`{content: [{type:'text', text: <msg>}], structuredContent: <data>}`
-   - 失敗：`{content: [{type:'text', text: <error>}], isError: true}`
-7. **驗證**：開 Claude Desktop / Cursor 對 endpoint 跑 `tools/list` 與
-   一個簡單 `tools/call`（例如 `node_get_all_nodes`），確認前後行為一致。
-8. **移除舊 mcp-server.ts**：確認穩定後再刪手寫版。同一個 commit 也行，
-   分兩個 commit 也行（拆兩個 commit 比較好回滾）。
+### 已知限制 / 後續可改
 
-### 風險與對策
+1. **session 沒有上限與閒置 TTL**。若 client 不發 DELETE 也不關連線，
+   `sessions` Map 會累積。對編輯器擴充使用情境影響小（panel 關掉 process
+   就死），但若日後上長駐情境要加 LRU 或閒置回收。
+2. **行為變更**：以前可以直接 POST `/mcp` 帶 `tools/list` 不需先 initialize，
+   現在會 400「No valid session ID」。Streamable HTTP spec 本來就要求
+   先 initialize；任何不照 spec 走的 client 要改。`/api/{cat}/{tool}`
+   REST 短路保持原樣，可以繼續直接打。
+3. **協議版本**自動協商（測過協商到 `2025-06-18`）；`2024-11-05` 寫死沒了。
 
-| 風險 | 對策 |
-|---|---|
-| SDK 預設 transport 與既有 `POST /mcp` 不相容 | 用 SDK 的 transport adapter；必要時留舊 endpoint shim 一個 release |
-| 工具回應格式變更影響 client 顯示 | T-P1-5 同步完成；發 release notes |
-| 工具數 157 註冊到 SDK 後啟動慢 | 量測前後啟動時間；超過 1s 才優化 |
-| `updateEnabledTools` 過濾邏輯不能直接移植 | 過濾在 `tools/list` handler 內實作，註冊全部 tool 但 list 時依設定過濾 |
+### Panel bug B-001 一併修了
+
+`<ui-checkbox>` 是 Cocos 自訂元素、事件是 `change`+`event.target.checked`，
+不吃 Vue v-model 的 `value`+`input`。原本 `自動啟動` / `調試日誌` 兩個
+checkbox 用 `v-model` 綁，所以勾選不持久化視覺。改用同檔工具勾選框那種
+`:value` + `@change` 的寫法。順便修了 `saveSettings()` 把 `debugLog`
+直接送後端的問題（後端欄位是 `enableDebugLog`），原本 debug log 設定會
+靜默丟失。詳見 `docs/bugs.md` B-001。
 
 ## T-P1-6 驗證結果（保留為 reference）
 
@@ -174,6 +178,7 @@ grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'"
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| T-P1-1 改動前（保留 T-P1-2~6） | `git reset --hard d5b0484` 然後 `git push --force-with-lease` |
 | T-P1-6 改動前（保留 zod 全部） | `git reset --hard 1035407` 然後 `git push --force-with-lease` |
 | T-P1-4 全部改動前（只留 P0 + logger/registry） | `git reset --hard c411a9b` 然後 `git push --force-with-lease` |
 | P1 全部改動前（只留 P0） | `git reset --hard 7fb416c` 然後 `git push --force-with-lease` |

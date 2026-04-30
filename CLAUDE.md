@@ -96,11 +96,23 @@ cost is measured.
    accept the registry through their constructors and read from the same
    ToolExecutor instances. Constructors should still stay side-effect
    free in case the registry is rebuilt in tests.
-6. **Hardcoded MCP protocol version `2024-11-05`** in `mcp-server.ts`.
-   No capability negotiation. No SSE, no streaming. Will be addressed by
-   P1 T-P1-1 (swap to `@modelcontextprotocol/sdk`).
+6. ~~**Hardcoded MCP protocol version `2024-11-05`**~~ — fixed in P1 T-P1-1.
+   `source/mcp-server-sdk.ts` now drives the `/mcp` endpoint with the
+   official `@modelcontextprotocol/sdk` low-level `Server` +
+   `StreamableHTTPServerTransport` (stateful mode keyed by `mcp-session-id`).
+   Protocol version is auto-negotiated; tested against `2025-06-18`.
+   `tools/call` responses use structured content (T-P1-5): success →
+   `structuredContent` + back-compat JSON text in `content`; failure →
+   `isError: true` + error message in `content[].text`. The hand-rolled
+   `mcp-server.ts` has been deleted; `source/main.ts` imports
+   `./mcp-server-sdk` directly.
+
+   Behavior change: callers must initialize before issuing other JSON-RPC
+   methods on `/mcp` (per Streamable HTTP spec). The REST short-circuit
+   `POST /api/{category}/{tool}` is unchanged for ad-hoc curl testing.
 7. **No test runner wired up.** `source/test/*.ts` exists but is not
-   invoked by any npm script.
+   invoked by any npm script. (`scripts/smoke-mcp-sdk.js` covers the SDK
+   server endpoints with a stub registry — manual; runs via `node`.)
 
 ## Conventions
 
