@@ -1,67 +1,48 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const serverSchemas = {
+    query_server_ip_list: z.object({}),
+    query_sorted_server_ip_list: z.object({}),
+    query_server_port: z.object({}),
+    get_server_status: z.object({}),
+    check_server_connectivity: z.object({
+        timeout: z.number().default(5000).describe('Timeout in milliseconds'),
+    }),
+    get_network_interfaces: z.object({}),
+} as const;
+
+const serverToolMeta: Record<keyof typeof serverSchemas, string> = {
+    query_server_ip_list: 'Query server IP list',
+    query_sorted_server_ip_list: 'Get sorted server IP list',
+    query_server_port: 'Query editor server current port',
+    get_server_status: 'Get comprehensive server status information',
+    check_server_connectivity: 'Check server connectivity and network status',
+    get_network_interfaces: 'Get available network interfaces',
+};
 
 export class ServerTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'query_server_ip_list',
-                description: 'Query server IP list',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_sorted_server_ip_list',
-                description: 'Get sorted server IP list',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_server_port',
-                description: 'Query editor server current port',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'get_server_status',
-                description: 'Get comprehensive server status information',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'check_server_connectivity',
-                description: 'Check server connectivity and network status',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        timeout: {
-                            type: 'number',
-                            description: 'Timeout in milliseconds',
-                            default: 5000
-                        }
-                    }
-                }
-            },
-            {
-                name: 'get_network_interfaces',
-                description: 'Get available network interfaces',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            }
-        ];
+        return (Object.keys(serverSchemas) as Array<keyof typeof serverSchemas>).map(name => ({
+            name,
+            description: serverToolMeta[name],
+            inputSchema: toInputSchema(serverSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof serverSchemas;
+        const schema = serverSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'query_server_ip_list':
                 return await this.queryServerIPList();
             case 'query_sorted_server_ip_list':
@@ -71,11 +52,9 @@ export class ServerTools implements ToolExecutor {
             case 'get_server_status':
                 return await this.getServerStatus();
             case 'check_server_connectivity':
-                return await this.checkServerConnectivity(args.timeout);
+                return await this.checkServerConnectivity(a.timeout);
             case 'get_network_interfaces':
                 return await this.getNetworkInterfaces();
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
         }
     }
 

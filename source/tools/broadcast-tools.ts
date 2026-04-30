@@ -1,5 +1,29 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { debugLog } from '../lib/log';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const broadcastSchemas = {
+    get_broadcast_log: z.object({
+        limit: z.number().default(50).describe('Number of recent messages to return'),
+        messageType: z.string().optional().describe('Filter by message type (optional)'),
+    }),
+    listen_broadcast: z.object({
+        messageType: z.string().describe('Message type to listen for'),
+    }),
+    stop_listening: z.object({
+        messageType: z.string().describe('Message type to stop listening for'),
+    }),
+    clear_broadcast_log: z.object({}),
+    get_active_listeners: z.object({}),
+} as const;
+
+const broadcastToolMeta: Record<keyof typeof broadcastSchemas, string> = {
+    get_broadcast_log: 'Get recent broadcast messages log',
+    listen_broadcast: 'Start listening for specific broadcast messages',
+    stop_listening: 'Stop listening for specific broadcast messages',
+    clear_broadcast_log: 'Clear the broadcast messages log',
+    get_active_listeners: 'Get list of active broadcast listeners',
+};
 
 export class BroadcastTools implements ToolExecutor {
     private listeners: Map<string, Function[]> = new Map();
@@ -10,86 +34,36 @@ export class BroadcastTools implements ToolExecutor {
     }
 
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'get_broadcast_log',
-                description: 'Get recent broadcast messages log',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        limit: {
-                            type: 'number',
-                            description: 'Number of recent messages to return',
-                            default: 50
-                        },
-                        messageType: {
-                            type: 'string',
-                            description: 'Filter by message type (optional)'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'listen_broadcast',
-                description: 'Start listening for specific broadcast messages',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        messageType: {
-                            type: 'string',
-                            description: 'Message type to listen for'
-                        }
-                    },
-                    required: ['messageType']
-                }
-            },
-            {
-                name: 'stop_listening',
-                description: 'Stop listening for specific broadcast messages',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        messageType: {
-                            type: 'string',
-                            description: 'Message type to stop listening for'
-                        }
-                    },
-                    required: ['messageType']
-                }
-            },
-            {
-                name: 'clear_broadcast_log',
-                description: 'Clear the broadcast messages log',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'get_active_listeners',
-                description: 'Get list of active broadcast listeners',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            }
-        ];
+        return (Object.keys(broadcastSchemas) as Array<keyof typeof broadcastSchemas>).map(name => ({
+            name,
+            description: broadcastToolMeta[name],
+            inputSchema: toInputSchema(broadcastSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof broadcastSchemas;
+        const schema = broadcastSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'get_broadcast_log':
-                return await this.getBroadcastLog(args.limit, args.messageType);
+                return await this.getBroadcastLog(a.limit, a.messageType);
             case 'listen_broadcast':
-                return await this.listenBroadcast(args.messageType);
+                return await this.listenBroadcast(a.messageType);
             case 'stop_listening':
-                return await this.stopListening(args.messageType);
+                return await this.stopListening(a.messageType);
             case 'clear_broadcast_log':
                 return await this.clearBroadcastLog();
             case 'get_active_listeners':
                 return await this.getActiveListeners();
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
         }
     }
 

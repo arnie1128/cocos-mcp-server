@@ -1,71 +1,54 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const validationSchemas = {
+    validate_json_params: z.object({
+        jsonString: z.string().describe('JSON string to validate and fix'),
+        expectedSchema: z.object({}).passthrough().optional().describe('Expected parameter schema (optional)'),
+    }),
+    safe_string_value: z.object({
+        value: z.string().describe('String value to make safe'),
+    }),
+    format_mcp_request: z.object({
+        toolName: z.string().describe('Tool name to call'),
+        arguments: z.object({}).passthrough().describe('Tool arguments'),
+    }),
+} as const;
+
+const validationToolMeta: Record<keyof typeof validationSchemas, string> = {
+    validate_json_params: 'Validate and fix JSON parameters before sending to other tools',
+    safe_string_value: "Create a safe string value that won't cause JSON parsing issues",
+    format_mcp_request: 'Format a complete MCP request with proper JSON escaping',
+};
 
 export class ValidationTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'validate_json_params',
-                description: 'Validate and fix JSON parameters before sending to other tools',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        jsonString: {
-                            type: 'string',
-                            description: 'JSON string to validate and fix'
-                        },
-                        expectedSchema: {
-                            type: 'object',
-                            description: 'Expected parameter schema (optional)'
-                        }
-                    },
-                    required: ['jsonString']
-                }
-            },
-            {
-                name: 'safe_string_value',
-                description: 'Create a safe string value that won\'t cause JSON parsing issues',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        value: {
-                            type: 'string',
-                            description: 'String value to make safe'
-                        }
-                    },
-                    required: ['value']
-                }
-            },
-            {
-                name: 'format_mcp_request',
-                description: 'Format a complete MCP request with proper JSON escaping',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        toolName: {
-                            type: 'string',
-                            description: 'Tool name to call'
-                        },
-                        arguments: {
-                            type: 'object',
-                            description: 'Tool arguments'
-                        }
-                    },
-                    required: ['toolName', 'arguments']
-                }
-            }
-        ];
+        return (Object.keys(validationSchemas) as Array<keyof typeof validationSchemas>).map(name => ({
+            name,
+            description: validationToolMeta[name],
+            inputSchema: toInputSchema(validationSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof validationSchemas;
+        const schema = validationSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'validate_json_params':
-                return await this.validateJsonParams(args.jsonString, args.expectedSchema);
+                return await this.validateJsonParams(a.jsonString, a.expectedSchema);
             case 'safe_string_value':
-                return await this.createSafeStringValue(args.value);
+                return await this.createSafeStringValue(a.value);
             case 'format_mcp_request':
-                return await this.formatMcpRequest(args.toolName, args.arguments);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.formatMcpRequest(a.toolName, a.arguments);
         }
     }
 

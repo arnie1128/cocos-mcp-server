@@ -1,153 +1,81 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const preferencesSchemas = {
+    open_preferences_settings: z.object({
+        tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open (optional)'),
+        args: z.array(z.any()).optional().describe('Additional arguments to pass to the tab'),
+    }),
+    query_preferences_config: z.object({
+        name: z.string().default('general').describe('Plugin or category name'),
+        path: z.string().optional().describe('Configuration path (optional)'),
+        type: z.enum(['default', 'global', 'local']).default('global').describe('Configuration type'),
+    }),
+    set_preferences_config: z.object({
+        name: z.string().describe('Plugin name'),
+        path: z.string().describe('Configuration path'),
+        value: z.any().describe('Configuration value'),
+        type: z.enum(['default', 'global', 'local']).default('global').describe('Configuration type'),
+    }),
+    get_all_preferences: z.object({}),
+    reset_preferences: z.object({
+        name: z.string().optional().describe('Specific preference category to reset (optional)'),
+        type: z.enum(['global', 'local']).default('global').describe('Configuration type to reset'),
+    }),
+    export_preferences: z.object({
+        exportPath: z.string().optional().describe('Path to export preferences file (optional)'),
+    }),
+    import_preferences: z.object({
+        importPath: z.string().describe('Path to import preferences file from'),
+    }),
+} as const;
+
+const preferencesToolMeta: Record<keyof typeof preferencesSchemas, string> = {
+    open_preferences_settings: 'Open preferences settings panel',
+    query_preferences_config: 'Query preferences configuration',
+    set_preferences_config: 'Set preferences configuration',
+    get_all_preferences: 'Get all available preferences categories',
+    reset_preferences: 'Reset preferences to default values',
+    export_preferences: 'Export current preferences configuration',
+    import_preferences: 'Import preferences configuration from file',
+};
 
 export class PreferencesTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'open_preferences_settings',
-                description: 'Open preferences settings panel',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        tab: {
-                            type: 'string',
-                            description: 'Preferences tab to open (optional)',
-                            enum: ['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']
-                        },
-                        args: {
-                            type: 'array',
-                            description: 'Additional arguments to pass to the tab'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'query_preferences_config',
-                description: 'Query preferences configuration',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        name: {
-                            type: 'string',
-                            description: 'Plugin or category name',
-                            default: 'general'
-                        },
-                        path: {
-                            type: 'string',
-                            description: 'Configuration path (optional)'
-                        },
-                        type: {
-                            type: 'string',
-                            description: 'Configuration type',
-                            enum: ['default', 'global', 'local'],
-                            default: 'global'
-                        }
-                    },
-                    required: ['name']
-                }
-            },
-            {
-                name: 'set_preferences_config',
-                description: 'Set preferences configuration',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        name: {
-                            type: 'string',
-                            description: 'Plugin name'
-                        },
-                        path: {
-                            type: 'string',
-                            description: 'Configuration path'
-                        },
-                        value: {
-                            description: 'Configuration value'
-                        },
-                        type: {
-                            type: 'string',
-                            description: 'Configuration type',
-                            enum: ['default', 'global', 'local'],
-                            default: 'global'
-                        }
-                    },
-                    required: ['name', 'path', 'value']
-                }
-            },
-            {
-                name: 'get_all_preferences',
-                description: 'Get all available preferences categories',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'reset_preferences',
-                description: 'Reset preferences to default values',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        name: {
-                            type: 'string',
-                            description: 'Specific preference category to reset (optional)'
-                        },
-                        type: {
-                            type: 'string',
-                            description: 'Configuration type to reset',
-                            enum: ['global', 'local'],
-                            default: 'global'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'export_preferences',
-                description: 'Export current preferences configuration',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        exportPath: {
-                            type: 'string',
-                            description: 'Path to export preferences file (optional)'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'import_preferences',
-                description: 'Import preferences configuration from file',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        importPath: {
-                            type: 'string',
-                            description: 'Path to import preferences file from'
-                        }
-                    },
-                    required: ['importPath']
-                }
-            }
-        ];
+        return (Object.keys(preferencesSchemas) as Array<keyof typeof preferencesSchemas>).map(name => ({
+            name,
+            description: preferencesToolMeta[name],
+            inputSchema: toInputSchema(preferencesSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof preferencesSchemas;
+        const schema = preferencesSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'open_preferences_settings':
-                return await this.openPreferencesSettings(args.tab, args.args);
+                return await this.openPreferencesSettings(a.tab, a.args);
             case 'query_preferences_config':
-                return await this.queryPreferencesConfig(args.name, args.path, args.type);
+                return await this.queryPreferencesConfig(a.name, a.path, a.type);
             case 'set_preferences_config':
-                return await this.setPreferencesConfig(args.name, args.path, args.value, args.type);
+                return await this.setPreferencesConfig(a.name, a.path, a.value, a.type);
             case 'get_all_preferences':
                 return await this.getAllPreferences();
             case 'reset_preferences':
-                return await this.resetPreferences(args.name, args.type);
+                return await this.resetPreferences(a.name, a.type);
             case 'export_preferences':
-                return await this.exportPreferences(args.exportPath);
+                return await this.exportPreferences(a.exportPath);
             case 'import_preferences':
-                return await this.importPreferences(args.importPath);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.importPreferences(a.importPath);
         }
     }
 
