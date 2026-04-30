@@ -36,6 +36,8 @@ source/
 │                           #   low-level Server + StreamableHTTPServerTransport)
 ├── lib/log.ts              # Global logger; debug gated by settings.enableDebugLog
 ├── lib/schema.ts           # zod helpers (toInputSchema, validateArgs, relaxJsonSchema)
+├── lib/scene-bridge.ts     # runSceneMethod helper: typed wrapper around
+│                           #   Editor.Message.request('scene','execute-scene-script',…)
 ├── settings.ts             # Server settings persistence (project settings/)
 ├── scene.ts                # Scene-context script run via Editor.Message 'execute-scene-script'
 ├── tools/                  # ToolExecutor implementations, one file per category
@@ -44,7 +46,7 @@ source/
 │   ├── scene-view-tools.ts        #  20 tools
 │   ├── node-tools.ts              #  15 tools
 │   ├── component-tools.ts         #  11 tools  (1776 lines)
-│   ├── prefab-tools.ts            #  12 tools  (2855 lines — biggest file)
+│   ├── prefab-tools.ts            #  13 tools  (P4 T-P4-3 added link/unlink/get_prefab_data)
 │   ├── project-tools.ts           #  24 tools
 │   ├── debug-tools.ts             #  11 tools
 │   ├── preferences-tools.ts       #   7 tools
@@ -66,9 +68,9 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: ~170. Original author's v1.5.0 plan was to collapse
-to ~50 action-router tools. We are not committing to that target until token
-cost is measured.
+Total tool count today: 160 (was 157 before P4 T-P4-3). Original author's
+v1.5.0 plan was to collapse to ~50 action-router tools. We are not committing
+to that target until token cost is measured.
 
 ## Landmines (read before editing)
 
@@ -80,7 +82,8 @@ cost is measured.
    `handleMCPRequest` and `handleSimpleAPIRequest` now return standard
    parse-error responses (`-32700` for MCP, 400 for REST) with the body
    truncated to 200 chars.
-3. ~~**Prefab API guesswork**~~ — fixed in P1 T-P1-6. Verified against
+3. ~~**Prefab API guesswork**~~ — fixed in P1 T-P1-6 + extended in P4 T-P4-3.
+   Verified against
    `node_modules/@cocos/creator-types/editor/packages/scene/@types/message.d.ts`:
    the only prefab-related channel that actually exists on the `scene` module
    is `restore-prefab`, taking `ResetComponentOptions = { uuid: string }`.
@@ -90,6 +93,22 @@ cost is measured.
    (`load-asset` / `apply-prefab` / `revert-prefab`) have been rewritten or
    marked unsupported, and the two existing `restore-prefab` callers now pass
    the correct `{ uuid }` object instead of positional args.
+
+   **P4 T-P4-3 (2026-05-01)**: the rest of the prefab surface lives on the
+   scene facade (`scene-facade-interface.d.ts`) and is reachable only through
+   `Editor.Message.request('scene', 'execute-scene-script', …)`. New
+   facade-backed methods in `source/scene.ts`:
+   `createPrefabFromNode` (now real, was a stub),
+   `applyPrefab`, `linkPrefab`, `unlinkPrefab`, `getPrefabData`. The
+   editor-side `prefab-tools.ts` now uses `runSceneMethodAsToolResponse`
+   from `lib/scene-bridge.ts` for these. `update_prefab` no longer
+   fail-loudly — it routes to `applyPrefab`; `create_prefab` tries the
+   facade first and only falls back to the legacy hand-rolled JSON path
+   if the facade is unavailable. New MCP tools: `prefab_link_prefab`,
+   `prefab_unlink_prefab`, `prefab_get_prefab_data`. The legacy hand-rolled
+   JSON path in `prefab-tools.ts` (~1000 lines under `createPrefabCustom` /
+   `createStandardPrefabContent`) is kept for now as a fallback; deletion
+   blocked on real-editor verification of the facade path.
 4. ~~**`console.log` is not gated**~~ — fixed in P0 + P1 T-P1-3.
    `source/lib/log.ts` exposes `logger.{debug,info,warn,error}` plus a
    backwards-compat `debugLog` alias. All 14 tool files, `mcp-server-sdk.ts`,

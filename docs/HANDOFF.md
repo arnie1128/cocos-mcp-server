@@ -14,8 +14,8 @@ P1 ✅ done (主架構部分)
    ├── T-P1-6 預製體 channel 驗證     ✅ done
    ├── T-P1-1 換官方 MCP SDK          ✅ done
    └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
-P4 🚧 in-progress（規劃 + 文件 done，實作 pending）
-   ├── T-P4-3 Prefab façade 工具集    ⏳ pending（Phase 1）
+P4 🚧 in-progress
+   ├── T-P4-3 Prefab façade 工具集    ✅ code done（⚠️ 未實機驗證）
    ├── T-P4-1 EventHandler 工具集     ⏳ pending（Phase 2）
    └── T-P4-2 Panel composable 拆分   ⏳ pending（Phase 3，可選）
 P2/P3 ⏳ pending
@@ -162,12 +162,12 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 - Apply（把實例改動推回資產）→ host 沒有；要走 scene-script + façade
   `applyPrefab(nodeUuid)`（見下節）
 
-## 2026-05-01：P4 規劃就位（讀後進 Phase 1）
+## 2026-05-01：P4 規劃就位 + Phase 1 done（程式碼層）
 
 詳細可行性分析：[`docs/analysis/v15-feasibility.md`](analysis/v15-feasibility.md)
 任務分解：[`docs/roadmap/05-v15-spec-parity.md`](roadmap/05-v15-spec-parity.md)
 
-**Phase 1 入口** — T-P4-3 Prefab façade 工具集：
+**Phase 1 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-3 Prefab façade 工具集：
 
 完整 prefab API 在 **scene façade**（`scene-facade-interface.d.ts`），只能透過
 `Editor.Message.request('scene', 'execute-scene-script', { name, method, args })`
@@ -181,18 +181,32 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 | Unlink（解除連接） | scene-script façade `unlinkPrefab(nodeUuid, removeNested)` |
 | 讀 prefab dump | scene-script façade `getPrefabData(nodeUuid)` |
 
-**Phase 1 落地清單**（按順序做）：
+**Phase 1 落地清單**（已完成）：
 
-1. `source/scene.ts`：補 5 個方法（createPrefabFromNode 重寫、applyPrefab、
-   linkPrefab、unlinkPrefab、getPrefabData）。
-2. `source/lib/scene-bridge.ts`（新檔）：抽 `runSceneMethod()` helper。
-3. `source/tools/prefab-tools.ts`：
+1. ✅ `source/scene.ts`：補 5 個方法（createPrefabFromNode 重寫、applyPrefab、
+   linkPrefab、unlinkPrefab、getPrefabData），加 `getPrefabFacade()` 在
+   `cce.Prefab` / `cce.SceneFacadeManager` 之間找可用 façade。
+2. ✅ `source/lib/scene-bridge.ts`（新檔）：抽 `runSceneMethod()` /
+   `runSceneMethodAsToolResponse()` helper。
+3. ✅ `source/tools/prefab-tools.ts`：
    - `updatePrefab` 改走 scene-bridge → applyPrefab，不再 fail loudly。
-   - 新增 zod schema：`link_prefab` / `unlink_prefab` / `get_prefab_data`。
-   - `createPrefab` 入口先試 scene-script，失敗 fallback 自寫 JSON。
-4. `tsc --noEmit` + `node scripts/smoke-mcp-sdk.js` 過。
-5. CLAUDE.md Landmines 加註：`updatePrefab` 已不 fail loudly。
-6. commit + push。
+   - 新增三個 MCP 工具：`link_prefab` / `unlink_prefab` / `get_prefab_data`
+     （走 zod schema、走 scene-bridge）。
+   - `createPrefab` 入口先試 scene-script `cce.Prefab.createPrefab`，
+     成功時 fire-and-forget `asset-db: refresh-asset` 補保險；失敗
+     fallback 自寫 JSON。
+4. ✅ `tsc --noEmit` 通過、`node scripts/smoke-mcp-sdk.js` 全綠
+   （tools count 157 → 160）。
+5. ✅ CLAUDE.md Landmines 加註：`updatePrefab` 已走 façade。
+
+**Phase 1 ⚠️ 未驗實機項**（等 Cocos Creator 上手測）：
+- `cce.Prefab.createPrefab(uuid, url)` url 雙寫：先試 `db://...`，失敗
+  試呼叫端原樣字串。實機驗哪個成功。
+- `applyPrefab` 是否自動觸發 asset-db re-import；目前 `update_prefab` 的
+  父呼叫端不額外 refresh，但 `create_prefab` 走 façade 路徑時有 refresh
+  補保險。
+- façade 偵測順序：`cce.Prefab` → `cce.SceneFacadeManager.instance` →
+  `cce.SceneFacadeManager`。實機若三者都不通，要回 scene.ts 補正確路徑。
 
 **Phase 2 入口** — T-P4-1 EventHandler 工具：在 `component-tools.ts` 新增
 `add_event_handler` / `remove_event_handler` / `list_event_handlers`，

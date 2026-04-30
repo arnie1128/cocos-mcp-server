@@ -1,6 +1,7 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, PrefabInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 
 const prefabPositionSchema = z.object({
     x: z.number().optional(),
@@ -47,6 +48,17 @@ const prefabSchemas = {
         nodeUuid: z.string().describe('Prefab instance node UUID'),
         assetUuid: z.string().describe('Prefab asset UUID'),
     }),
+    link_prefab: z.object({
+        nodeUuid: z.string().describe('Node UUID to connect to a prefab asset'),
+        assetUuid: z.string().describe('Prefab asset UUID to link the node to'),
+    }),
+    unlink_prefab: z.object({
+        nodeUuid: z.string().describe('Prefab instance node UUID to detach'),
+        removeNested: z.boolean().default(false).describe('Whether to also unlink nested prefab instances under this node'),
+    }),
+    get_prefab_data: z.object({
+        nodeUuid: z.string().describe('Prefab instance node UUID'),
+    }),
 } as const;
 
 const prefabToolMeta: Record<keyof typeof prefabSchemas, string> = {
@@ -54,12 +66,15 @@ const prefabToolMeta: Record<keyof typeof prefabSchemas, string> = {
     load_prefab: 'Load a prefab by path',
     instantiate_prefab: 'Instantiate a prefab in the scene',
     create_prefab: 'Create a prefab from a node with all children and components',
-    update_prefab: 'Update an existing prefab',
+    update_prefab: 'Apply prefab instance edits back to the prefab asset (cce.SceneFacade.applyPrefab)',
     revert_prefab: 'Revert prefab instance to original',
     get_prefab_info: 'Get detailed prefab information',
     validate_prefab: 'Validate a prefab file format',
     duplicate_prefab: 'Duplicate an existing prefab',
     restore_prefab_node: 'Restore prefab node using prefab asset (built-in undo record)',
+    link_prefab: 'Connect a regular node to a prefab asset (cce.SceneFacade.linkPrefab)',
+    unlink_prefab: 'Break a prefab instance link, optionally clearing nested instances (cce.SceneFacade.unlinkPrefab)',
+    get_prefab_data: 'Read the prefab dump for a prefab instance node (cce.SceneFacade.getPrefabData)',
 };
 
 export class PrefabTools implements ToolExecutor {
@@ -104,6 +119,12 @@ export class PrefabTools implements ToolExecutor {
                 return await this.duplicatePrefab(a);
             case 'restore_prefab_node':
                 return await this.restorePrefabNode(a.nodeUuid, a.assetUuid);
+            case 'link_prefab':
+                return await this.linkPrefab(a.nodeUuid, a.assetUuid);
+            case 'unlink_prefab':
+                return await this.unlinkPrefab(a.nodeUuid, a.removeNested);
+            case 'get_prefab_data':
+                return await this.getPrefabData(a.nodeUuid);
         }
     }
 
@@ -402,8 +423,36 @@ export class PrefabTools implements ToolExecutor {
                 const includeChildren = args.includeChildren !== false; // 默认为 true
                 const includeComponents = args.includeComponents !== false; // 默认为 true
 
-                // 优先使用新的 asset-db 方法创建预制体
-                debugLog('使用新的 asset-db 方法创建预制体...');
+                // First try the official scene-script facade. cce.Prefab.createPrefab
+                // is the path the editor itself uses; when it works it produces a
+                // 100%-engine-formatted prefab file so we don't need any of the
+                // hand-rolled JSON paths below.
+                debugLog('Trying scene-script cce.Prefab.createPrefab path...');
+                const facadeResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [args.nodeUuid, fullPath]);
+                if (facadeResult.success) {
+                    // Make sure asset-db notices the new file regardless of how the
+                    // facade chose to write it.
+                    try {
+                        await Editor.Message.request('asset-db', 'refresh-asset', fullPath);
+                    } catch (refreshErr: any) {
+                        debugLog(`refresh-asset after facade createPrefab failed (non-fatal): ${refreshErr?.message ?? refreshErr}`);
+                    }
+                    resolve({
+                        ...facadeResult,
+                        data: {
+                            ...(facadeResult.data ?? {}),
+                            prefabName,
+                            prefabPath: fullPath,
+                            method: 'scene-facade',
+                        },
+                    });
+                    return;
+                }
+                debugLog(`Facade path failed: ${facadeResult.error}; falling back to asset-db hand-rolled JSON path.`);
+
+                // Fallback: legacy asset-db method that hand-builds prefab JSON.
+                // Kept for editor builds where cce.Prefab is unavailable.
+                debugLog('使用 asset-db 方法创建预制体（fallback）...');
                 const assetDbResult = await this.createPrefabWithAssetDB(
                     args.nodeUuid,
                     fullPath,
@@ -951,16 +1000,33 @@ export class PrefabTools implements ToolExecutor {
     }
 
     private async updatePrefab(prefabPath: string, nodeUuid: string): Promise<ToolResponse> {
-        // "Apply instance changes back to the prefab asset" is not exposed by
-        // the public scene Editor.Message API. The original implementation
-        // called scene `apply-prefab`, which does not exist per
-        // @cocos/creator-types. Fail loudly so callers know to use the editor
-        // UI's Apply button instead of relying on a silently broken tool.
+        // Apply path. There is no host-process Editor.Message channel for
+        // this; the operation lives on the scene facade and is reachable
+        // via execute-scene-script (see source/scene.ts:applyPrefab).
+        const facadeResult = await runSceneMethodAsToolResponse('applyPrefab', [nodeUuid]);
+        if (facadeResult.success) {
+            return {
+                ...facadeResult,
+                data: { ...(facadeResult.data ?? {}), prefabPath, nodeUuid },
+            };
+        }
         return {
             success: false,
-            error: 'Applying prefab instance edits back to the prefab asset is not supported via Editor.Message in current Cocos Creator (3.8.x). Use the editor UI Apply button on the prefab instance, or save changes through scene save and update the prefab asset manually.',
+            error: facadeResult.error ?? 'applyPrefab failed via scene facade',
             data: { prefabPath, nodeUuid },
         };
+    }
+
+    private async linkPrefab(nodeUuid: string, assetUuid: string): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('linkPrefab', [nodeUuid, assetUuid]);
+    }
+
+    private async unlinkPrefab(nodeUuid: string, removeNested: boolean): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('unlinkPrefab', [nodeUuid, removeNested]);
+    }
+
+    private async getPrefabData(nodeUuid: string): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('getPrefabData', [nodeUuid]);
     }
 
     private async revertPrefab(nodeUuid: string): Promise<ToolResponse> {

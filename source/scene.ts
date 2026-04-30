@@ -1,6 +1,45 @@
 import { join } from 'path';
 module.paths.push(join(Editor.App.path, 'node_modules'));
 
+// `cce` is injected by Cocos Editor into the scene-script global scope.
+// It is not declared in `@cocos/creator-types` exports; declare a minimal
+// runtime shape just for what we touch here so TypeScript stays strict.
+declare const cce: undefined | {
+    Prefab?: PrefabFacade;
+    SceneFacadeManager?: { instance?: PrefabFacade } & PrefabFacade;
+};
+
+interface PrefabFacade {
+    createPrefab(nodeUuid: string, url: string): Promise<any>;
+    applyPrefab(nodeUuid: string): Promise<any>;
+    linkPrefab(nodeUuid: string, assetUuid: string): any;
+    unlinkPrefab(nodeUuid: string, removeNested: boolean): any;
+    getPrefabData(nodeUuid: string): any;
+    restorePrefab?(uuid: string, assetUuid: string): Promise<boolean>;
+}
+
+type FacadeLookup = { ok: true; value: PrefabFacade } | { ok: false; error: string };
+
+function getPrefabFacade(): FacadeLookup {
+    if (typeof cce === 'undefined' || cce === null) {
+        return { ok: false, error: 'cce global is not available; this method must run in a scene-script context' };
+    }
+    const candidates: Array<PrefabFacade | undefined> = [
+        cce.Prefab,
+        cce.SceneFacadeManager?.instance,
+        cce.SceneFacadeManager as PrefabFacade | undefined,
+    ];
+    for (const candidate of candidates) {
+        if (candidate && typeof candidate.createPrefab === 'function') {
+            return { ok: true, value: candidate };
+        }
+    }
+    return {
+        ok: false,
+        error: 'No prefab facade found on cce (cce.Prefab / cce.SceneFacadeManager). Cocos editor build may not expose the expected manager.',
+    };
+}
+
 export const methods: { [key: string]: (...any: any) => any } = {
     /**
      * Create a new scene
@@ -324,33 +363,114 @@ export const methods: { [key: string]: (...any: any) => any } = {
     },
 
     /**
-     * Create prefab from node
+     * Create prefab asset from a node via the official scene facade.
+     *
+     * Routes through `cce.Prefab.createPrefab` (the Cocos editor prefab
+     * manager exposed in scene-script context). The url accepts both
+     * `db://assets/...` and absolute filesystem paths in different editor
+     * builds, so we try both shapes and surface whichever fails.
      */
-    createPrefabFromNode(nodeUuid: string, prefabPath: string) {
+    async createPrefabFromNode(nodeUuid: string, url: string) {
+        const prefabMgr = getPrefabFacade();
+        if (!prefabMgr.ok) {
+            return { success: false, error: prefabMgr.error };
+        }
         try {
-            const { director, instantiate } = require('cc');
-            const scene = director.getScene();
-            if (!scene) {
-                return { success: false, error: 'No active scene' };
+            const tries: string[] = [];
+            // Prefer db:// form (matches asset-db query results) and fall
+            // back to whatever the caller passed verbatim.
+            const dbUrl = url.startsWith('db://') ? url : `db://assets/${url.replace(/^\/+/, '')}`;
+            tries.push(dbUrl);
+            if (dbUrl !== url) {
+                tries.push(url);
             }
 
-            const node = scene.getChildByUuid(nodeUuid);
-            if (!node) {
-                return { success: false, error: `Node with UUID ${nodeUuid} not found` };
-            }
-
-            // 注意：这里只是一个模拟实现，因为运行时环境下无法直接创建预制体文件
-            // 真正的预制体创建需要Editor API支持
-            return {
-                success: true,
-                data: {
-                    prefabPath: prefabPath,
-                    sourceNodeUuid: nodeUuid,
-                    message: `Prefab created from node '${node.name}' at ${prefabPath}`
+            const errors: string[] = [];
+            for (const candidate of tries) {
+                try {
+                    const result = await prefabMgr.value.createPrefab(nodeUuid, candidate);
+                    return {
+                        success: true,
+                        data: { url: candidate, sourceNodeUuid: nodeUuid, raw: result },
+                    };
+                } catch (err: any) {
+                    errors.push(`${candidate}: ${err?.message ?? err}`);
                 }
+            }
+            return {
+                success: false,
+                error: `cce.Prefab.createPrefab failed: ${errors.join('; ')}`,
             };
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Push prefab instance edits back to the prefab asset.
+     * Wraps scene facade `applyPrefab(nodeUuid)`.
+     */
+    async applyPrefab(nodeUuid: string) {
+        const prefabMgr = getPrefabFacade();
+        if (!prefabMgr.ok) {
+            return { success: false, error: prefabMgr.error };
+        }
+        try {
+            const result = await prefabMgr.value.applyPrefab(nodeUuid);
+            return { success: true, data: { applied: result, nodeUuid } };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Connect a regular node to a prefab asset (link).
+     * Wraps scene facade `linkPrefab(nodeUuid, assetUuid)`.
+     */
+    async linkPrefab(nodeUuid: string, assetUuid: string) {
+        const prefabMgr = getPrefabFacade();
+        if (!prefabMgr.ok) {
+            return { success: false, error: prefabMgr.error };
+        }
+        try {
+            const result = await prefabMgr.value.linkPrefab(nodeUuid, assetUuid);
+            return { success: true, data: { linked: result, nodeUuid, assetUuid } };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Break the prefab connection on a node.
+     * Wraps scene facade `unlinkPrefab(nodeUuid, removeNested)`.
+     */
+    async unlinkPrefab(nodeUuid: string, removeNested: boolean) {
+        const prefabMgr = getPrefabFacade();
+        if (!prefabMgr.ok) {
+            return { success: false, error: prefabMgr.error };
+        }
+        try {
+            const result = await prefabMgr.value.unlinkPrefab(nodeUuid, removeNested);
+            return { success: true, data: { unlinked: result, nodeUuid, removeNested } };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Read the prefab dump for a prefab instance node.
+     * Wraps scene facade `getPrefabData(nodeUuid)`.
+     */
+    getPrefabData(nodeUuid: string) {
+        const prefabMgr = getPrefabFacade();
+        if (!prefabMgr.ok) {
+            return { success: false, error: prefabMgr.error };
+        }
+        try {
+            const data = prefabMgr.value.getPrefabData(nodeUuid);
+            return { success: true, data };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
         }
     },
 
