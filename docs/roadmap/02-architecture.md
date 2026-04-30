@@ -12,9 +12,11 @@
 - ✅ T-P1-2 工具註冊表（commit `c411a9b`）：`source/tools/registry.ts` 一次
   實例化、`MCPServer` / `ToolManager` 共用同一份 ToolRegistry，main.ts 在
   load 時建立並重用。
-- 🚧 T-P1-4 zod schema：`source/lib/schema.ts` helper 已落地、
-  node-tools.ts（11 個工具）已試點完成並驗證 inputSchema 等價於原手寫版本。
-  剩 13 個工具檔待擴展。
+- ✅ T-P1-4 zod schema（commits `6e6d720` pilot、`cba2fe1` `f2383a3`
+  `24dfb45` `bafff81` `8342036` 5 batches）：14 個 tool 檔（157 tools）全部
+  改為 module-scope schema map + `validateArgs` dispatch；schema 行數從
+  ~3200 縮為 ~1100；helper `relaxJsonSchema` 抹平 zod 4 與手寫版的差異
+  （`additionalProperties:false`、`.default()` vs `required`）。
 - ⏳ T-P1-6 預製體 channel 驗證 — 待做。
 - ⏳ T-P1-1 換官方 MCP SDK — 待做。
 - ⏳ T-P1-5 structured content — 待做（與 T-P1-1 一起）。

@@ -1,4 +1,4 @@
-# Session Handoff — 2026-04-30 暫停點
+# Session Handoff — 2026-04-30
 
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
@@ -6,112 +6,22 @@
 ## 目前進度（最後更新：2026-04-30）
 
 ```
-P0 ✅ done     (commit dafc25e..c42531a, docs c42531a..7fb416c)
-P1 🚧 in-progress
-   ├── T-P1-3 Logger 全面化         ✅ done (c411a9b)
-   ├── T-P1-2 工具註冊表去重複實例化  ✅ done (c411a9b)
-   ├── T-P1-4 zod schema             🚧 試點完成（node-tools.ts），13 檔待擴展 (6e6d720)
-   ├── T-P1-6 預製體 channel 驗證     ⏳ pending
-   ├── T-P1-1 換官方 MCP SDK         ⏳ pending
+P0 ✅ done
+P1 🚧 in-progress  (約 60% 完成)
+   ├── T-P1-3 Logger 全面化           ✅ done (c411a9b)
+   ├── T-P1-2 工具註冊表去重複實例化   ✅ done (c411a9b)
+   ├── T-P1-4 zod schema (14 檔全部)  ✅ done (8342036)
+   ├── T-P1-6 預製體 channel 驗證     ⏳ pending  ← 建議下一個做
+   ├── T-P1-1 換官方 MCP SDK          ⏳ pending
    └── T-P1-5 structured content     ⏳ pending（與 T-P1-1 一起）
 P2/P3/P4 ⏳ pending
 ```
 
-## 立即能接手的下一步：T-P1-4 擴展
-
-把 `nodeSchemas` 模式套用到剩 13 個 tool 檔。**參考範本**：
-`source/tools/node-tools.ts` 的整體結構（schema map → getTools 動態產出 →
-execute 先 validateArgs 再 dispatch）。
-
-### 建議擴展順序（從簡單到複雜）
-
-| 順序 | 檔案 | 工具數 | 備註 |
-|---|---|---|---|
-| 1 | `server-tools.ts` | 6 | 最簡單，先暖身 |
-| 2 | `preferences-tools.ts` | 7 | 簡單 |
-| 3 | `broadcast-tools.ts` | 5 | 簡單 |
-| 4 | `validation-tools.ts` | 3 | 極簡 |
-| 5 | `reference-image-tools.ts` | 12 | 中等 |
-| 6 | `scene-tools.ts` | 10 | 中等 |
-| 7 | `debug-tools.ts` | 11 | 中等 |
-| 8 | `asset-advanced-tools.ts` | 11 | 中等 |
-| 9 | `project-tools.ts` | 24 | 大但結構清楚 |
-| 10 | `scene-view-tools.ts` | 20 | 大 |
-| 11 | `component-tools.ts` | 11 | **大量 console（已 P0 處理），但 schema 可能有複雜引用型別** |
-| 12 | `scene-advanced-tools.ts` | 23 | 混雜度高 |
-| 13 | `prefab-tools.ts` | 12 | **最後做**，與 T-P1-6 channel 驗證有相依性 |
-
-### 套用範本（複製 node-tools.ts 的結構）
-
-```ts
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const myToolSchemas = {
-    tool_a: z.object({ ... }),
-    tool_b: z.object({ ... }),
-} as const;
-
-const myToolMeta: Record<keyof typeof myToolSchemas, string> = {
-    tool_a: 'description for tool_a',
-    tool_b: 'description for tool_b',
-};
-
-export class MyTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(myToolSchemas) as Array<keyof typeof myToolSchemas>).map(name => ({
-            name,
-            description: myToolMeta[name],
-            inputSchema: toInputSchema(myToolSchemas[name]),
-        }));
-    }
-
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof myToolSchemas;
-        const schema = myToolSchemas[schemaName];
-        if (!schema) throw new Error(`Unknown tool: ${toolName}`);
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) return validation.response;
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'tool_a': return await this.toolA(a);
-            // ...
-        }
-    }
-}
-```
-
-### 等價性驗證（每檔做一次）
-
-對照原始檔的「同一個工具」inputSchema 與 zod 產出，用以下指令快速看：
-
-```bash
-node -e "const { MyTools } = require('./dist/tools/my-tools.js');
-const tools = new MyTools().getTools();
-console.log(JSON.stringify(tools.find(t => t.name === 'tool_a').inputSchema, null, 2));"
-```
-
-**檢查重點**：
-1. `required` 欄位是否一致（含 default 的欄位**不應**出現在 required；helper 已自動處理）
-2. 不應出現 `additionalProperties: false`（helper 已遞迴清掉）
-3. 巢狀物件每個欄位的 description 與型別跟原版相同
-4. enum 值順序一致
-
-### 已知 zod 4 v.s. 手寫的差異（helper 已抹平）
-
-| 議題 | zod 4 預設 | 手寫慣例 | helper 處理 |
-|---|---|---|---|
-| `additionalProperties: false` | 加入 | 不加 | `relaxJsonSchema` 遞迴刪除 |
-| `.default()` 欄位是否在 `required` | 在 | 不在 | helper 從 required 過濾掉 |
-| `$schema` URL | 在頂層 | 不加 | helper 刪掉 |
-
-### Schema 寫法注意事項
-
-- **欄位純可選**（無 default）：`z.string().optional()`
-- **欄位有預設值**：`z.boolean().default(false)`（zod 會處理輸入時補 default）
-- **任意型別欄位**（原本只有 description 沒有 type）：`z.any().describe('...')`
-- **enum**：`z.enum(['A', 'B'])`，順序保留
-- **巢狀物件**：直接 `z.object({ ... })` 巢套；如複用，抽 const
+zod schema 落地後的 source size：14 個 tool 檔總 schema 行數從 ~3200 行
+（手寫 JSON Schema）縮為 ~1100 行（zod）。所有 inputSchema 已透過
+`source/lib/schema.ts` 的 `relaxJsonSchema` 後處理對齊原版風格
+（無 `additionalProperties:false`、default 欄位不入 `required`）。
+`createToolRegistry()` 回傳 14 類 / 157 tools。
 
 ## 還沒動的 P1 任務
 
