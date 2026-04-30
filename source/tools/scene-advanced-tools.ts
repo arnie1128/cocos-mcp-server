@@ -1,394 +1,162 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+// Several tools accept either a single UUID or an array of UUIDs.
+const stringOrStringArray = z.union([z.string(), z.array(z.string())]);
+
+const sceneAdvancedSchemas = {
+    reset_node_property: z.object({
+        uuid: z.string().describe('Node UUID'),
+        path: z.string().describe('Property path (e.g., position, rotation, scale)'),
+    }),
+    move_array_element: z.object({
+        uuid: z.string().describe('Node UUID'),
+        path: z.string().describe('Array property path (e.g., __comps__)'),
+        target: z.number().describe('Target item original index'),
+        offset: z.number().describe('Offset amount (positive or negative)'),
+    }),
+    remove_array_element: z.object({
+        uuid: z.string().describe('Node UUID'),
+        path: z.string().describe('Array property path'),
+        index: z.number().describe('Target item index to remove'),
+    }),
+    copy_node: z.object({
+        uuids: stringOrStringArray.describe('Node UUID or array of UUIDs to copy'),
+    }),
+    paste_node: z.object({
+        target: z.string().describe('Target parent node UUID'),
+        uuids: stringOrStringArray.describe('Node UUIDs to paste'),
+        keepWorldTransform: z.boolean().default(false).describe('Keep world transform coordinates'),
+    }),
+    cut_node: z.object({
+        uuids: stringOrStringArray.describe('Node UUID or array of UUIDs to cut'),
+    }),
+    reset_node_transform: z.object({
+        uuid: z.string().describe('Node UUID'),
+    }),
+    reset_component: z.object({
+        uuid: z.string().describe('Component UUID'),
+    }),
+    restore_prefab: z.object({
+        nodeUuid: z.string().describe('Node UUID'),
+        assetUuid: z.string().describe('Prefab asset UUID'),
+    }),
+    execute_component_method: z.object({
+        uuid: z.string().describe('Component UUID'),
+        name: z.string().describe('Method name'),
+        args: z.array(z.any()).default([]).describe('Method arguments'),
+    }),
+    execute_scene_script: z.object({
+        name: z.string().describe('Plugin name'),
+        method: z.string().describe('Method name'),
+        args: z.array(z.any()).default([]).describe('Method arguments'),
+    }),
+    scene_snapshot: z.object({}),
+    scene_snapshot_abort: z.object({}),
+    begin_undo_recording: z.object({
+        nodeUuid: z.string().describe('Node UUID to record'),
+    }),
+    end_undo_recording: z.object({
+        undoId: z.string().describe('Undo recording ID from begin_undo_recording'),
+    }),
+    cancel_undo_recording: z.object({
+        undoId: z.string().describe('Undo recording ID to cancel'),
+    }),
+    soft_reload_scene: z.object({}),
+    query_scene_ready: z.object({}),
+    query_scene_dirty: z.object({}),
+    query_scene_classes: z.object({
+        extends: z.string().optional().describe('Filter classes that extend this base class'),
+    }),
+    query_scene_components: z.object({}),
+    query_component_has_script: z.object({
+        className: z.string().describe('Script class name to check'),
+    }),
+    query_nodes_by_asset_uuid: z.object({
+        assetUuid: z.string().describe('Asset UUID to search for'),
+    }),
+} as const;
+
+const sceneAdvancedToolMeta: Record<keyof typeof sceneAdvancedSchemas, string> = {
+    reset_node_property: 'Reset node property to default value',
+    move_array_element: 'Move array element position',
+    remove_array_element: 'Remove array element at specific index',
+    copy_node: 'Copy node for later paste operation',
+    paste_node: 'Paste previously copied nodes',
+    cut_node: 'Cut node (copy + mark for move)',
+    reset_node_transform: 'Reset node position, rotation and scale',
+    reset_component: 'Reset component to default values',
+    restore_prefab: 'Restore prefab instance from asset',
+    execute_component_method: 'Execute method on component',
+    execute_scene_script: 'Execute scene script method',
+    scene_snapshot: 'Create scene state snapshot',
+    scene_snapshot_abort: 'Abort scene snapshot creation',
+    begin_undo_recording: 'Begin recording undo data',
+    end_undo_recording: 'End recording undo data',
+    cancel_undo_recording: 'Cancel undo recording',
+    soft_reload_scene: 'Soft reload current scene',
+    query_scene_ready: 'Check if scene is ready',
+    query_scene_dirty: 'Check if scene has unsaved changes',
+    query_scene_classes: 'Query all registered classes',
+    query_scene_components: 'Query available scene components',
+    query_component_has_script: 'Check if component has script',
+    query_nodes_by_asset_uuid: 'Find nodes that use specific asset UUID',
+};
 
 export class SceneAdvancedTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'reset_node_property',
-                description: 'Reset node property to default value',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        path: {
-                            type: 'string',
-                            description: 'Property path (e.g., position, rotation, scale)'
-                        }
-                    },
-                    required: ['uuid', 'path']
-                }
-            },
-            {
-                name: 'move_array_element',
-                description: 'Move array element position',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        path: {
-                            type: 'string',
-                            description: 'Array property path (e.g., __comps__)'
-                        },
-                        target: {
-                            type: 'number',
-                            description: 'Target item original index'
-                        },
-                        offset: {
-                            type: 'number',
-                            description: 'Offset amount (positive or negative)'
-                        }
-                    },
-                    required: ['uuid', 'path', 'target', 'offset']
-                }
-            },
-            {
-                name: 'remove_array_element',
-                description: 'Remove array element at specific index',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        path: {
-                            type: 'string',
-                            description: 'Array property path'
-                        },
-                        index: {
-                            type: 'number',
-                            description: 'Target item index to remove'
-                        }
-                    },
-                    required: ['uuid', 'path', 'index']
-                }
-            },
-            {
-                name: 'copy_node',
-                description: 'Copy node for later paste operation',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuids: {
-                            oneOf: [
-                                { type: 'string' },
-                                { type: 'array', items: { type: 'string' } }
-                            ],
-                            description: 'Node UUID or array of UUIDs to copy'
-                        }
-                    },
-                    required: ['uuids']
-                }
-            },
-            {
-                name: 'paste_node',
-                description: 'Paste previously copied nodes',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        target: {
-                            type: 'string',
-                            description: 'Target parent node UUID'
-                        },
-                        uuids: {
-                            oneOf: [
-                                { type: 'string' },
-                                { type: 'array', items: { type: 'string' } }
-                            ],
-                            description: 'Node UUIDs to paste'
-                        },
-                        keepWorldTransform: {
-                            type: 'boolean',
-                            description: 'Keep world transform coordinates',
-                            default: false
-                        }
-                    },
-                    required: ['target', 'uuids']
-                }
-            },
-            {
-                name: 'cut_node',
-                description: 'Cut node (copy + mark for move)',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuids: {
-                            oneOf: [
-                                { type: 'string' },
-                                { type: 'array', items: { type: 'string' } }
-                            ],
-                            description: 'Node UUID or array of UUIDs to cut'
-                        }
-                    },
-                    required: ['uuids']
-                }
-            },
-            {
-                name: 'reset_node_transform',
-                description: 'Reset node position, rotation and scale',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        }
-                    },
-                    required: ['uuid']
-                }
-            },
-            {
-                name: 'reset_component',
-                description: 'Reset component to default values',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Component UUID'
-                        }
-                    },
-                    required: ['uuid']
-                }
-            },
-            {
-                name: 'restore_prefab',
-                description: 'Restore prefab instance from asset',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        assetUuid: {
-                            type: 'string',
-                            description: 'Prefab asset UUID'
-                        }
-                    },
-                    required: ['nodeUuid', 'assetUuid']
-                }
-            },
-            {
-                name: 'execute_component_method',
-                description: 'Execute method on component',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        uuid: {
-                            type: 'string',
-                            description: 'Component UUID'
-                        },
-                        name: {
-                            type: 'string',
-                            description: 'Method name'
-                        },
-                        args: {
-                            type: 'array',
-                            description: 'Method arguments',
-                            default: []
-                        }
-                    },
-                    required: ['uuid', 'name']
-                }
-            },
-            {
-                name: 'execute_scene_script',
-                description: 'Execute scene script method',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        name: {
-                            type: 'string',
-                            description: 'Plugin name'
-                        },
-                        method: {
-                            type: 'string',
-                            description: 'Method name'
-                        },
-                        args: {
-                            type: 'array',
-                            description: 'Method arguments',
-                            default: []
-                        }
-                    },
-                    required: ['name', 'method']
-                }
-            },
-            {
-                name: 'scene_snapshot',
-                description: 'Create scene state snapshot',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'scene_snapshot_abort',
-                description: 'Abort scene snapshot creation',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'begin_undo_recording',
-                description: 'Begin recording undo data',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID to record'
-                        }
-                    },
-                    required: ['nodeUuid']
-                }
-            },
-            {
-                name: 'end_undo_recording',
-                description: 'End recording undo data',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        undoId: {
-                            type: 'string',
-                            description: 'Undo recording ID from begin_undo_recording'
-                        }
-                    },
-                    required: ['undoId']
-                }
-            },
-            {
-                name: 'cancel_undo_recording',
-                description: 'Cancel undo recording',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        undoId: {
-                            type: 'string',
-                            description: 'Undo recording ID to cancel'
-                        }
-                    },
-                    required: ['undoId']
-                }
-            },
-            {
-                name: 'soft_reload_scene',
-                description: 'Soft reload current scene',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_scene_ready',
-                description: 'Check if scene is ready',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_scene_dirty',
-                description: 'Check if scene has unsaved changes',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_scene_classes',
-                description: 'Query all registered classes',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        extends: {
-                            type: 'string',
-                            description: 'Filter classes that extend this base class'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'query_scene_components',
-                description: 'Query available scene components',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'query_component_has_script',
-                description: 'Check if component has script',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        className: {
-                            type: 'string',
-                            description: 'Script class name to check'
-                        }
-                    },
-                    required: ['className']
-                }
-            },
-            {
-                name: 'query_nodes_by_asset_uuid',
-                description: 'Find nodes that use specific asset UUID',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        assetUuid: {
-                            type: 'string',
-                            description: 'Asset UUID to search for'
-                        }
-                    },
-                    required: ['assetUuid']
-                }
-            }
-        ];
+        return (Object.keys(sceneAdvancedSchemas) as Array<keyof typeof sceneAdvancedSchemas>).map(name => ({
+            name,
+            description: sceneAdvancedToolMeta[name],
+            inputSchema: toInputSchema(sceneAdvancedSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof sceneAdvancedSchemas;
+        const schema = sceneAdvancedSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'reset_node_property':
-                return await this.resetNodeProperty(args.uuid, args.path);
+                return await this.resetNodeProperty(a.uuid, a.path);
             case 'move_array_element':
-                return await this.moveArrayElement(args.uuid, args.path, args.target, args.offset);
+                return await this.moveArrayElement(a.uuid, a.path, a.target, a.offset);
             case 'remove_array_element':
-                return await this.removeArrayElement(args.uuid, args.path, args.index);
+                return await this.removeArrayElement(a.uuid, a.path, a.index);
             case 'copy_node':
-                return await this.copyNode(args.uuids);
+                return await this.copyNode(a.uuids);
             case 'paste_node':
-                return await this.pasteNode(args.target, args.uuids, args.keepWorldTransform);
+                return await this.pasteNode(a.target, a.uuids, a.keepWorldTransform);
             case 'cut_node':
-                return await this.cutNode(args.uuids);
+                return await this.cutNode(a.uuids);
             case 'reset_node_transform':
-                return await this.resetNodeTransform(args.uuid);
+                return await this.resetNodeTransform(a.uuid);
             case 'reset_component':
-                return await this.resetComponent(args.uuid);
+                return await this.resetComponent(a.uuid);
             case 'restore_prefab':
-                return await this.restorePrefab(args.nodeUuid, args.assetUuid);
+                return await this.restorePrefab(a.nodeUuid, a.assetUuid);
             case 'execute_component_method':
-                return await this.executeComponentMethod(args.uuid, args.name, args.args);
+                return await this.executeComponentMethod(a.uuid, a.name, a.args);
             case 'execute_scene_script':
-                return await this.executeSceneScript(args.name, args.method, args.args);
+                return await this.executeSceneScript(a.name, a.method, a.args);
             case 'scene_snapshot':
                 return await this.sceneSnapshot();
             case 'scene_snapshot_abort':
                 return await this.sceneSnapshotAbort();
             case 'begin_undo_recording':
-                return await this.beginUndoRecording(args.nodeUuid);
+                return await this.beginUndoRecording(a.nodeUuid);
             case 'end_undo_recording':
-                return await this.endUndoRecording(args.undoId);
+                return await this.endUndoRecording(a.undoId);
             case 'cancel_undo_recording':
-                return await this.cancelUndoRecording(args.undoId);
+                return await this.cancelUndoRecording(a.undoId);
             case 'soft_reload_scene':
                 return await this.softReloadScene();
             case 'query_scene_ready':
@@ -396,15 +164,13 @@ export class SceneAdvancedTools implements ToolExecutor {
             case 'query_scene_dirty':
                 return await this.querySceneDirty();
             case 'query_scene_classes':
-                return await this.querySceneClasses(args.extends);
+                return await this.querySceneClasses(a.extends);
             case 'query_scene_components':
                 return await this.querySceneComponents();
             case 'query_component_has_script':
-                return await this.queryComponentHasScript(args.className);
+                return await this.queryComponentHasScript(a.className);
             case 'query_nodes_by_asset_uuid':
-                return await this.queryNodesByAssetUuid(args.assetUuid);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.queryNodesByAssetUuid(a.assetUuid);
         }
     }
 

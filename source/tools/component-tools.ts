@@ -1,206 +1,135 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const setComponentPropertyValueDescription =
+    'Property value - Use the corresponding data format based on propertyType:\n\n' +
+    '📝 Basic Data Types:\n' +
+    '• string: "Hello World" (text string)\n' +
+    '• number/integer/float: 42 or 3.14 (numeric value)\n' +
+    '• boolean: true or false (boolean value)\n\n' +
+    '🎨 Color Type:\n' +
+    '• color: {"r":255,"g":0,"b":0,"a":255} (RGBA values, range 0-255)\n' +
+    '  - Alternative: "#FF0000" (hexadecimal format)\n' +
+    '  - Transparency: a value controls opacity, 255 = fully opaque, 0 = fully transparent\n\n' +
+    '📐 Vector and Size Types:\n' +
+    '• vec2: {"x":100,"y":50} (2D vector)\n' +
+    '• vec3: {"x":1,"y":2,"z":3} (3D vector)\n' +
+    '• size: {"width":100,"height":50} (size dimensions)\n\n' +
+    '🔗 Reference Types (using UUID strings):\n' +
+    '• node: "target-node-uuid" (node reference)\n' +
+    '  How to get: Use get_all_nodes or find_node_by_name to get node UUIDs\n' +
+    '• component: "target-node-uuid" (component reference)\n' +
+    '  How it works: \n' +
+    '    1. Provide the UUID of the NODE that contains the target component\n' +
+    '    2. System auto-detects required component type from property metadata\n' +
+    '    3. Finds the component on target node and gets its scene __id__\n' +
+    '    4. Sets reference using the scene __id__ (not node UUID)\n' +
+    '  Example: value="label-node-uuid" will find cc.Label and use its scene ID\n' +
+    '• spriteFrame: "spriteframe-uuid" (sprite frame asset)\n' +
+    '  How to get: Check asset database or use asset browser\n' +
+    '• prefab: "prefab-uuid" (prefab asset)\n' +
+    '  How to get: Check asset database or use asset browser\n' +
+    '• asset: "asset-uuid" (generic asset reference)\n' +
+    '  How to get: Check asset database or use asset browser\n\n' +
+    '📋 Array Types:\n' +
+    '• nodeArray: ["uuid1","uuid2"] (array of node UUIDs)\n' +
+    '• colorArray: [{"r":255,"g":0,"b":0,"a":255}] (array of colors)\n' +
+    '• numberArray: [1,2,3,4,5] (array of numbers)\n' +
+    '• stringArray: ["item1","item2"] (array of strings)';
+
+const setComponentPropertyPropertyDescription =
+    'Property name - The property to set. Common properties include:\n' +
+    '• cc.Label: string (text content), fontSize (font size), color (text color)\n' +
+    '• cc.Sprite: spriteFrame (sprite frame), color (tint color), sizeMode (size mode)\n' +
+    '• cc.Button: normalColor (normal color), pressedColor (pressed color), target (target node)\n' +
+    '• cc.UITransform: contentSize (content size), anchorPoint (anchor point)\n' +
+    '• Custom Scripts: Based on properties defined in the script';
+
+const componentSchemas = {
+    add_component: z.object({
+        nodeUuid: z.string().describe('Target node UUID. REQUIRED: You must specify the exact node to add the component to. Use get_all_nodes or find_node_by_name to get the UUID of the desired node.'),
+        componentType: z.string().describe('Component type (e.g., cc.Sprite, cc.Label, cc.Button)'),
+    }),
+    remove_component: z.object({
+        nodeUuid: z.string().describe('Node UUID'),
+        componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
+    }),
+    get_components: z.object({
+        nodeUuid: z.string().describe('Node UUID'),
+    }),
+    get_component_info: z.object({
+        nodeUuid: z.string().describe('Node UUID'),
+        componentType: z.string().describe('Component type to get info for'),
+    }),
+    set_component_property: z.object({
+        nodeUuid: z.string().describe('Target node UUID - Must specify the node to operate on'),
+        // No enum on componentType — custom scripts must be allowed.
+        componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
+        property: z.string().describe(setComponentPropertyPropertyDescription),
+        propertyType: z.enum([
+            'string', 'number', 'boolean', 'integer', 'float',
+            'color', 'vec2', 'vec3', 'size',
+            'node', 'component', 'spriteFrame', 'prefab', 'asset',
+            'nodeArray', 'colorArray', 'numberArray', 'stringArray',
+        ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
+        value: z.any().describe(setComponentPropertyValueDescription),
+    }),
+    attach_script: z.object({
+        nodeUuid: z.string().describe('Node UUID'),
+        scriptPath: z.string().describe('Script asset path (e.g., db://assets/scripts/MyScript.ts)'),
+    }),
+    get_available_components: z.object({
+        category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter'),
+    }),
+} as const;
+
+const componentToolMeta: Record<keyof typeof componentSchemas, string> = {
+    add_component: 'Add a component to a specific node. IMPORTANT: You must provide the nodeUuid parameter to specify which node to add the component to.',
+    remove_component: "Remove a component from a node. componentType must be the component's classId (cid, i.e. the type field from getComponents), not the script name or class name. Use getComponents to get the correct cid.",
+    get_components: 'Get all components of a node',
+    get_component_info: 'Get specific component information',
+    set_component_property: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+    attach_script: 'Attach a script component to a node',
+    get_available_components: 'Get list of available component types',
+};
 
 export class ComponentTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'add_component',
-                description: 'Add a component to a specific node. IMPORTANT: You must provide the nodeUuid parameter to specify which node to add the component to.',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Target node UUID. REQUIRED: You must specify the exact node to add the component to. Use get_all_nodes or find_node_by_name to get the UUID of the desired node.'
-                        },
-                        componentType: {
-                            type: 'string',
-                            description: 'Component type (e.g., cc.Sprite, cc.Label, cc.Button)'
-                        }
-                    },
-                    required: ['nodeUuid', 'componentType']
-                }
-            },
-            {
-                name: 'remove_component',
-                description: 'Remove a component from a node. componentType must be the component\'s classId (cid, i.e. the type field from getComponents), not the script name or class name. Use getComponents to get the correct cid.',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        componentType: {
-                            type: 'string',
-                            description: 'Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'
-                        }
-                    },
-                    required: ['nodeUuid', 'componentType']
-                }
-            },
-            {
-                name: 'get_components',
-                description: 'Get all components of a node',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        }
-                    },
-                    required: ['nodeUuid']
-                }
-            },
-            {
-                name: 'get_component_info',
-                description: 'Get specific component information',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        componentType: {
-                            type: 'string',
-                            description: 'Component type to get info for'
-                        }
-                    },
-                    required: ['nodeUuid', 'componentType']
-                }
-            },
-            {
-                name: 'set_component_property',
-                description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Target node UUID - Must specify the node to operate on'
-                        },
-                        componentType: {
-                            type: 'string',
-                            description: 'Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.',
-                            // 移除enum限制，允许任意组件类型包括自定义脚本
-                        },
-                        property: {
-                            type: 'string',
-                            description: 'Property name - The property to set. Common properties include:\n' +
-                                '• cc.Label: string (text content), fontSize (font size), color (text color)\n' +
-                                '• cc.Sprite: spriteFrame (sprite frame), color (tint color), sizeMode (size mode)\n' +
-                                '• cc.Button: normalColor (normal color), pressedColor (pressed color), target (target node)\n' +
-                                '• cc.UITransform: contentSize (content size), anchorPoint (anchor point)\n' +
-                                '• Custom Scripts: Based on properties defined in the script'
-                        },
-                        propertyType: {
-                            type: 'string',
-                            description: 'Property type - Must explicitly specify the property data type for correct value conversion and validation',
-                            enum: [
-                                'string', 'number', 'boolean', 'integer', 'float',
-                                'color', 'vec2', 'vec3', 'size',
-                                'node', 'component', 'spriteFrame', 'prefab', 'asset',
-                                'nodeArray', 'colorArray', 'numberArray', 'stringArray'
-                            ]
-                                                },
-
-                        value: {
-                            description: 'Property value - Use the corresponding data format based on propertyType:\n\n' +
-                                '📝 Basic Data Types:\n' +
-                                '• string: "Hello World" (text string)\n' +
-                                '• number/integer/float: 42 or 3.14 (numeric value)\n' +
-                                '• boolean: true or false (boolean value)\n\n' +
-                                '🎨 Color Type:\n' +
-                                '• color: {"r":255,"g":0,"b":0,"a":255} (RGBA values, range 0-255)\n' +
-                                '  - Alternative: "#FF0000" (hexadecimal format)\n' +
-                                '  - Transparency: a value controls opacity, 255 = fully opaque, 0 = fully transparent\n\n' +
-                                '📐 Vector and Size Types:\n' +
-                                '• vec2: {"x":100,"y":50} (2D vector)\n' +
-                                '• vec3: {"x":1,"y":2,"z":3} (3D vector)\n' +
-                                '• size: {"width":100,"height":50} (size dimensions)\n\n' +
-                                '🔗 Reference Types (using UUID strings):\n' +
-                                '• node: "target-node-uuid" (node reference)\n' +
-                                '  How to get: Use get_all_nodes or find_node_by_name to get node UUIDs\n' +
-                                '• component: "target-node-uuid" (component reference)\n' +
-                                '  How it works: \n' +
-                                '    1. Provide the UUID of the NODE that contains the target component\n' +
-                                '    2. System auto-detects required component type from property metadata\n' +
-                                '    3. Finds the component on target node and gets its scene __id__\n' +
-                                '    4. Sets reference using the scene __id__ (not node UUID)\n' +
-                                '  Example: value="label-node-uuid" will find cc.Label and use its scene ID\n' +
-                                '• spriteFrame: "spriteframe-uuid" (sprite frame asset)\n' +
-                                '  How to get: Check asset database or use asset browser\n' +
-                                '• prefab: "prefab-uuid" (prefab asset)\n' +
-                                '  How to get: Check asset database or use asset browser\n' +
-                                '• asset: "asset-uuid" (generic asset reference)\n' +
-                                '  How to get: Check asset database or use asset browser\n\n' +
-                                '📋 Array Types:\n' +
-                                '• nodeArray: ["uuid1","uuid2"] (array of node UUIDs)\n' +
-                                '• colorArray: [{"r":255,"g":0,"b":0,"a":255}] (array of colors)\n' +
-                                '• numberArray: [1,2,3,4,5] (array of numbers)\n' +
-                                '• stringArray: ["item1","item2"] (array of strings)'
-                        }
-                    },
-                    required: ['nodeUuid', 'componentType', 'property', 'propertyType', 'value']
-                }
-            },
-            {
-                name: 'attach_script',
-                description: 'Attach a script component to a node',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID'
-                        },
-                        scriptPath: {
-                            type: 'string',
-                            description: 'Script asset path (e.g., db://assets/scripts/MyScript.ts)'
-                        }
-                    },
-                    required: ['nodeUuid', 'scriptPath']
-                }
-            },
-            {
-                name: 'get_available_components',
-                description: 'Get list of available component types',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        category: {
-                            type: 'string',
-                            description: 'Component category filter',
-                            enum: ['all', 'renderer', 'ui', 'physics', 'animation', 'audio'],
-                            default: 'all'
-                        }
-                    }
-                }
-            }
-        ];
+        return (Object.keys(componentSchemas) as Array<keyof typeof componentSchemas>).map(name => ({
+            name,
+            description: componentToolMeta[name],
+            inputSchema: toInputSchema(componentSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof componentSchemas;
+        const schema = componentSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'add_component':
-                return await this.addComponent(args.nodeUuid, args.componentType);
+                return await this.addComponent(a.nodeUuid, a.componentType);
             case 'remove_component':
-                return await this.removeComponent(args.nodeUuid, args.componentType);
+                return await this.removeComponent(a.nodeUuid, a.componentType);
             case 'get_components':
-                return await this.getComponents(args.nodeUuid);
+                return await this.getComponents(a.nodeUuid);
             case 'get_component_info':
-                return await this.getComponentInfo(args.nodeUuid, args.componentType);
+                return await this.getComponentInfo(a.nodeUuid, a.componentType);
             case 'set_component_property':
-                return await this.setComponentProperty(args);
+                return await this.setComponentProperty(a);
             case 'attach_script':
-                return await this.attachScript(args.nodeUuid, args.scriptPath);
+                return await this.attachScript(a.nodeUuid, a.scriptPath);
             case 'get_available_components':
-                return await this.getAvailableComponents(args.category);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.getAvailableComponents(a.category);
         }
     }
 
