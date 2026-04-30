@@ -1,123 +1,75 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const sceneSchemas = {
+    get_current_scene: z.object({}),
+    get_scene_list: z.object({}),
+    open_scene: z.object({
+        scenePath: z.string().describe('The scene file path'),
+    }),
+    save_scene: z.object({}),
+    create_scene: z.object({
+        sceneName: z.string().describe('Name of the new scene'),
+        savePath: z.string().describe('Path to save the scene (e.g., db://assets/scenes/NewScene.scene)'),
+    }),
+    save_scene_as: z.object({
+        path: z.string().describe('Path to save the scene'),
+    }),
+    close_scene: z.object({}),
+    get_scene_hierarchy: z.object({
+        includeComponents: z.boolean().default(false).describe('Include component information'),
+    }),
+} as const;
+
+const sceneToolMeta: Record<keyof typeof sceneSchemas, string> = {
+    get_current_scene: 'Get current scene information',
+    get_scene_list: 'Get all scenes in the project',
+    open_scene: 'Open a scene by path',
+    save_scene: 'Save current scene',
+    create_scene: 'Create a new scene asset',
+    save_scene_as: 'Save scene as new file',
+    close_scene: 'Close current scene',
+    get_scene_hierarchy: 'Get the complete hierarchy of current scene',
+};
 
 export class SceneTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'get_current_scene',
-                description: 'Get current scene information',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'get_scene_list',
-                description: 'Get all scenes in the project',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'open_scene',
-                description: 'Open a scene by path',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        scenePath: {
-                            type: 'string',
-                            description: 'The scene file path'
-                        }
-                    },
-                    required: ['scenePath']
-                }
-            },
-            {
-                name: 'save_scene',
-                description: 'Save current scene',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'create_scene',
-                description: 'Create a new scene asset',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        sceneName: {
-                            type: 'string',
-                            description: 'Name of the new scene'
-                        },
-                        savePath: {
-                            type: 'string',
-                            description: 'Path to save the scene (e.g., db://assets/scenes/NewScene.scene)'
-                        }
-                    },
-                    required: ['sceneName', 'savePath']
-                }
-            },
-            {
-                name: 'save_scene_as',
-                description: 'Save scene as new file',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        path: {
-                            type: 'string',
-                            description: 'Path to save the scene'
-                        }
-                    },
-                    required: ['path']
-                }
-            },
-            {
-                name: 'close_scene',
-                description: 'Close current scene',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'get_scene_hierarchy',
-                description: 'Get the complete hierarchy of current scene',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        includeComponents: {
-                            type: 'boolean',
-                            description: 'Include component information',
-                            default: false
-                        }
-                    }
-                }
-            }
-        ];
+        return (Object.keys(sceneSchemas) as Array<keyof typeof sceneSchemas>).map(name => ({
+            name,
+            description: sceneToolMeta[name],
+            inputSchema: toInputSchema(sceneSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof sceneSchemas;
+        const schema = sceneSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'get_current_scene':
                 return await this.getCurrentScene();
             case 'get_scene_list':
                 return await this.getSceneList();
             case 'open_scene':
-                return await this.openScene(args.scenePath);
+                return await this.openScene(a.scenePath);
             case 'save_scene':
                 return await this.saveScene();
             case 'create_scene':
-                return await this.createScene(args.sceneName, args.savePath);
+                return await this.createScene(a.sceneName, a.savePath);
             case 'save_scene_as':
-                return await this.saveSceneAs(args.path);
+                return await this.saveSceneAs(a.path);
             case 'close_scene':
                 return await this.closeScene();
             case 'get_scene_hierarchy':
-                return await this.getSceneHierarchy(args.includeComponents);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.getSceneHierarchy(a.includeComponents);
         }
     }
 

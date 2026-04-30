@@ -1,7 +1,53 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ConsoleMessage, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const debugSchemas = {
+    get_console_logs: z.object({
+        limit: z.number().default(100).describe('Number of recent logs to retrieve'),
+        filter: z.enum(['all', 'log', 'warn', 'error', 'info']).default('all').describe('Filter logs by type'),
+    }),
+    clear_console: z.object({}),
+    execute_script: z.object({
+        script: z.string().describe('JavaScript code to execute'),
+    }),
+    get_node_tree: z.object({
+        rootUuid: z.string().optional().describe('Root node UUID (optional, uses scene root if not provided)'),
+        maxDepth: z.number().default(10).describe('Maximum tree depth'),
+    }),
+    get_performance_stats: z.object({}),
+    validate_scene: z.object({
+        checkMissingAssets: z.boolean().default(true).describe('Check for missing asset references'),
+        checkPerformance: z.boolean().default(true).describe('Check for performance issues'),
+    }),
+    get_editor_info: z.object({}),
+    get_project_logs: z.object({
+        lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of the log file (default: 100)'),
+        filterKeyword: z.string().optional().describe('Filter logs containing specific keyword (optional)'),
+        logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Filter by log level'),
+    }),
+    get_log_file_info: z.object({}),
+    search_project_logs: z.object({
+        pattern: z.string().describe('Search pattern (supports regex)'),
+        maxResults: z.number().min(1).max(100).default(20).describe('Maximum number of matching results'),
+        contextLines: z.number().min(0).max(10).default(2).describe('Number of context lines to show around each match'),
+    }),
+} as const;
+
+const debugToolMeta: Record<keyof typeof debugSchemas, string> = {
+    get_console_logs: 'Get editor console logs',
+    clear_console: 'Clear editor console',
+    execute_script: 'Execute JavaScript in scene context',
+    get_node_tree: 'Get detailed node tree for debugging',
+    get_performance_stats: 'Get performance statistics',
+    validate_scene: 'Validate current scene for issues',
+    get_editor_info: 'Get editor and environment information',
+    get_project_logs: 'Get project logs from temp/logs/project.log file',
+    get_log_file_info: 'Get information about the project log file',
+    search_project_logs: 'Search for specific patterns or errors in project logs',
+};
 
 export class DebugTools implements ToolExecutor {
     private consoleMessages: ConsoleMessage[] = [];
@@ -31,191 +77,46 @@ export class DebugTools implements ToolExecutor {
     }
 
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'get_console_logs',
-                description: 'Get editor console logs',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        limit: {
-                            type: 'number',
-                            description: 'Number of recent logs to retrieve',
-                            default: 100
-                        },
-                        filter: {
-                            type: 'string',
-                            description: 'Filter logs by type',
-                            enum: ['all', 'log', 'warn', 'error', 'info'],
-                            default: 'all'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'clear_console',
-                description: 'Clear editor console',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'execute_script',
-                description: 'Execute JavaScript in scene context',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        script: {
-                            type: 'string',
-                            description: 'JavaScript code to execute'
-                        }
-                    },
-                    required: ['script']
-                }
-            },
-            {
-                name: 'get_node_tree',
-                description: 'Get detailed node tree for debugging',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        rootUuid: {
-                            type: 'string',
-                            description: 'Root node UUID (optional, uses scene root if not provided)'
-                        },
-                        maxDepth: {
-                            type: 'number',
-                            description: 'Maximum tree depth',
-                            default: 10
-                        }
-                    }
-                }
-            },
-            {
-                name: 'get_performance_stats',
-                description: 'Get performance statistics',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'validate_scene',
-                description: 'Validate current scene for issues',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        checkMissingAssets: {
-                            type: 'boolean',
-                            description: 'Check for missing asset references',
-                            default: true
-                        },
-                        checkPerformance: {
-                            type: 'boolean',
-                            description: 'Check for performance issues',
-                            default: true
-                        }
-                    }
-                }
-            },
-            {
-                name: 'get_editor_info',
-                description: 'Get editor and environment information',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'get_project_logs',
-                description: 'Get project logs from temp/logs/project.log file',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        lines: {
-                            type: 'number',
-                            description: 'Number of lines to read from the end of the log file (default: 100)',
-                            default: 100,
-                            minimum: 1,
-                            maximum: 10000
-                        },
-                        filterKeyword: {
-                            type: 'string',
-                            description: 'Filter logs containing specific keyword (optional)'
-                        },
-                        logLevel: {
-                            type: 'string',
-                            description: 'Filter by log level',
-                            enum: ['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL'],
-                            default: 'ALL'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'get_log_file_info',
-                description: 'Get information about the project log file',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'search_project_logs',
-                description: 'Search for specific patterns or errors in project logs',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        pattern: {
-                            type: 'string',
-                            description: 'Search pattern (supports regex)'
-                        },
-                        maxResults: {
-                            type: 'number',
-                            description: 'Maximum number of matching results',
-                            default: 20,
-                            minimum: 1,
-                            maximum: 100
-                        },
-                        contextLines: {
-                            type: 'number',
-                            description: 'Number of context lines to show around each match',
-                            default: 2,
-                            minimum: 0,
-                            maximum: 10
-                        }
-                    },
-                    required: ['pattern']
-                }
-            }
-        ];
+        return (Object.keys(debugSchemas) as Array<keyof typeof debugSchemas>).map(name => ({
+            name,
+            description: debugToolMeta[name],
+            inputSchema: toInputSchema(debugSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof debugSchemas;
+        const schema = debugSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'get_console_logs':
-                return await this.getConsoleLogs(args.limit, args.filter);
+                return await this.getConsoleLogs(a.limit, a.filter);
             case 'clear_console':
                 return await this.clearConsole();
             case 'execute_script':
-                return await this.executeScript(args.script);
+                return await this.executeScript(a.script);
             case 'get_node_tree':
-                return await this.getNodeTree(args.rootUuid, args.maxDepth);
+                return await this.getNodeTree(a.rootUuid, a.maxDepth);
             case 'get_performance_stats':
                 return await this.getPerformanceStats();
             case 'validate_scene':
-                return await this.validateScene(args);
+                return await this.validateScene(a);
             case 'get_editor_info':
                 return await this.getEditorInfo();
             case 'get_project_logs':
-                return await this.getProjectLogs(args.lines, args.filterKeyword, args.logLevel);
+                return await this.getProjectLogs(a.lines, a.filterKeyword, a.logLevel);
             case 'get_log_file_info':
                 return await this.getLogFileInfo();
             case 'search_project_logs':
-                return await this.searchProjectLogs(args.pattern, args.maxResults, args.contextLines);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.searchProjectLogs(a.pattern, a.maxResults, a.contextLines);
         }
     }
 
