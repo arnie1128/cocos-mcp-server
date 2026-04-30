@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, PrefabInfo } from '../types';
+import { debugLog } from '../lib/log';
 
 export class PrefabTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
@@ -296,7 +297,7 @@ export class PrefabTools implements ToolExecutor {
                 const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
 
                 // 注意：create-node API从预制体资源创建时应该自动建立预制体关联
-                console.log('预制体节点创建成功:', {
+                debugLog('预制体节点创建成功:', {
                     nodeUuid: uuid,
                     prefabUuid: assetInfo.uuid,
                     prefabPath: args.prefabPath
@@ -440,46 +441,19 @@ export class PrefabTools implements ToolExecutor {
             }
 
             // 备用方法：转换db://路径为实际文件路径
+            if (!Editor.Project || !Editor.Project.path) {
+                throw new Error('Editor.Project.path is not available; cannot resolve prefab file path.');
+            }
             const fsPath = prefabPath.replace('db://assets/', 'assets/').replace('db://assets', 'assets');
             const fs = require('fs');
             const path = require('path');
-            
-            // 尝试多个可能的项目根路径
-            const possiblePaths = [
-                path.resolve(process.cwd(), '../../NewProject_3', fsPath),
-                path.resolve('/Users/lizhiyong/NewProject_3', fsPath),
-                path.resolve(fsPath),
-                // 如果是根目录下的文件，也尝试直接路径
-                path.resolve('/Users/lizhiyong/NewProject_3/assets', path.basename(fsPath))
-            ];
+            const fullPath = path.resolve(Editor.Project.path, fsPath);
 
-            console.log('尝试读取预制体文件，路径转换:', {
-                originalPath: prefabPath,
-                fsPath: fsPath,
-                possiblePaths: possiblePaths
-            });
-
-            for (const fullPath of possiblePaths) {
-                try {
-                    console.log(`检查路径: ${fullPath}`);
-                    if (fs.existsSync(fullPath)) {
-                        console.log(`找到文件: ${fullPath}`);
-                        const fileContent = fs.readFileSync(fullPath, 'utf8');
-                        const parsed = JSON.parse(fileContent);
-                        console.log('文件解析成功，数据结构:', {
-                            hasData: !!parsed.data,
-                            dataLength: parsed.data ? parsed.data.length : 0
-                        });
-                        return parsed;
-                    } else {
-                        console.log(`文件不存在: ${fullPath}`);
-                    }
-                } catch (readError) {
-                    console.warn(`读取文件失败 ${fullPath}:`, readError);
-                }
+            if (!fs.existsSync(fullPath)) {
+                throw new Error(`Prefab file not found at ${fullPath}`);
             }
-
-            throw new Error('无法找到或读取预制体文件');
+            const fileContent = fs.readFileSync(fullPath, 'utf8');
+            return JSON.parse(fileContent);
         } catch (error) {
             console.error('读取预制体文件失败:', error);
             throw error;
@@ -673,10 +647,10 @@ export class PrefabTools implements ToolExecutor {
     private async createPrefabWithAssetDB(nodeUuid: string, savePath: string, prefabName: string, includeChildren: boolean, includeComponents: boolean): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
-                console.log('=== 使用 Asset-DB API 创建预制体 ===');
-                console.log(`节点UUID: ${nodeUuid}`);
-                console.log(`保存路径: ${savePath}`);
-                console.log(`预制体名称: ${prefabName}`);
+                debugLog('=== 使用 Asset-DB API 创建预制体 ===');
+                debugLog(`节点UUID: ${nodeUuid}`);
+                debugLog(`保存路径: ${savePath}`);
+                debugLog(`预制体名称: ${prefabName}`);
 
                 // 第一步：获取节点数据（包括变换属性）
                 const nodeData = await this.getNodeData(nodeUuid);
@@ -688,10 +662,10 @@ export class PrefabTools implements ToolExecutor {
                     return;
                 }
 
-                console.log('获取到节点数据，子节点数量:', nodeData.children ? nodeData.children.length : 0);
+                debugLog('获取到节点数据，子节点数量:', nodeData.children ? nodeData.children.length : 0);
 
                 // 第二步：先创建资源文件以获取引擎分配的UUID
-                console.log('创建预制体资源文件...');
+                debugLog('创建预制体资源文件...');
                 const tempPrefabContent = JSON.stringify([{"__type__": "cc.Prefab", "_name": prefabName}], null, 2);
                 const createResult = await this.createAssetWithAssetDB(savePath, tempPrefabContent);
                 if (!createResult.success) {
@@ -708,27 +682,27 @@ export class PrefabTools implements ToolExecutor {
                     });
                     return;
                 }
-                console.log('引擎分配的UUID:', actualPrefabUuid);
+                debugLog('引擎分配的UUID:', actualPrefabUuid);
 
                 // 第三步：使用实际UUID重新生成预制体内容
                 const prefabContent = await this.createStandardPrefabContent(nodeData, prefabName, actualPrefabUuid, includeChildren, includeComponents);
                 const prefabContentString = JSON.stringify(prefabContent, null, 2);
 
                 // 第四步：更新预制体文件内容
-                console.log('更新预制体文件内容...');
+                debugLog('更新预制体文件内容...');
                 const updateResult = await this.updateAssetWithAssetDB(savePath, prefabContentString);
                 
                 // 第五步：创建对应的meta文件（使用实际UUID）
-                console.log('创建预制体meta文件...');
+                debugLog('创建预制体meta文件...');
                 const metaContent = this.createStandardMetaContent(prefabName, actualPrefabUuid);
                 const metaResult = await this.createMetaWithAssetDB(savePath, metaContent);
                 
                 // 第六步：重新导入资源以更新引用
-                console.log('重新导入预制体资源...');
+                debugLog('重新导入预制体资源...');
                 const reimportResult = await this.reimportAssetWithAssetDB(savePath);
 
                 // 第七步：尝试将原始节点转换为预制体实例
-                console.log('尝试将原始节点转换为预制体实例...');
+                debugLog('尝试将原始节点转换为预制体实例...');
                 const convertResult = await this.convertNodeToPrefabInstance(nodeUuid, actualPrefabUuid, savePath);
                 
                 resolve({
@@ -779,7 +753,7 @@ export class PrefabTools implements ToolExecutor {
                 const includeComponents = args.includeComponents !== false; // 默认为 true
 
                 // 优先使用新的 asset-db 方法创建预制体
-                console.log('使用新的 asset-db 方法创建预制体...');
+                debugLog('使用新的 asset-db 方法创建预制体...');
                 const assetDbResult = await this.createPrefabWithAssetDB(
                     args.nodeUuid,
                     fullPath,
@@ -794,7 +768,7 @@ export class PrefabTools implements ToolExecutor {
                 }
 
                 // 如果 asset-db 方法失败，尝试使用Cocos Creator的原生预制体创建API
-                console.log('asset-db 方法失败，尝试原生API...');
+                debugLog('asset-db 方法失败，尝试原生API...');
                 const nativeResult = await this.createPrefabNative(args.nodeUuid, fullPath);
                 if (nativeResult.success) {
                     resolve(nativeResult);
@@ -802,7 +776,7 @@ export class PrefabTools implements ToolExecutor {
                 }
 
                 // 如果原生API失败，使用自定义实现
-                console.log('原生API失败，使用自定义实现...');
+                debugLog('原生API失败，使用自定义实现...');
                 const customResult = await this.createPrefabCustom(args.nodeUuid, fullPath, prefabName);
                 resolve(customResult);
 
@@ -847,11 +821,11 @@ export class PrefabTools implements ToolExecutor {
                 const prefabData = this.createPrefabData(nodeData, prefabName, prefabUuid);
 
                 // 4. 基于官方格式创建预制体数据结构
-                console.log('=== 开始创建预制体 ===');
-                console.log('节点名称:', nodeData.name?.value || '未知');
-                console.log('节点UUID:', nodeData.uuid?.value || '未知');
-                console.log('预制体保存路径:', prefabPath);
-                console.log(`开始创建预制体，节点数据:`, nodeData);
+                debugLog('=== 开始创建预制体 ===');
+                debugLog('节点名称:', nodeData.name?.value || '未知');
+                debugLog('节点UUID:', nodeData.uuid?.value || '未知');
+                debugLog('预制体保存路径:', prefabPath);
+                debugLog(`开始创建预制体，节点数据:`, nodeData);
                 const prefabJsonData = await this.createStandardPrefabContent(nodeData, prefabName, prefabUuid, true, true);
 
                 // 5. 创建标准meta文件数据
@@ -903,15 +877,15 @@ export class PrefabTools implements ToolExecutor {
                     return;
                 }
 
-                console.log(`获取节点 ${nodeUuid} 的基本信息成功`);
+                debugLog(`获取节点 ${nodeUuid} 的基本信息成功`);
                 
                 // 使用query-node-tree获取包含子节点的完整结构
                 const nodeTree = await this.getNodeWithChildren(nodeUuid);
                 if (nodeTree) {
-                    console.log(`获取节点 ${nodeUuid} 的完整树结构成功`);
+                    debugLog(`获取节点 ${nodeUuid} 的完整树结构成功`);
                     resolve(nodeTree);
                 } else {
-                    console.log(`使用基本节点信息`);
+                    debugLog(`使用基本节点信息`);
                     resolve(nodeInfo);
                 }
             } catch (error) {
@@ -933,7 +907,7 @@ export class PrefabTools implements ToolExecutor {
             // 在树中查找指定的节点
             const targetNode = this.findNodeInTree(tree, nodeUuid);
             if (targetNode) {
-                console.log(`在场景树中找到节点 ${nodeUuid}，子节点数量: ${targetNode.children ? targetNode.children.length : 0}`);
+                debugLog(`在场景树中找到节点 ${nodeUuid}，子节点数量: ${targetNode.children ? targetNode.children.length : 0}`);
                 
                 // 增强节点树，获取每个节点的正确组件信息
                 const enhancedTree = await this.enhanceTreeWithMCPComponents(targetNode);
@@ -1001,7 +975,7 @@ export class PrefabTools implements ToolExecutor {
                 if (componentData.success && componentData.data.components) {
                     // 更新节点的组件信息为MCP返回的正确数据
                     node.components = componentData.data.components;
-                    console.log(`节点 ${node.uuid} 获取到 ${componentData.data.components.length} 个组件，包含脚本组件的正确类型`);
+                    debugLog(`节点 ${node.uuid} 获取到 ${componentData.data.components.length} 个组件，包含脚本组件的正确类型`);
                 }
             }
         } catch (error) {
@@ -1083,7 +1057,7 @@ export class PrefabTools implements ToolExecutor {
         
         // 方法5: __id__引用 - 这种情况需要特殊处理
         if (childRef.__id__ !== undefined) {
-            console.log(`发现__id__引用: ${childRef.__id__}，可能需要从数据结构中查找`);
+            debugLog(`发现__id__引用: ${childRef.__id__}，可能需要从数据结构中查找`);
             return null; // 暂时返回null，后续可以添加引用解析逻辑
         }
         
@@ -1097,18 +1071,18 @@ export class PrefabTools implements ToolExecutor {
         
         // 方法1: 直接从children数组获取（从query-node-tree返回的数据）
         if (nodeData.children && Array.isArray(nodeData.children)) {
-            console.log(`从children数组获取子节点，数量: ${nodeData.children.length}`);
+            debugLog(`从children数组获取子节点，数量: ${nodeData.children.length}`);
             for (const child of nodeData.children) {
                 // query-node-tree返回的子节点通常已经是完整的数据结构
                 if (this.isValidNodeData(child)) {
                     children.push(child);
-                    console.log(`添加子节点: ${child.name || child.value?.name || '未知'}`);
+                    debugLog(`添加子节点: ${child.name || child.value?.name || '未知'}`);
                 } else {
-                    console.log('子节点数据无效:', JSON.stringify(child, null, 2));
+                    debugLog('子节点数据无效:', JSON.stringify(child, null, 2));
                 }
             }
         } else {
-            console.log('节点没有子节点或children数组为空');
+            debugLog('节点没有子节点或children数组为空');
         }
         
         return children;
@@ -1590,7 +1564,7 @@ export class PrefabTools implements ToolExecutor {
                 overwrite: true,
                 rename: false
             }).then((assetInfo: any) => {
-                console.log('创建资源文件成功:', assetInfo);
+                debugLog('创建资源文件成功:', assetInfo);
                 resolve({ success: true, data: assetInfo });
             }).catch((error: any) => {
                 console.error('创建资源文件失败:', error);
@@ -1606,7 +1580,7 @@ export class PrefabTools implements ToolExecutor {
         return new Promise((resolve) => {
             const metaContentString = JSON.stringify(metaContent, null, 2);
             Editor.Message.request('asset-db', 'save-asset-meta', assetPath, metaContentString).then((assetInfo: any) => {
-                console.log('创建meta文件成功:', assetInfo);
+                debugLog('创建meta文件成功:', assetInfo);
                 resolve({ success: true, data: assetInfo });
             }).catch((error: any) => {
                 console.error('创建meta文件失败:', error);
@@ -1621,7 +1595,7 @@ export class PrefabTools implements ToolExecutor {
     private async reimportAssetWithAssetDB(assetPath: string): Promise<{ success: boolean; data?: any; error?: string }> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'reimport-asset', assetPath).then((result: any) => {
-                console.log('重新导入资源成功:', result);
+                debugLog('重新导入资源成功:', result);
                 resolve({ success: true, data: result });
             }).catch((error: any) => {
                 console.error('重新导入资源失败:', error);
@@ -1636,7 +1610,7 @@ export class PrefabTools implements ToolExecutor {
     private async updateAssetWithAssetDB(assetPath: string, content: string): Promise<{ success: boolean; data?: any; error?: string }> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'save-asset', assetPath, content).then((result: any) => {
-                console.log('更新资源文件成功:', result);
+                debugLog('更新资源文件成功:', result);
                 resolve({ success: true, data: result });
             }).catch((error: any) => {
                 console.error('更新资源文件失败:', error);
@@ -1650,7 +1624,7 @@ export class PrefabTools implements ToolExecutor {
      * 完整实现递归节点树处理，匹配引擎标准格式
      */
     private async createStandardPrefabContent(nodeData: any, prefabName: string, prefabUuid: string, includeChildren: boolean, includeComponents: boolean): Promise<any[]> {
-        console.log('开始创建引擎标准预制体内容...');
+        debugLog('开始创建引擎标准预制体内容...');
         
         const prefabData: any[] = [];
         let currentId = 0;
@@ -1684,8 +1658,8 @@ export class PrefabTools implements ToolExecutor {
         // 创建根节点和整个节点树 - 注意：根节点的父节点应该是null，不是预制体对象
         await this.createCompleteNodeTree(nodeData, null, 1, context, includeChildren, includeComponents, prefabName);
 
-        console.log(`预制体内容创建完成，总共 ${prefabData.length} 个对象`);
-        console.log('节点fileId映射:', Array.from(context.nodeFileIds.entries()));
+        debugLog(`预制体内容创建完成，总共 ${prefabData.length} 个对象`);
+        debugLog('节点fileId映射:', Array.from(context.nodeFileIds.entries()));
         
         return prefabData;
     }
@@ -1718,7 +1692,7 @@ export class PrefabTools implements ToolExecutor {
         while (prefabData.length <= nodeIndex) {
             prefabData.push(null);
         }
-        console.log(`设置节点到索引 ${nodeIndex}: ${node._name}, _parent:`, node._parent, `_children count: ${node._children.length}`);
+        debugLog(`设置节点到索引 ${nodeIndex}: ${node._name}, _parent:`, node._parent, `_children count: ${node._children.length}`);
         prefabData[nodeIndex] = node;
         
         // 为当前节点生成fileId并记录UUID到索引的映射
@@ -1729,25 +1703,25 @@ export class PrefabTools implements ToolExecutor {
         // 记录节点UUID到索引的映射
         if (nodeUuid) {
             context.nodeUuidToIndex.set(nodeUuid, nodeIndex);
-            console.log(`记录节点UUID映射: ${nodeUuid} -> ${nodeIndex}`);
+            debugLog(`记录节点UUID映射: ${nodeUuid} -> ${nodeIndex}`);
         }
 
         // 先处理子节点（保持与手动创建的索引顺序一致）
         const childrenToProcess = this.getChildrenToProcess(nodeData);
         if (includeChildren && childrenToProcess.length > 0) {
-            console.log(`处理节点 ${node._name} 的 ${childrenToProcess.length} 个子节点`);
+            debugLog(`处理节点 ${node._name} 的 ${childrenToProcess.length} 个子节点`);
             
             // 为每个子节点分配索引
             const childIndices: number[] = [];
-            console.log(`准备为 ${childrenToProcess.length} 个子节点分配索引，当前ID: ${context.currentId}`);
+            debugLog(`准备为 ${childrenToProcess.length} 个子节点分配索引，当前ID: ${context.currentId}`);
             for (let i = 0; i < childrenToProcess.length; i++) {
-                console.log(`处理第 ${i+1} 个子节点，当前currentId: ${context.currentId}`);
+                debugLog(`处理第 ${i+1} 个子节点，当前currentId: ${context.currentId}`);
                 const childIndex = context.currentId++;
                 childIndices.push(childIndex);
                 node._children.push({ "__id__": childIndex });
-                console.log(`✅ 添加子节点引用到 ${node._name}: {__id__: ${childIndex}}`);
+                debugLog(`✅ 添加子节点引用到 ${node._name}: {__id__: ${childIndex}}`);
             }
-            console.log(`✅ 节点 ${node._name} 最终的子节点数组:`, node._children);
+            debugLog(`✅ 节点 ${node._name} 最终的子节点数组:`, node._children);
 
             // 递归创建子节点
             for (let i = 0; i < childrenToProcess.length; i++) {
@@ -1767,7 +1741,7 @@ export class PrefabTools implements ToolExecutor {
 
         // 然后处理组件
         if (includeComponents && nodeData.components && Array.isArray(nodeData.components)) {
-            console.log(`处理节点 ${node._name} 的 ${nodeData.components.length} 个组件`);
+            debugLog(`处理节点 ${node._name} 的 ${nodeData.components.length} 个组件`);
             
             const componentIndices: number[] = [];
             for (const component of nodeData.components) {
@@ -1779,7 +1753,7 @@ export class PrefabTools implements ToolExecutor {
                 const componentUuid = component.uuid || (component.value && component.value.uuid);
                 if (componentUuid) {
                     context.componentUuidToIndex.set(componentUuid, componentIndex);
-                    console.log(`记录组件UUID映射: ${componentUuid} -> ${componentIndex}`);
+                    debugLog(`记录组件UUID映射: ${componentUuid} -> ${componentIndex}`);
                 }
                 
                 // 创建组件对象，传入context以处理引用
@@ -1799,7 +1773,7 @@ export class PrefabTools implements ToolExecutor {
                 }
             }
             
-            console.log(`✅ 节点 ${node._name} 添加了 ${componentIndices.length} 个组件`);
+            debugLog(`✅ 节点 ${node._name} 添加了 ${componentIndices.length} 个组件`);
         }
 
 
@@ -1880,12 +1854,12 @@ export class PrefabTools implements ToolExecutor {
         let componentType = componentData.type || componentData.__type__ || 'cc.Component';
         const enabled = componentData.enabled !== undefined ? componentData.enabled : true;
         
-        // console.log(`创建组件对象 - 原始类型: ${componentType}`);
-        // console.log('组件完整数据:', JSON.stringify(componentData, null, 2));
+        // debugLog(`创建组件对象 - 原始类型: ${componentType}`);
+        // debugLog('组件完整数据:', JSON.stringify(componentData, null, 2));
         
         // 处理脚本组件 - MCP接口已经返回正确的压缩UUID格式
         if (componentType && !componentType.startsWith('cc.')) {
-            console.log(`使用脚本组件压缩UUID类型: ${componentType}`);
+            debugLog(`使用脚本组件压缩UUID类型: ${componentType}`);
         }
         
         // 基础组件结构
@@ -1935,7 +1909,7 @@ export class PrefabTools implements ToolExecutor {
             component._useGrayscale = componentData.properties?._useGrayscale?.value ?? false;
             
             // 调试：打印Sprite组件的所有属性（已注释）
-            // console.log('Sprite组件属性:', JSON.stringify(componentData.properties, null, 2));
+            // debugLog('Sprite组件属性:', JSON.stringify(componentData.properties, null, 2));
             component._atlas = null;
             component._id = "";
         } else if (componentType === 'cc.Button') {
@@ -2078,7 +2052,7 @@ export class PrefabTools implements ToolExecutor {
             // 在预制体中，组件引用也需要转换为 __id__ 形式
             if (context?.componentUuidToIndex && context.componentUuidToIndex.has(value.uuid)) {
                 // 内部引用：转换为__id__格式
-                console.log(`Component reference ${type} UUID ${value.uuid} found in prefab context, converting to __id__`);
+                debugLog(`Component reference ${type} UUID ${value.uuid} found in prefab context, converting to __id__`);
                 return {
                     "__id__": context.componentUuidToIndex.get(value.uuid)
                 };
@@ -2173,7 +2147,7 @@ export class PrefabTools implements ToolExecutor {
      */
     private createEngineStandardNode(nodeData: any, parentNodeIndex: number | null, nodeName?: string): any {
         // 调试：打印原始节点数据（已注释）
-        // console.log('原始节点数据:', JSON.stringify(nodeData, null, 2));
+        // debugLog('原始节点数据:', JSON.stringify(nodeData, null, 2));
         
         // 提取节点的基本属性
         const getValue = (prop: any) => {
@@ -2190,10 +2164,10 @@ export class PrefabTools implements ToolExecutor {
         const layer = getValue(nodeData.layer) || getValue(nodeData.value?.layer) || 1073741824;
 
         // 调试输出
-        console.log(`创建节点: ${name}, parentNodeIndex: ${parentNodeIndex}`);
+        debugLog(`创建节点: ${name}, parentNodeIndex: ${parentNodeIndex}`);
 
         const parentRef = parentNodeIndex !== null ? { "__id__": parentNodeIndex } : null;
-        console.log(`节点 ${name} 的父节点引用:`, parentRef);
+        debugLog(`节点 ${name} 的父节点引用:`, parentRef);
 
         return {
             "__type__": "cc.Node",
@@ -2347,7 +2321,7 @@ export class PrefabTools implements ToolExecutor {
         return new Promise((resolve) => {
             // 这个功能需要深入的场景编辑器集成，暂时返回失败
             // 在实际的引擎中，这涉及到复杂的预制体实例化和节点替换逻辑
-            console.log('节点转换为预制体实例的功能需要更深入的引擎集成');
+            debugLog('节点转换为预制体实例的功能需要更深入的引擎集成');
             resolve({
                 success: false,
                 error: '节点转换为预制体实例需要更深入的引擎集成支持'
@@ -2498,24 +2472,24 @@ export class PrefabTools implements ToolExecutor {
 
         // 暂时跳过UITransform组件以避免_getDependComponent错误
         // 后续通过Engine API动态添加
-        console.log(`节点 ${name} 暂时跳过UITransform组件，避免引擎依赖错误`);
+        debugLog(`节点 ${name} 暂时跳过UITransform组件，避免引擎依赖错误`);
         
         // 处理其他组件（暂时跳过，专注于修复UITransform问题）
         const components = this.extractComponentsFromNode(nodeData);
         if (components.length > 0) {
-            console.log(`节点 ${name} 包含 ${components.length} 个其他组件，暂时跳过以专注于UITransform修复`);
+            debugLog(`节点 ${name} 包含 ${components.length} 个其他组件，暂时跳过以专注于UITransform修复`);
         }
 
         // 处理子节点 - 使用query-node-tree获取的完整结构
         const childrenToProcess = this.getChildrenToProcess(nodeData);
         if (childrenToProcess.length > 0) {
-            console.log(`=== 处理子节点 ===`);
-            console.log(`节点 ${name} 包含 ${childrenToProcess.length} 个子节点`);
+            debugLog(`=== 处理子节点 ===`);
+            debugLog(`节点 ${name} 包含 ${childrenToProcess.length} 个子节点`);
             
             for (let i = 0; i < childrenToProcess.length; i++) {
                 const childData = childrenToProcess[i];
                 const childName = childData.name || childData.value?.name || '未知';
-                console.log(`处理第${i + 1}个子节点: ${childName}`);
+                debugLog(`处理第${i + 1}个子节点: ${childName}`);
                 
                 try {
                     const childId = currentId;
@@ -2530,7 +2504,7 @@ export class PrefabTools implements ToolExecutor {
                     // 子节点的_prefab应该设置为null
                     childResult.node._prefab = null;
                     
-                    console.log(`✅ 成功添加子节点: ${childName}`);
+                    debugLog(`✅ 成功添加子节点: ${childName}`);
                 } catch (error) {
                     console.error(`处理子节点 ${childName} 时出错:`, error);
                 }
@@ -2840,11 +2814,11 @@ export class PrefabTools implements ToolExecutor {
                 });
             });
 
-            console.log(`=== 预制体保存完成 ===`);
-            console.log(`预制体文件已保存: ${finalPrefabPath}`);
-            console.log(`Meta文件已保存: ${metaPath}`);
-            console.log(`预制体数组总长度: ${prefabData.length}`);
-            console.log(`预制体根节点索引: ${prefabData.length - 1}`);
+            debugLog(`=== 预制体保存完成 ===`);
+            debugLog(`预制体文件已保存: ${finalPrefabPath}`);
+            debugLog(`Meta文件已保存: ${metaPath}`);
+            debugLog(`预制体数组总长度: ${prefabData.length}`);
+            debugLog(`预制体根节点索引: ${prefabData.length - 1}`);
 
             return { success: true };
         } catch (error: any) {

@@ -66,26 +66,30 @@ cost is measured.
 
 ## Landmines (read before editing)
 
-1. **Hardcoded path `/Users/lizhiyong/NewProject_3`** — original author's
-   machine. Six occurrences in `debug-tools.ts` (lines ~430/499/548) and
-   `prefab-tools.ts` (lines ~449-453). Will silently fall through on a real
-   user's project. Use `Editor.Project.path` instead.
-2. **`mcp-server.ts:fixCommonJsonIssues()`** is a regex-based JSON repair
-   that rewrites all single quotes to doubles and re-escapes backslashes.
-   It corrupts legitimate string content. Prefer surfacing the parse error.
+1. ~~**Hardcoded path `/Users/lizhiyong/NewProject_3`**~~ — fixed in P0
+   (2026-04-30). `debug-tools.ts` now uses `resolveProjectLogPath()`;
+   `prefab-tools.ts:readPrefabFile` uses `Editor.Project.path` directly.
+   Both fail loudly when the editor context is unavailable.
+2. ~~**`mcp-server.ts:fixCommonJsonIssues()`**~~ — removed in P0. Both
+   `handleMCPRequest` and `handleSimpleAPIRequest` now return standard
+   parse-error responses (`-32700` for MCP, 400 for REST) with the body
+   truncated to 200 chars.
 3. **Prefab API guesswork** in `prefab-tools.ts` — `establishPrefabConnection`
    tries `connect-prefab-instance`, `set-prefab-connection`,
    `apply-prefab-link` in sequence; `applyPrefabToNode` similarly tries
    `apply-prefab`, `set-prefab`, `load-prefab-to-node`. Several of these
-   channels do not exist in current Cocos Editor. Verify against
-   `@cocos/creator-types` before adding more.
-4. **`console.log` is not gated** by `settings.enableDebugLog`. Worst
-   offenders: `prefab-tools.ts` (~72), `component-tools.ts` (~57). Adding
-   new logs here ships them to every user.
+   channels do not exist in current Cocos Editor. **Scheduled for cleanup
+   in P1 T-P1-6** — verify against `@cocos/creator-types` before adding
+   more.
+4. ~~**`console.log` is not gated**~~ — fixed in P0 for the two noisiest
+   files. `prefab-tools.ts` and `component-tools.ts` now route every
+   `console.log` through `debugLog` from `source/lib/log.ts`, which only
+   fires when `settings.enableDebugLog === true`. **Other tool files still
+   carry raw `console.log`** — full Logger sweep is P1 T-P1-3.
 5. **Double-instantiation**: every `ToolExecutor` is `new`'d twice — once
    in `MCPServer.initializeTools` and once in `ToolManager.initializeAvailableTools`.
    Constructors must stay side-effect free.
-6. **Hardcoded MCP protocol version `2024-11-05`** in `mcp-server.ts:264`.
+6. **Hardcoded MCP protocol version `2024-11-05`** in `mcp-server.ts:248`.
    No capability negotiation. No SSE, no streaming.
 7. **No test runner wired up.** `source/test/*.ts` exists but is not
    invoked by any npm script.

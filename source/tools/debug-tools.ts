@@ -421,30 +421,24 @@ export class DebugTools implements ToolExecutor {
         return { success: true, data: info };
     }
 
+    private resolveProjectLogPath(): { path: string } | { error: string } {
+        if (!Editor.Project || !Editor.Project.path) {
+            return { error: 'Editor.Project.path is not available; cannot locate project log file.' };
+        }
+        const logPath = path.join(Editor.Project.path, 'temp/logs/project.log');
+        if (!fs.existsSync(logPath)) {
+            return { error: `Project log file not found at ${logPath}` };
+        }
+        return { path: logPath };
+    }
+
     private async getProjectLogs(lines: number = 100, filterKeyword?: string, logLevel: string = 'ALL'): Promise<ToolResponse> {
         try {
-            // Try multiple possible project paths
-            let logFilePath = '';
-            const possiblePaths = [
-                Editor.Project ? Editor.Project.path : null,
-                '/Users/lizhiyong/NewProject_3',
-                process.cwd(),
-            ].filter(p => p !== null);
-            
-            for (const basePath of possiblePaths) {
-                const testPath = path.join(basePath, 'temp/logs/project.log');
-                if (fs.existsSync(testPath)) {
-                    logFilePath = testPath;
-                    break;
-                }
+            const resolved = this.resolveProjectLogPath();
+            if ('error' in resolved) {
+                return { success: false, error: resolved.error };
             }
-            
-            if (!logFilePath) {
-                return {
-                    success: false,
-                    error: `Project log file not found. Tried paths: ${possiblePaths.map(p => path.join(p, 'temp/logs/project.log')).join(', ')}`
-                };
-            }
+            const logFilePath = resolved.path;
 
             // Read the file content
             const logContent = fs.readFileSync(logFilePath, 'utf8');
@@ -492,28 +486,11 @@ export class DebugTools implements ToolExecutor {
 
     private async getLogFileInfo(): Promise<ToolResponse> {
         try {
-            // Try multiple possible project paths
-            let logFilePath = '';
-            const possiblePaths = [
-                Editor.Project ? Editor.Project.path : null,
-                '/Users/lizhiyong/NewProject_3',
-                process.cwd(),
-            ].filter(p => p !== null);
-            
-            for (const basePath of possiblePaths) {
-                const testPath = path.join(basePath, 'temp/logs/project.log');
-                if (fs.existsSync(testPath)) {
-                    logFilePath = testPath;
-                    break;
-                }
+            const resolved = this.resolveProjectLogPath();
+            if ('error' in resolved) {
+                return { success: false, error: resolved.error };
             }
-            
-            if (!logFilePath) {
-                return {
-                    success: false,
-                    error: `Project log file not found. Tried paths: ${possiblePaths.map(p => path.join(p, 'temp/logs/project.log')).join(', ')}`
-                };
-            }
+            const logFilePath = resolved.path;
 
             const stats = fs.statSync(logFilePath);
             const logContent = fs.readFileSync(logFilePath, 'utf8');
@@ -541,28 +518,11 @@ export class DebugTools implements ToolExecutor {
 
     private async searchProjectLogs(pattern: string, maxResults: number = 20, contextLines: number = 2): Promise<ToolResponse> {
         try {
-            // Try multiple possible project paths
-            let logFilePath = '';
-            const possiblePaths = [
-                Editor.Project ? Editor.Project.path : null,
-                '/Users/lizhiyong/NewProject_3',
-                process.cwd(),
-            ].filter(p => p !== null);
-            
-            for (const basePath of possiblePaths) {
-                const testPath = path.join(basePath, 'temp/logs/project.log');
-                if (fs.existsSync(testPath)) {
-                    logFilePath = testPath;
-                    break;
-                }
+            const resolved = this.resolveProjectLogPath();
+            if ('error' in resolved) {
+                return { success: false, error: resolved.error };
             }
-            
-            if (!logFilePath) {
-                return {
-                    success: false,
-                    error: `Project log file not found. Tried paths: ${possiblePaths.map(p => path.join(p, 'temp/logs/project.log')).join(', ')}`
-                };
-            }
+            const logFilePath = resolved.path;
 
             const logContent = fs.readFileSync(logFilePath, 'utf8');
             const logLines = logContent.split('\n');

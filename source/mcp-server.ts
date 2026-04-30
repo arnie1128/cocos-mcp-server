@@ -2,6 +2,7 @@ import * as http from 'http';
 import * as url from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { MCPServerSettings, ServerStatus, MCPClient, ToolDefinition } from './types';
+import { setDebugLogEnabled } from './lib/log';
 import { SceneTools } from './tools/scene-tools';
 import { NodeTools } from './tools/node-tools';
 import { ComponentTools } from './tools/component-tools';
@@ -27,6 +28,7 @@ export class MCPServer {
 
     constructor(settings: MCPServerSettings) {
         this.settings = settings;
+        setDebugLogEnabled(settings.enableDebugLog);
         this.initializeTools();
     }
 
@@ -210,21 +212,7 @@ export class MCPServer {
         
         req.on('end', async () => {
             try {
-                // Enhanced JSON parsing with better error handling
-                let message;
-                try {
-                    message = JSON.parse(body);
-                } catch (parseError: any) {
-                    // Try to fix common JSON issues
-                    const fixedBody = this.fixCommonJsonIssues(body);
-                    try {
-                        message = JSON.parse(fixedBody);
-                        console.log('[MCPServer] Fixed JSON parsing issue');
-                    } catch (secondError) {
-                        throw new Error(`JSON parsing failed: ${parseError.message}. Original body: ${body.substring(0, 500)}...`);
-                    }
-                }
-                
+                const message = JSON.parse(body);
                 const response = await this.handleMessage(message);
                 res.writeHead(200);
                 res.end(JSON.stringify(response));
@@ -236,7 +224,7 @@ export class MCPServer {
                     id: null,
                     error: {
                         code: -32700,
-                        message: `Parse error: ${error.message}`
+                        message: `Parse error: ${error.message}. Body: ${body.substring(0, 200)}`
                     }
                 }));
             }
@@ -292,27 +280,6 @@ export class MCPServer {
         }
     }
 
-    private fixCommonJsonIssues(jsonStr: string): string {
-        let fixed = jsonStr;
-        
-        // Fix common escape character issues
-        fixed = fixed
-            // Fix unescaped quotes in strings
-            .replace(/([^\\])"([^"]*[^\\])"([^,}\]:])/g, '$1\\"$2\\"$3')
-            // Fix unescaped backslashes
-            .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2')
-            // Fix trailing commas
-            .replace(/,(\s*[}\]])/g, '$1')
-            // Fix single quotes (should be double quotes)
-            .replace(/'/g, '"')
-            // Fix common control characters
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\t/g, '\\t');
-        
-        return fixed;
-    }
-
     public stop(): void {
         if (this.httpServer) {
             this.httpServer.close();
@@ -352,25 +319,18 @@ export class MCPServer {
                 const toolName = pathParts[2];
                 const fullToolName = `${category}_${toolName}`;
                 
-                // Parse parameters with enhanced error handling
+                // Parse parameters; if invalid JSON, return 400 with truncated body
                 let params;
                 try {
                     params = body ? JSON.parse(body) : {};
                 } catch (parseError: any) {
-                    // Try to fix JSON issues
-                    const fixedBody = this.fixCommonJsonIssues(body);
-                    try {
-                        params = JSON.parse(fixedBody);
-                        console.log('[MCPServer] Fixed API JSON parsing issue');
-                    } catch (secondError: any) {
-                        res.writeHead(400);
-                        res.end(JSON.stringify({
-                            error: 'Invalid JSON in request body',
-                            details: parseError.message,
-                            receivedBody: body.substring(0, 200)
-                        }));
-                        return;
-                    }
+                    res.writeHead(400);
+                    res.end(JSON.stringify({
+                        error: 'Invalid JSON in request body',
+                        details: parseError.message,
+                        receivedBody: body.substring(0, 200)
+                    }));
+                    return;
                 }
                 
                 // Execute tool
@@ -450,6 +410,7 @@ export class MCPServer {
 
     public updateSettings(settings: MCPServerSettings) {
         this.settings = settings;
+        setDebugLogEnabled(settings.enableDebugLog);
         if (this.httpServer) {
             this.stop();
             this.start();

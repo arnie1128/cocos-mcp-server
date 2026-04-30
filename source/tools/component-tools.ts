@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
+import { debugLog } from '../lib/log';
 
 export class ComponentTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
@@ -424,11 +425,11 @@ export class ComponentTools implements ToolExecutor {
     }
 
     private extractComponentProperties(component: any): Record<string, any> {
-        console.log(`[extractComponentProperties] Processing component:`, Object.keys(component));
+        debugLog(`[extractComponentProperties] Processing component:`, Object.keys(component));
         
         // 检查组件是否有 value 属性，这通常包含实际的组件属性
         if (component.value && typeof component.value === 'object') {
-            console.log(`[extractComponentProperties] Found component.value with properties:`, Object.keys(component.value));
+            debugLog(`[extractComponentProperties] Found component.value with properties:`, Object.keys(component.value));
             return component.value; // 直接返回 value 对象，它包含所有组件属性
         }
         
@@ -438,17 +439,17 @@ export class ComponentTools implements ToolExecutor {
         
         for (const key in component) {
             if (!excludeKeys.includes(key) && !key.startsWith('_')) {
-                console.log(`[extractComponentProperties] Found direct property '${key}':`, typeof component[key]);
+                debugLog(`[extractComponentProperties] Found direct property '${key}':`, typeof component[key]);
                 properties[key] = component[key];
             }
         }
         
-        console.log(`[extractComponentProperties] Final extracted properties:`, Object.keys(properties));
+        debugLog(`[extractComponentProperties] Final extracted properties:`, Object.keys(properties));
         return properties;
     }
 
     private async findComponentTypeByUuid(componentUuid: string): Promise<string | null> {
-        console.log(`[findComponentTypeByUuid] Searching for component type with UUID: ${componentUuid}`);
+        debugLog(`[findComponentTypeByUuid] Searching for component type with UUID: ${componentUuid}`);
         if (!componentUuid) {
             return null;
         }
@@ -475,7 +476,7 @@ export class ComponentTools implements ToolExecutor {
                             // The component UUID is nested in the 'value' property
                             if (compAny.uuid && compAny.uuid.value === componentUuid) {
                                 const componentType = compAny.__type__;
-                                console.log(`[findComponentTypeByUuid] Found component type '${componentType}' for UUID ${componentUuid} on node ${fullNodeData.name?.value}`);
+                                debugLog(`[findComponentTypeByUuid] Found component type '${componentType}' for UUID ${componentUuid} on node ${fullNodeData.name?.value}`);
                                 return componentType;
                             }
                         }
@@ -504,7 +505,7 @@ export class ComponentTools implements ToolExecutor {
         
         return new Promise(async (resolve) => {
             try {
-                console.log(`[ComponentTools] Setting ${componentType}.${property} (type: ${propertyType}) = ${JSON.stringify(value)} on node ${nodeUuid}`);
+                debugLog(`[ComponentTools] Setting ${componentType}.${property} (type: ${propertyType}) = ${JSON.stringify(value)} on node ${nodeUuid}`);
                 
                 // Step 0: 检测是否为节点属性，如果是则重定向到对应的节点方法
                 const nodeRedirectResult = await this.checkAndRedirectNodeProperties(args);
@@ -554,7 +555,7 @@ export class ComponentTools implements ToolExecutor {
                 // Step 3: 自动检测和转换属性值
                 let propertyInfo;
                 try {
-                    console.log(`[ComponentTools] Analyzing property: ${property}`);
+                    debugLog(`[ComponentTools] Analyzing property: ${property}`);
                     propertyInfo = this.analyzeProperty(targetComponent, property);
                 } catch (analyzeError: any) {
                     console.error(`[ComponentTools] Error in analyzeProperty:`, analyzeError);
@@ -710,9 +711,9 @@ export class ComponentTools implements ToolExecutor {
                         throw new Error(`Unsupported property type: ${propertyType}`);
                 }
                 
-                console.log(`[ComponentTools] Converting value: ${JSON.stringify(value)} -> ${JSON.stringify(processedValue)} (type: ${propertyType})`);
-                console.log(`[ComponentTools] Property analysis result: propertyInfo.type="${propertyInfo.type}", propertyType="${propertyType}"`);
-                console.log(`[ComponentTools] Will use color special handling: ${propertyType === 'color' && processedValue && typeof processedValue === 'object'}`);
+                debugLog(`[ComponentTools] Converting value: ${JSON.stringify(value)} -> ${JSON.stringify(processedValue)} (type: ${propertyType})`);
+                debugLog(`[ComponentTools] Property analysis result: propertyInfo.type="${propertyInfo.type}", propertyType="${propertyType}"`);
+                debugLog(`[ComponentTools] Will use color special handling: ${propertyType === 'color' && processedValue && typeof processedValue === 'object'}`);
                 
                 // 用于验证的实际期望值（对于组件引用需要特殊处理）
                 let actualExpectedValue = processedValue;
@@ -753,7 +754,7 @@ export class ComponentTools implements ToolExecutor {
                 if (propertyType === 'asset' || propertyType === 'spriteFrame' || propertyType === 'prefab' || 
                     (propertyInfo.type === 'asset' && propertyType === 'string')) {
                     
-                    console.log(`[ComponentTools] Setting asset reference:`, {
+                    debugLog(`[ComponentTools] Setting asset reference:`, {
                         value: processedValue,
                         property: property,
                         propertyType: propertyType,
@@ -828,7 +829,7 @@ export class ComponentTools implements ToolExecutor {
                         a: processedValue.a !== undefined ? Math.min(255, Math.max(0, Number(processedValue.a))) : 255
                     };
                     
-                    console.log(`[ComponentTools] Setting color value:`, colorValue);
+                    debugLog(`[ComponentTools] Setting color value:`, colorValue);
                     
                     await Editor.Message.request('scene', 'set-property', {
                         uuid: nodeUuid,
@@ -886,7 +887,7 @@ export class ComponentTools implements ToolExecutor {
                     });
                 } else if (propertyType === 'node' && processedValue && typeof processedValue === 'object' && 'uuid' in processedValue) {
                     // 特殊处理节点引用
-                    console.log(`[ComponentTools] Setting node reference with UUID: ${processedValue.uuid}`);
+                    debugLog(`[ComponentTools] Setting node reference with UUID: ${processedValue.uuid}`);
                     await Editor.Message.request('scene', 'set-property', {
                         uuid: nodeUuid,
                         path: propertyPath,
@@ -898,7 +899,7 @@ export class ComponentTools implements ToolExecutor {
                 } else if (propertyType === 'component' && typeof processedValue === 'string') {
                     // 特殊处理组件引用：通过节点UUID找到组件的__id__
                     const targetNodeUuid = processedValue;
-                    console.log(`[ComponentTools] Setting component reference - finding component on node: ${targetNodeUuid}`);
+                    debugLog(`[ComponentTools] Setting component reference - finding component on node: ${targetNodeUuid}`);
                     
                     // 从当前组件的属性元数据中获取期望的组件类型
                     let expectedComponentType = '';
@@ -932,7 +933,7 @@ export class ComponentTools implements ToolExecutor {
                         throw new Error(`Unable to determine required component type for property '${property}' on component '${componentType}'. Property metadata may not contain type information.`);
                     }
                     
-                    console.log(`[ComponentTools] Detected required component type: ${expectedComponentType} for property: ${property}`);
+                    debugLog(`[ComponentTools] Detected required component type: ${expectedComponentType} for property: ${property}`);
                     
                     try {
                         // 获取目标节点的组件信息
@@ -942,10 +943,10 @@ export class ComponentTools implements ToolExecutor {
                         }
                         
                         // 打印目标节点的组件概览
-                        console.log(`[ComponentTools] Target node ${targetNodeUuid} has ${targetNodeData.__comps__.length} components:`);
+                        debugLog(`[ComponentTools] Target node ${targetNodeUuid} has ${targetNodeData.__comps__.length} components:`);
                         targetNodeData.__comps__.forEach((comp: any, index: number) => {
                             const sceneId = comp.value && comp.value.uuid && comp.value.uuid.value ? comp.value.uuid.value : 'unknown';
-                            console.log(`[ComponentTools] Component ${index}: ${comp.type} (scene_id: ${sceneId})`);
+                            debugLog(`[ComponentTools] Component ${index}: ${comp.type} (scene_id: ${sceneId})`);
                         });
                         
                         // 查找对应的组件
@@ -954,22 +955,22 @@ export class ComponentTools implements ToolExecutor {
                         
                         // 在目标节点的_components数组中查找指定类型的组件
                         // 注意：__comps__和_components的索引是对应的
-                        console.log(`[ComponentTools] Searching for component type: ${expectedComponentType}`);
+                        debugLog(`[ComponentTools] Searching for component type: ${expectedComponentType}`);
                         
                         for (let i = 0; i < targetNodeData.__comps__.length; i++) {
                             const comp = targetNodeData.__comps__[i] as any;
-                            console.log(`[ComponentTools] Checking component ${i}: type=${comp.type}, target=${expectedComponentType}`);
+                            debugLog(`[ComponentTools] Checking component ${i}: type=${comp.type}, target=${expectedComponentType}`);
                             
                             if (comp.type === expectedComponentType) {
                                 targetComponent = comp;
-                                console.log(`[ComponentTools] Found matching component at index ${i}: ${comp.type}`);
+                                debugLog(`[ComponentTools] Found matching component at index ${i}: ${comp.type}`);
                                 
                                 // 从组件的value.uuid.value中获取组件在场景中的ID
                                 if (comp.value && comp.value.uuid && comp.value.uuid.value) {
                                     componentId = comp.value.uuid.value;
-                                    console.log(`[ComponentTools] Got componentId from comp.value.uuid.value: ${componentId}`);
+                                    debugLog(`[ComponentTools] Got componentId from comp.value.uuid.value: ${componentId}`);
                                 } else {
-                                    console.log(`[ComponentTools] Component structure:`, {
+                                    debugLog(`[ComponentTools] Component structure:`, {
                                         hasValue: !!comp.value,
                                         hasUuid: !!(comp.value && comp.value.uuid),
                                         hasUuidValue: !!(comp.value && comp.value.uuid && comp.value.uuid.value),
@@ -995,7 +996,7 @@ export class ComponentTools implements ToolExecutor {
                             throw new Error(`Component type '${expectedComponentType}' not found on node ${targetNodeUuid}. Available components: ${availableComponents.join(', ')}`);
                         }
                         
-                        console.log(`[ComponentTools] Found component ${expectedComponentType} with scene ID: ${componentId} on node ${targetNodeUuid}`);
+                        debugLog(`[ComponentTools] Found component ${expectedComponentType} with scene ID: ${componentId} on node ${targetNodeUuid}`);
                         
                         // 更新期望值为实际的组件ID对象格式，用于后续验证
                         if (componentId) {
@@ -1019,7 +1020,7 @@ export class ComponentTools implements ToolExecutor {
                     }
                 } else if (propertyType === 'nodeArray' && Array.isArray(processedValue)) {
                     // 特殊处理节点数组 - 保持预处理的格式
-                    console.log(`[ComponentTools] Setting node array:`, processedValue);
+                    debugLog(`[ComponentTools] Setting node array:`, processedValue);
                     
                     await Editor.Message.request('scene', 'set-property', {
                         uuid: nodeUuid,
@@ -1396,7 +1397,7 @@ export class ComponentTools implements ToolExecutor {
     private smartConvertValue(inputValue: any, propertyInfo: any): any {
         const { type, originalValue } = propertyInfo;
         
-        console.log(`[smartConvertValue] Converting ${JSON.stringify(inputValue)} to type: ${type}`);
+        debugLog(`[smartConvertValue] Converting ${JSON.stringify(inputValue)} to type: ${type}`);
         
         switch (type) {
             case 'string':
@@ -1531,35 +1532,35 @@ export class ComponentTools implements ToolExecutor {
     }
 
     private async verifyPropertyChange(nodeUuid: string, componentType: string, property: string, originalValue: any, expectedValue: any): Promise<{ verified: boolean; actualValue: any; fullData: any }> {
-        console.log(`[verifyPropertyChange] Starting verification for ${componentType}.${property}`);
-        console.log(`[verifyPropertyChange] Expected value:`, JSON.stringify(expectedValue));
-        console.log(`[verifyPropertyChange] Original value:`, JSON.stringify(originalValue));
+        debugLog(`[verifyPropertyChange] Starting verification for ${componentType}.${property}`);
+        debugLog(`[verifyPropertyChange] Expected value:`, JSON.stringify(expectedValue));
+        debugLog(`[verifyPropertyChange] Original value:`, JSON.stringify(originalValue));
         
         try {
             // 重新获取组件信息进行验证
-            console.log(`[verifyPropertyChange] Calling getComponentInfo...`);
+            debugLog(`[verifyPropertyChange] Calling getComponentInfo...`);
             const componentInfo = await this.getComponentInfo(nodeUuid, componentType);
-            console.log(`[verifyPropertyChange] getComponentInfo success:`, componentInfo.success);
+            debugLog(`[verifyPropertyChange] getComponentInfo success:`, componentInfo.success);
             
             const allComponents = await this.getComponents(nodeUuid);
-            console.log(`[verifyPropertyChange] getComponents success:`, allComponents.success);
+            debugLog(`[verifyPropertyChange] getComponents success:`, allComponents.success);
             
             if (componentInfo.success && componentInfo.data) {
-                console.log(`[verifyPropertyChange] Component data available, extracting property '${property}'`);
+                debugLog(`[verifyPropertyChange] Component data available, extracting property '${property}'`);
                 const allPropertyNames = Object.keys(componentInfo.data.properties || {});
-                console.log(`[verifyPropertyChange] Available properties:`, allPropertyNames);
+                debugLog(`[verifyPropertyChange] Available properties:`, allPropertyNames);
                 const propertyData = componentInfo.data.properties?.[property];
-                console.log(`[verifyPropertyChange] Raw property data for '${property}':`, JSON.stringify(propertyData));
+                debugLog(`[verifyPropertyChange] Raw property data for '${property}':`, JSON.stringify(propertyData));
                 
                 // 从属性数据中提取实际值
                 let actualValue = propertyData;
-                console.log(`[verifyPropertyChange] Initial actualValue:`, JSON.stringify(actualValue));
+                debugLog(`[verifyPropertyChange] Initial actualValue:`, JSON.stringify(actualValue));
                 
                 if (propertyData && typeof propertyData === 'object' && 'value' in propertyData) {
                     actualValue = propertyData.value;
-                    console.log(`[verifyPropertyChange] Extracted actualValue from .value:`, JSON.stringify(actualValue));
+                    debugLog(`[verifyPropertyChange] Extracted actualValue from .value:`, JSON.stringify(actualValue));
                 } else {
-                    console.log(`[verifyPropertyChange] No .value property found, using raw data`);
+                    debugLog(`[verifyPropertyChange] No .value property found, using raw data`);
                 }
                 
                 // 修复验证逻辑：检查实际值是否匹配期望值
@@ -1571,41 +1572,41 @@ export class ComponentTools implements ToolExecutor {
                     const expectedUuid = expectedValue.uuid || '';
                     verified = actualUuid === expectedUuid && expectedUuid !== '';
                     
-                    console.log(`[verifyPropertyChange] Reference comparison:`);
-                    console.log(`  - Expected UUID: "${expectedUuid}"`);
-                    console.log(`  - Actual UUID: "${actualUuid}"`);
-                    console.log(`  - UUID match: ${actualUuid === expectedUuid}`);
-                    console.log(`  - UUID not empty: ${expectedUuid !== ''}`);
-                    console.log(`  - Final verified: ${verified}`);
+                    debugLog(`[verifyPropertyChange] Reference comparison:`);
+                    debugLog(`  - Expected UUID: "${expectedUuid}"`);
+                    debugLog(`  - Actual UUID: "${actualUuid}"`);
+                    debugLog(`  - UUID match: ${actualUuid === expectedUuid}`);
+                    debugLog(`  - UUID not empty: ${expectedUuid !== ''}`);
+                    debugLog(`  - Final verified: ${verified}`);
                 } else {
                     // 对于其他类型，直接比较值
-                    console.log(`[verifyPropertyChange] Value comparison:`);
-                    console.log(`  - Expected type: ${typeof expectedValue}`);
-                    console.log(`  - Actual type: ${typeof actualValue}`);
+                    debugLog(`[verifyPropertyChange] Value comparison:`);
+                    debugLog(`  - Expected type: ${typeof expectedValue}`);
+                    debugLog(`  - Actual type: ${typeof actualValue}`);
                     
                     if (typeof actualValue === typeof expectedValue) {
                         if (typeof actualValue === 'object' && actualValue !== null && expectedValue !== null) {
                             // 对象类型的深度比较
                             verified = JSON.stringify(actualValue) === JSON.stringify(expectedValue);
-                            console.log(`  - Object comparison (JSON): ${verified}`);
+                            debugLog(`  - Object comparison (JSON): ${verified}`);
                         } else {
                             // 基本类型的直接比较
                             verified = actualValue === expectedValue;
-                            console.log(`  - Direct comparison: ${verified}`);
+                            debugLog(`  - Direct comparison: ${verified}`);
                         }
                     } else {
                         // 类型不匹配时的特殊处理（如数字和字符串）
                         const stringMatch = String(actualValue) === String(expectedValue);
                         const numberMatch = Number(actualValue) === Number(expectedValue);
                         verified = stringMatch || numberMatch;
-                        console.log(`  - String match: ${stringMatch}`);
-                        console.log(`  - Number match: ${numberMatch}`);
-                        console.log(`  - Type mismatch verified: ${verified}`);
+                        debugLog(`  - String match: ${stringMatch}`);
+                        debugLog(`  - Number match: ${numberMatch}`);
+                        debugLog(`  - Type mismatch verified: ${verified}`);
                     }
                 }
                 
-                console.log(`[verifyPropertyChange] Final verification result: ${verified}`);
-                console.log(`[verifyPropertyChange] Final actualValue:`, JSON.stringify(actualValue));
+                debugLog(`[verifyPropertyChange] Final verification result: ${verified}`);
+                debugLog(`[verifyPropertyChange] Final actualValue:`, JSON.stringify(actualValue));
                 
                 const result = {
                     verified,
@@ -1629,17 +1630,17 @@ export class ComponentTools implements ToolExecutor {
                     }
                 };
                 
-                console.log(`[verifyPropertyChange] Returning result:`, JSON.stringify(result, null, 2));
+                debugLog(`[verifyPropertyChange] Returning result:`, JSON.stringify(result, null, 2));
                 return result;
             } else {
-                console.log(`[verifyPropertyChange] ComponentInfo failed or no data:`, componentInfo);
+                debugLog(`[verifyPropertyChange] ComponentInfo failed or no data:`, componentInfo);
             }
         } catch (error) {
             console.error('[verifyPropertyChange] Verification failed with error:', error);
             console.error('[verifyPropertyChange] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
         }
         
-        console.log(`[verifyPropertyChange] Returning fallback result`);
+        debugLog(`[verifyPropertyChange] Returning fallback result`);
         return {
             verified: false,
             actualValue: undefined,

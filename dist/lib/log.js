@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.setDebugLogEnabled = setDebugLogEnabled;
+exports.debugLog = debugLog;
+let _enableDebug = false;
+function setDebugLogEnabled(enable) {
+    _enableDebug = enable;
+}
+function debugLog(...args) {
+    if (_enableDebug) {
+        console.log(...args);
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibG9nLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiLi4vLi4vc291cmNlL2xpYi9sb2cudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFFQSxnREFFQztBQUVELDRCQUlDO0FBVkQsSUFBSSxZQUFZLEdBQUcsS0FBSyxDQUFDO0FBRXpCLFNBQWdCLGtCQUFrQixDQUFDLE1BQWU7SUFDOUMsWUFBWSxHQUFHLE1BQU0sQ0FBQztBQUMxQixDQUFDO0FBRUQsU0FBZ0IsUUFBUSxDQUFDLEdBQUcsSUFBVztJQUNuQyxJQUFJLFlBQVksRUFBRSxDQUFDO1FBQ2YsT0FBTyxDQUFDLEdBQUcsQ0FBQyxHQUFHLElBQUksQ0FBQyxDQUFDO0lBQ3pCLENBQUM7QUFDTCxDQUFDIiwic291cmNlc0NvbnRlbnQiOlsibGV0IF9lbmFibGVEZWJ1ZyA9IGZhbHNlO1xuXG5leHBvcnQgZnVuY3Rpb24gc2V0RGVidWdMb2dFbmFibGVkKGVuYWJsZTogYm9vbGVhbik6IHZvaWQge1xuICAgIF9lbmFibGVEZWJ1ZyA9IGVuYWJsZTtcbn1cblxuZXhwb3J0IGZ1bmN0aW9uIGRlYnVnTG9nKC4uLmFyZ3M6IGFueVtdKTogdm9pZCB7XG4gICAgaWYgKF9lbmFibGVEZWJ1Zykge1xuICAgICAgICBjb25zb2xlLmxvZyguLi5hcmdzKTtcbiAgICB9XG59XG4iXX0=
