@@ -228,7 +228,7 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   - `cc.EventHandler` 在 scene-script 進程是否可直接 `require('cc')` 取到。
   - issue #16517 workaround `_componentName` 的實際必要性。
 
-**Phase 3 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-2 Panel composable：
+**Phase 3 已落地**（commit `fd9011f`）—— T-P4-2 Panel composable：
 
 - `source/panels/default/composables/`：新增三檔
   `use-server-status.ts` / `use-settings.ts` / `use-tool-config.ts`，各自
