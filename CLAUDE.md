@@ -32,7 +32,10 @@ After build, restart Cocos Creator or reload extensions, then open
 ```
 source/
 ├── main.ts                 # Editor extension entry; load/unload, IPC methods
-├── mcp-server.ts           # Hand-rolled HTTP MCP server (NO @modelcontextprotocol/sdk)
+├── mcp-server-sdk.ts       # SDK-backed HTTP MCP server (@modelcontextprotocol/sdk
+│                           #   low-level Server + StreamableHTTPServerTransport)
+├── lib/log.ts              # Global logger; debug gated by settings.enableDebugLog
+├── lib/schema.ts           # zod helpers (toInputSchema, validateArgs, relaxJsonSchema)
 ├── settings.ts             # Server settings persistence (project settings/)
 ├── scene.ts                # Scene-context script run via Editor.Message 'execute-scene-script'
 ├── tools/                  # ToolExecutor implementations, one file per category
@@ -55,10 +58,13 @@ source/
 └── types/index.ts          # Shared interfaces (ToolDefinition, ToolExecutor, …)
 ```
 
-Tool wiring: `mcp-server.ts:initializeTools()` instantiates every category and
-exposes them as `${category}_${tool.name}` (e.g. `node_create_node`).
-`tool-manager.ts` re-imports and re-instantiates the same classes — that is
-intentional duplication we plan to remove (see roadmap P1).
+Tool wiring: `source/tools/registry.ts` `createToolRegistry()` instantiates
+every category once at extension `load()`, and both `MCPServer` (in
+`mcp-server-sdk.ts`) and `ToolManager` accept the same registry. Tools are
+exposed as `${category}_${tool.name}` (e.g. `node_create_node`); the SDK
+server registers a `setRequestHandler` for `tools/list` and `tools/call`,
+filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
+take effect immediately.
 
 Total tool count today: ~170. Original author's v1.5.0 plan was to collapse
 to ~50 action-router tools. We are not committing to that target until token

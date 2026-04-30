@@ -74,6 +74,10 @@ export const methods: { [key: string]: (...any: any) => any } = {
             await mcpServer.stop();
         }
         mcpServer = new MCPServer(settings, toolRegistry);
+        // Restore the user's enabled-tool filter; without this, every
+        // settings save would expose all 157 tools regardless of what
+        // the tool manager has configured. Mirrors the load() flow.
+        mcpServer.updateEnabledTools(toolManager.getEnabledTools());
         await mcpServer.start();
     },
 

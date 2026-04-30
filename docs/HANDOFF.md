@@ -111,9 +111,10 @@ node scripts/smoke-mcp-sdk.js
 
 ### 已知限制 / 後續可改
 
-1. **session 沒有上限與閒置 TTL**。若 client 不發 DELETE 也不關連線，
-   `sessions` Map 會累積。對編輯器擴充使用情境影響小（panel 關掉 process
-   就死），但若日後上長駐情境要加 LRU 或閒置回收。
+1. **session 閒置 TTL 已加（30 分鐘預設，每 60 秒掃一次），但仍無 LRU 上限**。
+   詳見 `source/mcp-server-sdk.ts` 的 `SESSION_IDLE_TIMEOUT_MS` 與
+   `sweepIdleSessions()`。若日後上多 client 並發長駐情境，要再補
+   max-sessions 上限以防超量同時開啟造成記憶體成長。
 2. **行為變更**：以前可以直接 POST `/mcp` 帶 `tools/list` 不需先 initialize，
    現在會 400「No valid session ID」。Streamable HTTP spec 本來就要求
    先 initialize；任何不照 spec 走的 client 要改。`/api/{cat}/{tool}`
