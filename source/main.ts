@@ -2,9 +2,12 @@ import { MCPServer } from './mcp-server';
 import { readSettings, saveSettings } from './settings';
 import { MCPServerSettings } from './types';
 import { ToolManager } from './tools/tool-manager';
+import { createToolRegistry, ToolRegistry } from './tools/registry';
+import { logger } from './lib/log';
 
 let mcpServer: MCPServer | null = null;
 let toolManager: ToolManager;
+let toolRegistry: ToolRegistry;
 
 /**
  * @en Registration method for the main process of Extension
@@ -32,7 +35,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             mcpServer.updateEnabledTools(enabledTools);
             await mcpServer.start();
         } else {
-            console.warn('[MCP插件] mcpServer 未初始化');
+            logger.warn('[MCP插件] mcpServer 未初始化');
         }
     },
 
@@ -44,7 +47,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
         if (mcpServer) {
             mcpServer.stop();
         } else {
-            console.warn('[MCP插件] mcpServer 未初始化');
+            logger.warn('[MCP插件] mcpServer 未初始化');
         }
     },
 
@@ -69,12 +72,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
         saveSettings(settings);
         if (mcpServer) {
             mcpServer.stop();
-            mcpServer = new MCPServer(settings);
-            mcpServer.start();
-        } else {
-            mcpServer = new MCPServer(settings);
-            mcpServer.start();
         }
+        mcpServer = new MCPServer(settings, toolRegistry);
+        mcpServer.start();
     },
 
     /**
@@ -175,7 +175,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
 
     async updateToolStatusBatch(updates: any[]) {
         try {
-            console.log(`[Main] updateToolStatusBatch called with updates count:`, updates ? updates.length : 0);
+            logger.debug(`[Main] updateToolStatusBatch called with updates count:`, updates ? updates.length : 0);
             
             const currentConfig = toolManager.getCurrentConfiguration();
             if (!currentConfig) {
@@ -222,15 +222,18 @@ export const methods: { [key: string]: (...any: any) => any } = {
  * @zh 扩展启动时触发的方法
  */
 export function load() {
-    console.log('Cocos MCP Server extension loaded');
-    
-    // 初始化工具管理器
-    toolManager = new ToolManager();
-    
+    logger.info('Cocos MCP Server extension loaded');
+
+    // 建立工具註冊表（一次實例化，多處共用）
+    toolRegistry = createToolRegistry();
+
+    // 初始化工具管理器（接收共用 registry）
+    toolManager = new ToolManager(toolRegistry);
+
     // 读取设置
     const settings = readSettings();
-    mcpServer = new MCPServer(settings);
-    
+    mcpServer = new MCPServer(settings, toolRegistry);
+
     // 初始化MCP服务器的工具列表
     const enabledTools = toolManager.getEnabledTools();
     mcpServer.updateEnabledTools(enabledTools);
@@ -238,7 +241,7 @@ export function load() {
     // 如果设置了自动启动，则启动服务器
     if (settings.autoStart) {
         mcpServer.start().catch(err => {
-            console.error('Failed to auto-start MCP server:', err);
+            logger.error('Failed to auto-start MCP server:', err);
         });
     }
 }

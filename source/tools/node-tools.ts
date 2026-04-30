@@ -1,5 +1,6 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, NodeInfo } from '../types';
 import { ComponentTools } from './component-tools';
+import { debugLog } from '../lib/log';
 
 export class NodeTools implements ToolExecutor {
     private componentTools = new ComponentTools();
@@ -317,10 +318,10 @@ export class NodeTools implements ToolExecutor {
                         const sceneInfo = await Editor.Message.request('scene', 'query-node-tree');
                         if (sceneInfo && typeof sceneInfo === 'object' && !Array.isArray(sceneInfo) && Object.prototype.hasOwnProperty.call(sceneInfo, 'uuid')) {
                             targetParentUuid = (sceneInfo as any).uuid;
-                            console.log(`No parent specified, using scene root: ${targetParentUuid}`);
+                            debugLog(`No parent specified, using scene root: ${targetParentUuid}`);
                         } else if (Array.isArray(sceneInfo) && sceneInfo.length > 0 && sceneInfo[0].uuid) {
                             targetParentUuid = sceneInfo[0].uuid;
-                            console.log(`No parent specified, using scene root: ${targetParentUuid}`);
+                            debugLog(`No parent specified, using scene root: ${targetParentUuid}`);
                         } else {
                             const currentScene = await Editor.Message.request('scene', 'query-current-scene');
                             if (currentScene && currentScene.uuid) {
@@ -339,7 +340,7 @@ export class NodeTools implements ToolExecutor {
                         const assetInfo = await Editor.Message.request('asset-db', 'query-asset-info', args.assetPath);
                         if (assetInfo && assetInfo.uuid) {
                             finalAssetUuid = assetInfo.uuid;
-                            console.log(`Asset path '${args.assetPath}' resolved to UUID: ${finalAssetUuid}`);
+                            debugLog(`Asset path '${args.assetPath}' resolved to UUID: ${finalAssetUuid}`);
                         } else {
                             resolve({
                                 success: false,
@@ -389,7 +390,7 @@ export class NodeTools implements ToolExecutor {
 
                 // 不使用dump参数处理初始变换，创建后使用set_node_transform设置
 
-                console.log('Creating node with options:', createNodeOptions);
+                debugLog('Creating node with options:', createNodeOptions);
 
                 // 创建节点
                 const nodeUuid = await Editor.Message.request('scene', 'create-node', createNodeOptions);
@@ -420,7 +421,7 @@ export class NodeTools implements ToolExecutor {
                                     componentType: componentType
                                 });
                                 if (result.success) {
-                                    console.log(`Component ${componentType} added successfully`);
+                                    debugLog(`Component ${componentType} added successfully`);
                                 } else {
                                     console.warn(`Failed to add component ${componentType}:`, result.error);
                                 }
@@ -443,7 +444,7 @@ export class NodeTools implements ToolExecutor {
                             rotation: args.initialTransform.rotation,
                             scale: args.initialTransform.scale
                         });
-                        console.log('Initial transform applied successfully');
+                        debugLog('Initial transform applied successfully');
                     } catch (err) {
                         console.warn('Failed to set initial transform:', err);
                     }

@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ConsoleMessage, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
+import { debugLog } from '../lib/log';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -14,7 +15,7 @@ export class DebugTools implements ToolExecutor {
         // Intercept Editor console messages
         // Note: Editor.Message.addBroadcastListener may not be available in all versions
         // This is a placeholder for console capture implementation
-        console.log('Console capture setup - implementation depends on Editor API availability');
+        debugLog('Console capture setup - implementation depends on Editor API availability');
     }
 
     private addConsoleMessage(message: any): void {

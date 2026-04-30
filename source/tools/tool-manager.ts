@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ToolConfig, ToolConfiguration, ToolManagerSettings, ToolDefinition } from '../types';
+import { debugLog } from '../lib/log';
+import { ToolRegistry } from './registry';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -7,13 +9,13 @@ export class ToolManager {
     private settings: ToolManagerSettings;
     private availableTools: ToolConfig[] = [];
 
-    constructor() {
+    constructor(registry: ToolRegistry) {
         this.settings = this.readToolManagerSettings();
-        this.initializeAvailableTools();
-        
+        this.initializeAvailableTools(registry);
+
         // 如果没有配置，自动创建一个默认配置
         if (this.settings.configurations.length === 0) {
-            console.log('[ToolManager] No configurations found, creating default configuration...');
+            debugLog('[ToolManager] No configurations found, creating default configuration...');
             this.createConfiguration('默认配置', '自动创建的默认工具配置');
         }
     }
@@ -78,48 +80,12 @@ export class ToolManager {
         }
     }
 
-    private initializeAvailableTools(): void {
-        // 从MCP服务器获取真实的工具列表
+    private initializeAvailableTools(registry: ToolRegistry): void {
         try {
-            // 导入所有工具类
-            const { SceneTools } = require('./scene-tools');
-            const { NodeTools } = require('./node-tools');
-            const { ComponentTools } = require('./component-tools');
-            const { PrefabTools } = require('./prefab-tools');
-            const { ProjectTools } = require('./project-tools');
-            const { DebugTools } = require('./debug-tools');
-            const { PreferencesTools } = require('./preferences-tools');
-            const { ServerTools } = require('./server-tools');
-            const { BroadcastTools } = require('./broadcast-tools');
-            const { SceneAdvancedTools } = require('./scene-advanced-tools');
-            const { SceneViewTools } = require('./scene-view-tools');
-            const { ReferenceImageTools } = require('./reference-image-tools');
-            const { AssetAdvancedTools } = require('./asset-advanced-tools');
-            const { ValidationTools } = require('./validation-tools');
-
-            // 初始化工具实例
-            const tools = {
-                scene: new SceneTools(),
-                node: new NodeTools(),
-                component: new ComponentTools(),
-                prefab: new PrefabTools(),
-                project: new ProjectTools(),
-                debug: new DebugTools(),
-                preferences: new PreferencesTools(),
-                server: new ServerTools(),
-                broadcast: new BroadcastTools(),
-                sceneAdvanced: new SceneAdvancedTools(),
-                sceneView: new SceneViewTools(),
-                referenceImage: new ReferenceImageTools(),
-                assetAdvanced: new AssetAdvancedTools(),
-                validation: new ValidationTools()
-            };
-
-            // 从每个工具类获取工具列表
             this.availableTools = [];
-            for (const [category, toolSet] of Object.entries(tools)) {
+            for (const [category, toolSet] of Object.entries(registry)) {
                 const toolDefinitions = toolSet.getTools();
-                toolDefinitions.forEach((tool: any) => {
+                toolDefinitions.forEach((tool: ToolDefinition) => {
                     this.availableTools.push({
                         category: category,
                         name: tool.name,
@@ -129,10 +95,10 @@ export class ToolManager {
                 });
             }
 
-            console.log(`[ToolManager] Initialized ${this.availableTools.length} tools from MCP server`);
+            debugLog(`[ToolManager] Initialized ${this.availableTools.length} tools from shared registry`);
         } catch (error) {
-            console.error('[ToolManager] Failed to initialize tools from MCP server:', error);
-            // 如果获取失败，使用默认工具列表作为后备
+            console.error('[ToolManager] Failed to read tools from registry:', error);
+            // 後備：使用硬編碼預設工具列表（極少觸發；registry 為空才會走到這）
             this.initializeDefaultTools();
         }
     }
@@ -232,7 +198,7 @@ export class ToolManager {
             });
         });
 
-        console.log(`[ToolManager] Initialized ${this.availableTools.length} default tools`);
+        debugLog(`[ToolManager] Initialized ${this.availableTools.length} default tools`);
     }
 
     public getAvailableTools(): ToolConfig[] {
@@ -319,7 +285,7 @@ export class ToolManager {
     }
 
     public updateToolStatus(configId: string, category: string, toolName: string, enabled: boolean): void {
-        console.log(`Backend: Updating tool status - configId: ${configId}, category: ${category}, toolName: ${toolName}, enabled: ${enabled}`);
+        debugLog(`Backend: Updating tool status - configId: ${configId}, category: ${category}, toolName: ${toolName}, enabled: ${enabled}`);
         
         const config = this.settings.configurations.find(config => config.id === configId);
         if (!config) {
@@ -327,7 +293,7 @@ export class ToolManager {
             throw new Error('配置不存在');
         }
 
-        console.log(`Backend: Found config: ${config.name}`);
+        debugLog(`Backend: Found config: ${config.name}`);
 
         const tool = config.tools.find(t => t.category === category && t.name === toolName);
         if (!tool) {
@@ -335,20 +301,20 @@ export class ToolManager {
             throw new Error('工具不存在');
         }
 
-        console.log(`Backend: Found tool: ${tool.name}, current enabled: ${tool.enabled}, new enabled: ${enabled}`);
+        debugLog(`Backend: Found tool: ${tool.name}, current enabled: ${tool.enabled}, new enabled: ${enabled}`);
         
         tool.enabled = enabled;
         config.updatedAt = new Date().toISOString();
         
-        console.log(`Backend: Tool updated, saving settings...`);
+        debugLog(`Backend: Tool updated, saving settings...`);
         this.saveSettings();
-        console.log(`Backend: Settings saved successfully`);
+        debugLog(`Backend: Settings saved successfully`);
     }
 
     public updateToolStatusBatch(configId: string, updates: { category: string; name: string; enabled: boolean }[]): void {
-        console.log(`Backend: updateToolStatusBatch called with configId: ${configId}`);
-        console.log(`Backend: Current configurations count: ${this.settings.configurations.length}`);
-        console.log(`Backend: Current config IDs:`, this.settings.configurations.map(c => c.id));
+        debugLog(`Backend: updateToolStatusBatch called with configId: ${configId}`);
+        debugLog(`Backend: Current configurations count: ${this.settings.configurations.length}`);
+        debugLog(`Backend: Current config IDs:`, this.settings.configurations.map(c => c.id));
         
         const config = this.settings.configurations.find(config => config.id === configId);
         if (!config) {
@@ -357,7 +323,7 @@ export class ToolManager {
             throw new Error('配置不存在');
         }
 
-        console.log(`Backend: Found config: ${config.name}, updating ${updates.length} tools`);
+        debugLog(`Backend: Found config: ${config.name}, updating ${updates.length} tools`);
 
         updates.forEach(update => {
             const tool = config.tools.find(t => t.category === update.category && t.name === update.name);
@@ -368,7 +334,7 @@ export class ToolManager {
 
         config.updatedAt = new Date().toISOString();
         this.saveSettings();
-        console.log(`Backend: Batch update completed successfully`);
+        debugLog(`Backend: Batch update completed successfully`);
     }
 
     public exportConfiguration(configId: string): string {
@@ -418,8 +384,8 @@ export class ToolManager {
     }
 
     private saveSettings(): void {
-        console.log(`Backend: Saving settings, current configs count: ${this.settings.configurations.length}`);
+        debugLog(`Backend: Saving settings, current configs count: ${this.settings.configurations.length}`);
         this.saveToolManagerSettings(this.settings);
-        console.log(`Backend: Settings saved to file`);
+        debugLog(`Backend: Settings saved to file`);
     }
 } 

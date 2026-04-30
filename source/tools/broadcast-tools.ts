@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import { debugLog } from '../lib/log';
 
 export class BroadcastTools implements ToolExecutor {
     private listeners: Map<string, Function[]> = new Map();
@@ -126,7 +127,7 @@ export class BroadcastTools implements ToolExecutor {
                 this.messageLog = this.messageLog.slice(-500);
             }
 
-            console.log(`[Broadcast] ${messageType}:`, data);
+            debugLog(`[Broadcast] ${messageType}:`, data);
         };
 
         if (!this.listeners.has(messageType)) {
@@ -136,7 +137,7 @@ export class BroadcastTools implements ToolExecutor {
 
         // 注册 Editor 消息监听 - 暂时注释掉，Editor.Message API可能不支持
         // Editor.Message.on(messageType, listener);
-        console.log(`[BroadcastTools] Added listener for ${messageType} (simulated)`);
+        debugLog(`[BroadcastTools] Added listener for ${messageType} (simulated)`);
     }
 
     private removeBroadcastListener(messageType: string): void {
@@ -144,7 +145,7 @@ export class BroadcastTools implements ToolExecutor {
         if (listeners) {
             listeners.forEach(listener => {
                 // Editor.Message.off(messageType, listener);
-                console.log(`[BroadcastTools] Removed listener for ${messageType} (simulated)`);
+                debugLog(`[BroadcastTools] Removed listener for ${messageType} (simulated)`);
             });
             this.listeners.delete(messageType);
         }

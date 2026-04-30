@@ -2,90 +2,54 @@ import * as http from 'http';
 import * as url from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { MCPServerSettings, ServerStatus, MCPClient, ToolDefinition } from './types';
-import { setDebugLogEnabled } from './lib/log';
-import { SceneTools } from './tools/scene-tools';
-import { NodeTools } from './tools/node-tools';
-import { ComponentTools } from './tools/component-tools';
-import { PrefabTools } from './tools/prefab-tools';
-import { ProjectTools } from './tools/project-tools';
-import { DebugTools } from './tools/debug-tools';
-import { PreferencesTools } from './tools/preferences-tools';
-import { ServerTools } from './tools/server-tools';
-import { BroadcastTools } from './tools/broadcast-tools';
-import { SceneAdvancedTools } from './tools/scene-advanced-tools';
-import { SceneViewTools } from './tools/scene-view-tools';
-import { ReferenceImageTools } from './tools/reference-image-tools';
-import { AssetAdvancedTools } from './tools/asset-advanced-tools';
-import { ValidationTools } from './tools/validation-tools';
+import { setDebugLogEnabled, logger } from './lib/log';
+import { ToolRegistry } from './tools/registry';
 
 export class MCPServer {
     private settings: MCPServerSettings;
     private httpServer: http.Server | null = null;
     private clients: Map<string, MCPClient> = new Map();
-    private tools: Record<string, any> = {};
+    private tools: ToolRegistry;
     private toolsList: ToolDefinition[] = [];
     private enabledTools: any[] = []; // 存储启用的工具列表
 
-    constructor(settings: MCPServerSettings) {
+    constructor(settings: MCPServerSettings, registry: ToolRegistry) {
         this.settings = settings;
+        this.tools = registry;
         setDebugLogEnabled(settings.enableDebugLog);
-        this.initializeTools();
-    }
-
-    private initializeTools(): void {
-        try {
-            console.log('[MCPServer] Initializing tools...');
-            this.tools.scene = new SceneTools();
-            this.tools.node = new NodeTools();
-            this.tools.component = new ComponentTools();
-            this.tools.prefab = new PrefabTools();
-            this.tools.project = new ProjectTools();
-            this.tools.debug = new DebugTools();
-            this.tools.preferences = new PreferencesTools();
-            this.tools.server = new ServerTools();
-            this.tools.broadcast = new BroadcastTools();
-            this.tools.sceneAdvanced = new SceneAdvancedTools();
-            this.tools.sceneView = new SceneViewTools();
-            this.tools.referenceImage = new ReferenceImageTools();
-            this.tools.assetAdvanced = new AssetAdvancedTools();
-            this.tools.validation = new ValidationTools();
-            console.log('[MCPServer] Tools initialized successfully');
-        } catch (error) {
-            console.error('[MCPServer] Error initializing tools:', error);
-            throw error;
-        }
+        logger.debug(`[MCPServer] Using shared tool registry (${Object.keys(registry).length} categories)`);
     }
 
     public async start(): Promise<void> {
         if (this.httpServer) {
-            console.log('[MCPServer] Server is already running');
+            logger.debug('[MCPServer] Server is already running');
             return;
         }
 
         try {
-            console.log(`[MCPServer] Starting HTTP server on port ${this.settings.port}...`);
+            logger.info(`[MCPServer] Starting HTTP server on port ${this.settings.port}...`);
             this.httpServer = http.createServer(this.handleHttpRequest.bind(this));
 
             await new Promise<void>((resolve, reject) => {
                 this.httpServer!.listen(this.settings.port, '127.0.0.1', () => {
-                    console.log(`[MCPServer] ✅ HTTP server started successfully on http://127.0.0.1:${this.settings.port}`);
-                    console.log(`[MCPServer] Health check: http://127.0.0.1:${this.settings.port}/health`);
-                    console.log(`[MCPServer] MCP endpoint: http://127.0.0.1:${this.settings.port}/mcp`);
+                    logger.info(`[MCPServer] ✅ HTTP server started successfully on http://127.0.0.1:${this.settings.port}`);
+                    logger.info(`[MCPServer] Health check: http://127.0.0.1:${this.settings.port}/health`);
+                    logger.info(`[MCPServer] MCP endpoint: http://127.0.0.1:${this.settings.port}/mcp`);
                     resolve();
                 });
                 this.httpServer!.on('error', (err: any) => {
-                    console.error('[MCPServer] ❌ Failed to start server:', err);
+                    logger.error('[MCPServer] ❌ Failed to start server:', err);
                     if (err.code === 'EADDRINUSE') {
-                        console.error(`[MCPServer] Port ${this.settings.port} is already in use. Please change the port in settings.`);
+                        logger.error(`[MCPServer] Port ${this.settings.port} is already in use. Please change the port in settings.`);
                     }
                     reject(err);
                 });
             });
 
             this.setupTools();
-            console.log('[MCPServer] 🚀 MCP Server is ready for connections');
+            logger.info('[MCPServer] 🚀 MCP Server is ready for connections');
         } catch (error) {
-            console.error('[MCPServer] ❌ Failed to start server:', error);
+            logger.error('[MCPServer] ❌ Failed to start server:', error);
             throw error;
         }
     }
@@ -124,7 +88,7 @@ export class MCPServer {
             }
         }
         
-        console.log(`[MCPServer] Setup tools: ${this.toolsList.length} tools available`);
+        logger.debug(`[MCPServer] Setup tools: ${this.toolsList.length} tools available`);
     }
 
     public getFilteredTools(enabledTools: any[]): ToolDefinition[] {
@@ -156,7 +120,7 @@ export class MCPServer {
     }
 
     public updateEnabledTools(enabledTools: any[]): void {
-        console.log(`[MCPServer] Updating enabled tools: ${enabledTools.length} tools`);
+        logger.debug(`[MCPServer] Updating enabled tools: ${enabledTools.length} tools`);
         this.enabledTools = enabledTools;
         this.setupTools(); // 重新设置工具列表
     }
@@ -197,7 +161,7 @@ export class MCPServer {
                 res.end(JSON.stringify({ error: 'Not found' }));
             }
         } catch (error) {
-            console.error('HTTP request error:', error);
+            logger.error('HTTP request error:', error);
             res.writeHead(500);
             res.end(JSON.stringify({ error: 'Internal server error' }));
         }
@@ -217,7 +181,7 @@ export class MCPServer {
                 res.writeHead(200);
                 res.end(JSON.stringify(response));
             } catch (error: any) {
-                console.error('Error handling MCP request:', error);
+                logger.error('Error handling MCP request:', error);
                 res.writeHead(400);
                 res.end(JSON.stringify({
                     jsonrpc: '2.0',
@@ -284,7 +248,7 @@ export class MCPServer {
         if (this.httpServer) {
             this.httpServer.close();
             this.httpServer = null;
-            console.log('[MCPServer] HTTP server stopped');
+            logger.info('[MCPServer] HTTP server stopped');
         }
 
         this.clients.clear();
@@ -344,7 +308,7 @@ export class MCPServer {
                 }));
                 
             } catch (error: any) {
-                console.error('Simple API error:', error);
+                logger.error('Simple API error:', error);
                 res.writeHead(500);
                 res.end(JSON.stringify({
                     success: false,
