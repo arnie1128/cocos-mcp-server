@@ -1,1 +1,63 @@
+# ---- Dependencies ----
 node_modules/
+
+# ---- TypeScript build cache ----
+*.tsbuildinfo
+
+# Note: `dist/` is intentionally TRACKED in this repo because it ships as a
+# Cocos Creator editor extension; end users install the extension without
+# running `npm run build`. See CLAUDE.md for the convention.
+
+# ---- Logs ----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ---- Cache / coverage / test output ----
+.npm/
+.eslintcache
+.cache/
+.parcel-cache/
+coverage/
+.nyc_output/
+*.lcov
+
+# ---- Env files (never commit secrets) ----
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ---- Editors — per-user, not shared ----
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# VS Code: ignore everything except shared workspace configs.
+# Allow listing extensions, debug launch configs, and tasks to be checked in;
+# personal settings.json stays local.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ---- OS noise ----
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---- Temp ----
+*.tmp
+*.temp
+tmp/
+temp/
