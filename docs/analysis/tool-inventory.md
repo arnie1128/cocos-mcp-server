@@ -2,6 +2,12 @@
 
 > 撰寫日期：2026-04-30，基線：`754adec`。
 > 統計來源：`grep -nE "name:\s*'[a-z_]+'" source/tools/*.ts`
+>
+> 本檔為快照，不事後改寫。**驗證後的數字**（P1 T-P1-4 落地後，
+> 透過 `createToolRegistry()` 列舉）：14 類 / **157 tools**。
+> 與下表 ~170 的差異主要來自原本 grep 對 schema 內 enum 字串的誤計。
+> 各類工具 metadata 仍是這份盤點的對應檔；個別檔案行數因 zod 遷移與
+> T-P1-6 死代碼刪除已大幅縮減（特別是 `prefab-tools.ts` 從 2855 → ~2400）。
 
 ## 一、總計
 
