@@ -8,6 +8,7 @@
 ```
 docs/
 ├── README.md                          # 本檔，整體導覽
+├── HANDOFF.md                         # session 暫停 / 接手指南（隨進度更新）
 ├── architecture/                      # 系統如何運作（描述現況）
 │   ├── overview.md                    # 整體架構與資料流
 │   └── tool-system.md                 # 工具註冊／分派機制

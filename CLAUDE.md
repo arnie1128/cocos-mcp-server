@@ -117,3 +117,10 @@ cost is measured.
 - `docs/adr/` — decision records. Start with `0001-skip-v1.5.0-spec.md` for why this fork is not chasing upstream v1.5.0.
 
 Entry point: `docs/README.md` has the full navigation tree.
+
+## Resuming work
+
+If you are picking this up mid-stream, **read `docs/HANDOFF.md` first**. It
+records the current pause point (P1 partial), what is next, the per-file plan
+for the in-flight task, and how to verify equivalence after schema changes.
+The handoff is updated whenever a session ends with P-level work in progress.
