@@ -3,7 +3,7 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 進度快照（最後更新：2026-05-01；含 P1 收尾的 review/simplifier 兩輪）
+## 進度快照（最後更新：2026-05-01；P4 規劃就位，準備動工）
 
 ```
 P0 ✅ done
@@ -14,7 +14,11 @@ P1 ✅ done (主架構部分)
    ├── T-P1-6 預製體 channel 驗證     ✅ done
    ├── T-P1-1 換官方 MCP SDK          ✅ done
    └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
-P2/P3/P4 ⏳ pending
+P4 🚧 in-progress（規劃 + 文件 done，實作 pending）
+   ├── T-P4-3 Prefab façade 工具集    ⏳ pending（Phase 1）
+   ├── T-P4-1 EventHandler 工具集     ⏳ pending（Phase 2）
+   └── T-P4-2 Panel composable 拆分   ⏳ pending（Phase 3，可選）
+P2/P3 ⏳ pending
 ```
 
 **累積成果**：
@@ -152,24 +156,72 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 - `apply-prefab` / `set-prefab` / `load-prefab-to-node`
 - `revert-prefab` / `load-asset`
 
-實際在用的 prefab 流程：
+實際在用的 prefab 流程（host 進程，Editor.Message）：
 - 實例化 → `scene/create-node` 帶 `assetUuid`（會自動建立 prefab linkage）
 - 還原 / revert → `scene/restore-prefab` 帶 `{ uuid: nodeUuid }`
-- Apply（把實例改動推回資產）→ **公開 API 沒提供**，目前 fail loudly
+- Apply（把實例改動推回資產）→ host 沒有；要走 scene-script + façade
+  `applyPrefab(nodeUuid)`（見下節）
+
+## 2026-05-01：P4 規劃就位（讀後進 Phase 1）
+
+詳細可行性分析：[`docs/analysis/v15-feasibility.md`](analysis/v15-feasibility.md)
+任務分解：[`docs/roadmap/05-v15-spec-parity.md`](roadmap/05-v15-spec-parity.md)
+
+**Phase 1 入口** — T-P4-3 Prefab façade 工具集：
+
+完整 prefab API 在 **scene façade**（`scene-facade-interface.d.ts`），只能透過
+`Editor.Message.request('scene', 'execute-scene-script', { name, method, args })`
+進入 scene 進程後呼叫：
+
+| 動作 | 路徑 |
+|---|---|
+| 建立 prefab 資產 | scene-script `cce.Prefab.createPrefab(uuid, url)` |
+| Apply（推回資產） | scene-script façade `applyPrefab(nodeUuid)` |
+| Link（連到 prefab 資產） | scene-script façade `linkPrefab(nodeUuid, assetUuid)` |
+| Unlink（解除連接） | scene-script façade `unlinkPrefab(nodeUuid, removeNested)` |
+| 讀 prefab dump | scene-script façade `getPrefabData(nodeUuid)` |
+
+**Phase 1 落地清單**（按順序做）：
+
+1. `source/scene.ts`：補 5 個方法（createPrefabFromNode 重寫、applyPrefab、
+   linkPrefab、unlinkPrefab、getPrefabData）。
+2. `source/lib/scene-bridge.ts`（新檔）：抽 `runSceneMethod()` helper。
+3. `source/tools/prefab-tools.ts`：
+   - `updatePrefab` 改走 scene-bridge → applyPrefab，不再 fail loudly。
+   - 新增 zod schema：`link_prefab` / `unlink_prefab` / `get_prefab_data`。
+   - `createPrefab` 入口先試 scene-script，失敗 fallback 自寫 JSON。
+4. `tsc --noEmit` + `node scripts/smoke-mcp-sdk.js` 過。
+5. CLAUDE.md Landmines 加註：`updatePrefab` 已不 fail loudly。
+6. commit + push。
+
+**Phase 2 入口** — T-P4-1 EventHandler 工具：在 `component-tools.ts` 新增
+`add_event_handler` / `remove_event_handler` / `list_event_handlers`，
+路徑用 host `set-property` on `clickEvents`，dump 結構先以 dev script 抓
+ground truth（一次性，不入庫）。
+
+**Phase 3 入口** — T-P4-2 Panel composable：拆 `useServerStatus` /
+`useToolConfig` / `useSettings`，只動 `panels/default/index.ts`，不動
+template / style。
+
+**未驗的實機項目**（每個 Phase 完成後再排）：
+- `cce.Prefab.createPrefab` url 參數格式（`db://` vs 絕對路徑）
+- `applyPrefab` 是否觸發 asset-db re-import
+- EventHandler dump 的精確 `type` 欄位值
+- 3.8.1 `component` 欄位寫不進去的 issue #16517 影響
 
 ## 環境快速確認
 
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -3          # 最頂應是 117d846 fix(p1): verify prefab Editor.Message channels
+git log --oneline -3          # 最頂為 P4 Phase 0（doc 規劃）的 commit
 npm run build                 # 預期 tsc 無輸出
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js');
 const r = createToolRegistry();
 let total = 0;
 for (const c of Object.keys(r)) total += r[c].getTools().length;
 console.log('categories:', Object.keys(r).length, 'tools:', total);"
-# 預期：categories: 14 tools: 157
+# 預期：categories: 14 tools: 157（Phase 1 後會 +3 變 160）
 
 grep -rE "lizhiyong|fixCommonJsonIssues" source/   # 應無輸出（P0）
 grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'" source/   # 應無輸出（T-P1-6）
@@ -179,9 +231,10 @@ grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'"
 
 - 整體 roadmap：`docs/roadmap/README.md`
 - P1 詳細任務 + 進度：`docs/roadmap/02-architecture.md`
+- P4 詳細任務 + 進度：`docs/roadmap/05-v15-spec-parity.md`
+- **v1.5.0 可行性分析（P4 落地依據）**：`docs/analysis/v15-feasibility.md`
 - 程式碼地雷清單：`CLAUDE.md` §Landmines（P0 + T-P1-6 已修的標 ✅）
 - ADR 0001（不追 v1.5.0 spec 的決策）：`docs/adr/0001-skip-v1.5.0-spec.md`
-- v1.5.0 部分對齊（P4）：`docs/roadmap/05-v15-spec-parity.md`
 - 上游差異分析：`docs/analysis/upstream-status.md`
 
 ## 回滾錨點

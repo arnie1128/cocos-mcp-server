@@ -10,7 +10,7 @@
 | **P0** | 基線硬傷修復 ✅ done 2026-04-30 | ~2 小時 | 低 | [`01-baseline-fixes.md`](./01-baseline-fixes.md) |
 | **P1** | 架構債清理 ✅ done 2026-05-01 | ~7 天 | 中 | [`02-architecture.md`](./02-architecture.md) |
 | **P2** | 工具收斂（評估 + 選擇性執行） | ~1-2 週 | 中 | [`03-tool-consolidation.md`](./03-tool-consolidation.md) |
-| **P4** | v1.5.0 部分對齊（事件綁定 + 面板 UI） | ~3-5 天 | 中 | [`05-v15-spec-parity.md`](./05-v15-spec-parity.md) |
+| **P4** | v1.5.0 部分對齊（prefab façade + 事件綁定 + 面板 composable） 🚧 in-progress 2026-05-01 | ~3-5 天 | 中 | [`05-v15-spec-parity.md`](./05-v15-spec-parity.md) |
 | **P3** | MCP 進階能力（Resources/Prompts/Notifications） | ~1-2 週 | 中-高 | [`04-protocol-extensions.md`](./04-protocol-extensions.md) |
 
 > P3 與 P4 互不相依，順序視當下需求。
@@ -34,20 +34,23 @@
 4. **P3 最後**：Resources / Prompts / Notifications 是錦上添花，只在前面
    穩了之後才有意義。
 
-## 與 v1.5.0 的關係（2026-04-30 修訂）
+## 與 v1.5.0 的關係（2026-05-01 修訂）
 
 | 原作者 v1.5.0 承諾 | 我們對應的階段 |
 |---|---|
 | 工具收斂 50 個 | P2（條件式執行） |
-| 預製體 100% 對齊 | P1 T-P1-6 處理 ladder 清理；「100%」全鏈路依實機測試結果再加碼 |
+| 預製體 channel 驗證 | P1 T-P1-6 ✅ done（`restore-prefab` 是唯一 host channel） |
+| 預製體 apply / link / unlink / 建立 | **P4 T-P4-3**（走 scene-script + façade） |
 | 事件綁定補完 | P4 T-P4-1 |
 | 接口優化 | 散落在 P1（zod schema）與 P2 |
-| 面板 UI | P4 T-P4-2（低優先，可省略） |
+| 面板 UI | P4 T-P4-2（範圍縮小：只拆 composable） |
 | Token -50% | 不承諾，但 P1 + P2 做完後會量測 |
 
 ADR 0001（不追 v1.5.0 spec）的決策仍成立——我們不把「對齊上游 README」
 當主目標，但 v1.5.0 列項中**可行且有獨立價值**的部分可選擇性拿回。
 
+每項對應的官方 API 路徑與可行性詳見
+[`analysis/v15-feasibility.md`](../analysis/v15-feasibility.md)。
 詳細不追的理由見 [`adr/0001-skip-v1.5.0-spec.md`](../adr/0001-skip-v1.5.0-spec.md)。
 
 ## 執行原則

@@ -15,6 +15,7 @@ docs/
 ├── analysis/                          # 我們對現況的評估（哪裡有問題）
 │   ├── code-quality.md                # 程式碼品質瑕疵清單
 │   ├── upstream-status.md             # 與原作者 v1.5.0 規劃的落差
+│   ├── v15-feasibility.md             # v1.5.0 七承諾逐項可行性 + 官方 API 路徑
 │   └── tool-inventory.md              # 170 個工具的盤點與分類
 ├── roadmap/                           # 未來規劃（按優先序分階段）
 │   ├── README.md                      # P0–P4 總表
