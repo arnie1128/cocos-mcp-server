@@ -8,16 +8,22 @@ import {
     ListToolsRequestSchema,
     isInitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js';
-import { MCPServerSettings, ServerStatus, MCPClient, ToolDefinition } from './types';
+import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
 import { setDebugLogEnabled, logger } from './lib/log';
 import { ToolRegistry } from './tools/registry';
 
 const SERVER_NAME = 'cocos-mcp-server';
 const SERVER_VERSION = '2.0.0';
 
+// Idle session sweep: drop sessions that haven't been touched in this many ms.
+// Set conservatively long for editor usage where a developer may pause work.
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
+
 interface SessionEntry {
     transport: StreamableHTTPServerTransport;
     sdkServer: Server;
+    lastActivityAt: number;
 }
 
 /**
@@ -33,10 +39,11 @@ export class MCPServer {
     private settings: MCPServerSettings;
     private httpServer: http.Server | null = null;
     private sessions: Map<string, SessionEntry> = new Map();
-    private clients: Map<string, MCPClient> = new Map();
     private tools: ToolRegistry;
     private toolsList: ToolDefinition[] = [];
     private enabledTools: any[] = [];
+    private cleanupInterval: NodeJS.Timeout | null = null;
+    private updating: boolean = false;
 
     constructor(settings: MCPServerSettings, registry: ToolRegistry) {
         this.settings = settings;
@@ -124,6 +131,11 @@ export class MCPServer {
                 });
             });
 
+            this.cleanupInterval = setInterval(() => this.sweepIdleSessions(), SESSION_CLEANUP_INTERVAL_MS);
+            // setInterval keeps the Node event loop alive; unref so we don't
+            // block extension teardown if stop() somehow doesn't run.
+            this.cleanupInterval.unref?.();
+
             logger.info(`[MCPServer] 🚀 MCP Server ready (${this.toolsList.length} tools)`);
         } catch (error) {
             logger.error('[MCPServer] ❌ Failed to start server:', error);
@@ -131,34 +143,44 @@ export class MCPServer {
         }
     }
 
-    private setupTools(): void {
-        this.toolsList = [];
+    private sweepIdleSessions(): void {
+        if (this.sessions.size === 0) return;
+        const cutoff = Date.now() - SESSION_IDLE_TIMEOUT_MS;
+        const stale: string[] = [];
+        for (const [id, entry] of this.sessions) {
+            if (entry.lastActivityAt < cutoff) stale.push(id);
+        }
+        for (const id of stale) {
+            const entry = this.sessions.get(id);
+            if (!entry) continue;
+            this.sessions.delete(id);
+            entry.transport.close().catch(err => {
+                logger.warn(`[MCPServer] sweep close error for ${id}:`, err);
+            });
+            logger.debug(`[MCPServer] swept idle session: ${id} (remaining: ${this.sessions.size})`);
+        }
+    }
 
-        if (!this.enabledTools || this.enabledTools.length === 0) {
-            for (const [category, toolSet] of Object.entries(this.tools)) {
-                for (const tool of toolSet.getTools()) {
-                    this.toolsList.push({
-                        name: `${category}_${tool.name}`,
-                        description: tool.description,
-                        inputSchema: tool.inputSchema,
-                    });
-                }
-            }
-        } else {
-            const enabledToolNames = new Set(this.enabledTools.map(t => `${t.category}_${t.name}`));
-            for (const [category, toolSet] of Object.entries(this.tools)) {
-                for (const tool of toolSet.getTools()) {
-                    const fqName = `${category}_${tool.name}`;
-                    if (enabledToolNames.has(fqName)) {
-                        this.toolsList.push({
-                            name: fqName,
-                            description: tool.description,
-                            inputSchema: tool.inputSchema,
-                        });
-                    }
-                }
+    private setupTools(): void {
+        // Build the new list locally and only swap once it's ready, so that
+        // a concurrent ListToolsRequest can never observe an empty list.
+        const next: ToolDefinition[] = [];
+        const enabledFilter = this.enabledTools && this.enabledTools.length > 0
+            ? new Set(this.enabledTools.map(t => `${t.category}_${t.name}`))
+            : null;
+
+        for (const [category, toolSet] of Object.entries(this.tools)) {
+            for (const tool of toolSet.getTools()) {
+                const fqName = `${category}_${tool.name}`;
+                if (enabledFilter && !enabledFilter.has(fqName)) continue;
+                next.push({
+                    name: fqName,
+                    description: tool.description,
+                    inputSchema: tool.inputSchema,
+                });
             }
         }
+        this.toolsList = next;
 
         logger.debug(`[MCPServer] Setup tools: ${this.toolsList.length} tools available`);
     }
@@ -180,10 +202,6 @@ export class MCPServer {
             return await this.tools[category].execute(toolMethodName, args);
         }
         throw new Error(`Tool ${toolName} not found`);
-    }
-
-    public getClients(): MCPClient[] {
-        return Array.from(this.clients.values());
     }
 
     public getAvailableTools(): ToolDefinition[] {
@@ -208,6 +226,11 @@ export class MCPServer {
         const parsedUrl = url.parse(req.url || '', true);
         const pathname = parsedUrl.pathname;
 
+        // CORS is wildcard so the Cocos Creator panel webview (which loads
+        // from a `file://` or `devtools://` origin) can hit this endpoint.
+        // The server only listens on 127.0.0.1, so external attackers can't
+        // reach it; the wildcard does mean any local web page in the user's
+        // browser could probe it, which is acceptable for a developer tool.
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
@@ -252,18 +275,26 @@ export class MCPServer {
     private async handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-        // GET / DELETE require an existing session — route directly.
+        // GET (server-initiated SSE) and DELETE (explicit session close) both
+        // require an existing session. Per Streamable HTTP spec, GET without
+        // session is "method not allowed"; DELETE without session is "not found".
         if (req.method !== 'POST') {
-            if (!sessionId || !this.sessions.has(sessionId)) {
-                res.writeHead(404, { 'Content-Type': 'application/json' });
+            const entry = sessionId ? this.sessions.get(sessionId) : undefined;
+            if (!entry) {
+                const status = req.method === 'GET' ? 405 : 404;
+                const message = req.method === 'GET'
+                    ? 'Method not allowed without active session'
+                    : 'Session not found';
+                res.writeHead(status, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     jsonrpc: '2.0',
-                    error: { code: -32000, message: 'No active session for this request' },
+                    error: { code: -32000, message },
                     id: null,
                 }));
                 return;
             }
-            await this.sessions.get(sessionId)!.transport.handleRequest(req, res);
+            entry.lastActivityAt = Date.now();
+            await entry.transport.handleRequest(req, res);
             return;
         }
 
@@ -288,8 +319,10 @@ export class MCPServer {
         }
 
         // Existing session?
-        if (sessionId && this.sessions.has(sessionId)) {
-            await this.sessions.get(sessionId)!.transport.handleRequest(req, res, parsedBody);
+        const existing = sessionId ? this.sessions.get(sessionId) : undefined;
+        if (existing) {
+            existing.lastActivityAt = Date.now();
+            await existing.transport.handleRequest(req, res, parsedBody);
             return;
         }
 
@@ -304,11 +337,14 @@ export class MCPServer {
             return;
         }
 
+        // Build the Server first so the transport callback closure captures
+        // an already-initialized binding (avoids TDZ-style ordering surprises).
+        const sdkServer = this.buildSdkServer();
         const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             enableJsonResponse: true,
             onsessioninitialized: (id) => {
-                this.sessions.set(id, { transport, sdkServer });
+                this.sessions.set(id, { transport, sdkServer, lastActivityAt: Date.now() });
                 logger.debug(`[MCPServer] session initialized: ${id} (total: ${this.sessions.size})`);
             },
             onsessionclosed: (id) => {
@@ -316,18 +352,15 @@ export class MCPServer {
                 logger.debug(`[MCPServer] session closed: ${id} (remaining: ${this.sessions.size})`);
             },
         });
-        transport.onclose = () => {
-            const id = transport.sessionId;
-            if (id) {
-                this.sessions.delete(id);
-            }
-        };
-        const sdkServer = this.buildSdkServer();
         await sdkServer.connect(transport);
         await transport.handleRequest(req, res, parsedBody);
     }
 
     public async stop(): Promise<void> {
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
         for (const { transport } of this.sessions.values()) {
             try {
                 await transport.close();
@@ -337,13 +370,15 @@ export class MCPServer {
         }
         this.sessions.clear();
         if (this.httpServer) {
+            // close() only refuses NEW connections; keep-alive sockets stay
+            // open and would block close() forever. Force them to drop too.
+            this.httpServer.closeAllConnections?.();
             await new Promise<void>(resolve => {
                 this.httpServer!.close(() => resolve());
             });
             this.httpServer = null;
             logger.info('[MCPServer] HTTP server stopped');
         }
-        this.clients.clear();
     }
 
     public getStatus(): ServerStatus {
@@ -442,11 +477,20 @@ export class MCPServer {
     }
 
     public async updateSettings(settings: MCPServerSettings): Promise<void> {
-        this.settings = settings;
-        setDebugLogEnabled(settings.enableDebugLog);
-        if (this.httpServer) {
-            await this.stop();
-            await this.start();
+        if (this.updating) {
+            logger.warn('[MCPServer] updateSettings ignored — another update in progress');
+            return;
+        }
+        this.updating = true;
+        try {
+            this.settings = settings;
+            setDebugLogEnabled(settings.enableDebugLog);
+            if (this.httpServer) {
+                await this.stop();
+                await this.start();
+            }
+        } finally {
+            this.updating = false;
         }
     }
 }
