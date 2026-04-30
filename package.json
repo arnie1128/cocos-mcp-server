@@ -15,7 +15,8 @@
     "dependencies": {
         "fs-extra": "^11.3.0",
         "uuid": "^9.0.1",
-        "vue": "^3.1.4"
+        "vue": "^3.1.4",
+        "zod": "^4.4.1"
     },
     "devDependencies": {
         "@cocos/creator-types": "^3.8.6",
@@ -39,7 +40,7 @@
         }
     },
     "contributions": {
-                "menu": [
+        "menu": [
             {
                 "path": "i18n:menu.extension/Cocos MCP Server",
                 "label": "i18n:cocos-mcp-server.open_panel",

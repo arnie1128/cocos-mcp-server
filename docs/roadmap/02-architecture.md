@@ -1,9 +1,23 @@
 # P1 — 架構債清理
 
-**Status**: pending
-**預估工時**: ~5-7 天
+**Status**: in-progress（2026-04-30 起）
+**預估工時**: ~6-8 天
 **風險**: 中（會動到工具註冊與 server transport）
 **前置**: P0 完成
+
+## 進度
+
+- ✅ T-P1-3 Logger 全面化（commit `c411a9b`）：log.ts 升級為 logger 物件，
+  16 處 `console.log` 全改 logger.info/debug 或 debugLog。
+- ✅ T-P1-2 工具註冊表（commit `c411a9b`）：`source/tools/registry.ts` 一次
+  實例化、`MCPServer` / `ToolManager` 共用同一份 ToolRegistry，main.ts 在
+  load 時建立並重用。
+- 🚧 T-P1-4 zod schema：`source/lib/schema.ts` helper 已落地、
+  node-tools.ts（11 個工具）已試點完成並驗證 inputSchema 等價於原手寫版本。
+  剩 13 個工具檔待擴展。
+- ⏳ T-P1-6 預製體 channel 驗證 — 待做。
+- ⏳ T-P1-1 換官方 MCP SDK — 待做。
+- ⏳ T-P1-5 structured content — 待做（與 T-P1-1 一起）。
 
 ## 範圍
 
@@ -76,11 +90,25 @@ HTTP endpoint 形式可能變更（從手寫 JSON-RPC 換成 SDK 標準 transpor
 
 **做法**：
 
-1. 加入 `zod` 與 `zod-to-json-schema`。
-2. **試點**：選 `node-tools.ts` 為第一個重構對象（中等大小、無 prefab 包袱）。
-3. 把 `getTools()` 內手寫 JSON Schema 改成 zod schema，自動轉 JSON Schema。
-4. `execute()` 內用 zod 驗證 args，失敗時回 `success: false` + `error`。
-5. 試點若順利，再依序套用到其他 13 個檔。
+1. ~~加入 `zod` 與 `zod-to-json-schema`~~ — 改採 zod 4 內建 `z.toJSONSchema`，
+   不再需要 `zod-to-json-schema` 套件（已移除）。
+2. ✅ **試點 node-tools.ts** 完成。helper 在 `source/lib/schema.ts`：
+   - `toInputSchema(schema)`：zod → JSON Schema，後處理會移除
+     `additionalProperties: false`（zod 4 預設加入）並把含 `default` 的欄位
+     從 `required` 移除（手寫版的慣例）。
+   - `validateArgs(schema, args)`：執行期驗證，失敗回 `success: false` +
+     具體欄位錯誤訊息。
+3. ✅ getTools() 改為由 `nodeSchemas` map 動態產出；execute() 入口先
+   `validateArgs` 再 dispatch。
+4. ⏳ 剩餘 13 個工具檔待擴展（依複雜度排序：先 server/preferences/broadcast
+   等簡單檔，最後 prefab/component/scene-advanced）。
+
+**驗證**（已完成）：
+
+- `tools/list` 回傳的 inputSchema 與舊版內容等價：對 `find_nodes`、
+  `move_node`、`set_node_transform` 三組（簡單／中等／巢狀）做 diff，
+  required 欄位、default、各層 description 完全一致。
+- 程式碼行數略減（node-tools.ts 280 行 schema 縮為 ~90 行 zod）。
 
 **驗證**：
 
