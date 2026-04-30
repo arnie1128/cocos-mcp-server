@@ -1,213 +1,109 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, PrefabInfo } from '../types';
 import { debugLog } from '../lib/log';
+import { z, toInputSchema, validateArgs } from '../lib/schema';
+
+const prefabPositionSchema = z.object({
+    x: z.number().optional(),
+    y: z.number().optional(),
+    z: z.number().optional(),
+});
+
+const prefabSchemas = {
+    get_prefab_list: z.object({
+        folder: z.string().default('db://assets').describe('Folder path to search (optional)'),
+    }),
+    load_prefab: z.object({
+        prefabPath: z.string().describe('Prefab asset path'),
+    }),
+    instantiate_prefab: z.object({
+        prefabPath: z.string().describe('Prefab asset path'),
+        parentUuid: z.string().optional().describe('Parent node UUID (optional)'),
+        position: prefabPositionSchema.optional().describe('Initial position'),
+    }),
+    create_prefab: z.object({
+        nodeUuid: z.string().describe('Source node UUID'),
+        savePath: z.string().describe('Path to save the prefab (e.g., db://assets/prefabs/MyPrefab.prefab)'),
+        prefabName: z.string().describe('Prefab name'),
+    }),
+    update_prefab: z.object({
+        prefabPath: z.string().describe('Prefab asset path'),
+        nodeUuid: z.string().describe('Node UUID with changes'),
+    }),
+    revert_prefab: z.object({
+        nodeUuid: z.string().describe('Prefab instance node UUID'),
+    }),
+    get_prefab_info: z.object({
+        prefabPath: z.string().describe('Prefab asset path'),
+    }),
+    validate_prefab: z.object({
+        prefabPath: z.string().describe('Prefab asset path'),
+    }),
+    duplicate_prefab: z.object({
+        sourcePrefabPath: z.string().describe('Source prefab path'),
+        targetPrefabPath: z.string().describe('Target prefab path'),
+        newPrefabName: z.string().optional().describe('New prefab name'),
+    }),
+    restore_prefab_node: z.object({
+        nodeUuid: z.string().describe('Prefab instance node UUID'),
+        assetUuid: z.string().describe('Prefab asset UUID'),
+    }),
+} as const;
+
+const prefabToolMeta: Record<keyof typeof prefabSchemas, string> = {
+    get_prefab_list: 'Get all prefabs in the project',
+    load_prefab: 'Load a prefab by path',
+    instantiate_prefab: 'Instantiate a prefab in the scene',
+    create_prefab: 'Create a prefab from a node with all children and components',
+    update_prefab: 'Update an existing prefab',
+    revert_prefab: 'Revert prefab instance to original',
+    get_prefab_info: 'Get detailed prefab information',
+    validate_prefab: 'Validate a prefab file format',
+    duplicate_prefab: 'Duplicate an existing prefab',
+    restore_prefab_node: 'Restore prefab node using prefab asset (built-in undo record)',
+};
 
 export class PrefabTools implements ToolExecutor {
     getTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'get_prefab_list',
-                description: 'Get all prefabs in the project',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        folder: {
-                            type: 'string',
-                            description: 'Folder path to search (optional)',
-                            default: 'db://assets'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'load_prefab',
-                description: 'Load a prefab by path',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prefabPath: {
-                            type: 'string',
-                            description: 'Prefab asset path'
-                        }
-                    },
-                    required: ['prefabPath']
-                }
-            },
-            {
-                name: 'instantiate_prefab',
-                description: 'Instantiate a prefab in the scene',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prefabPath: {
-                            type: 'string',
-                            description: 'Prefab asset path'
-                        },
-                        parentUuid: {
-                            type: 'string',
-                            description: 'Parent node UUID (optional)'
-                        },
-                        position: {
-                            type: 'object',
-                            description: 'Initial position',
-                            properties: {
-                                x: { type: 'number' },
-                                y: { type: 'number' },
-                                z: { type: 'number' }
-                            }
-                        }
-                    },
-                    required: ['prefabPath']
-                }
-            },
-            {
-                name: 'create_prefab',
-                description: 'Create a prefab from a node with all children and components',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Source node UUID'
-                        },
-                        savePath: {
-                            type: 'string',
-                            description: 'Path to save the prefab (e.g., db://assets/prefabs/MyPrefab.prefab)'
-                        },
-                        prefabName: {
-                            type: 'string',
-                            description: 'Prefab name'
-                        }
-                    },
-                    required: ['nodeUuid', 'savePath', 'prefabName']
-                }
-            },
-            {
-                name: 'update_prefab',
-                description: 'Update an existing prefab',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prefabPath: {
-                            type: 'string',
-                            description: 'Prefab asset path'
-                        },
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Node UUID with changes'
-                        }
-                    },
-                    required: ['prefabPath', 'nodeUuid']
-                }
-            },
-            {
-                name: 'revert_prefab',
-                description: 'Revert prefab instance to original',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Prefab instance node UUID'
-                        }
-                    },
-                    required: ['nodeUuid']
-                }
-            },
-            {
-                name: 'get_prefab_info',
-                description: 'Get detailed prefab information',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prefabPath: {
-                            type: 'string',
-                            description: 'Prefab asset path'
-                        }
-                    },
-                    required: ['prefabPath']
-                }
-            },
-            {
-                name: 'validate_prefab',
-                description: 'Validate a prefab file format',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prefabPath: {
-                            type: 'string',
-                            description: 'Prefab asset path'
-                        }
-                    },
-                    required: ['prefabPath']
-                }
-            },
-            {
-                name: 'duplicate_prefab',
-                description: 'Duplicate an existing prefab',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        sourcePrefabPath: {
-                            type: 'string',
-                            description: 'Source prefab path'
-                        },
-                        targetPrefabPath: {
-                            type: 'string',
-                            description: 'Target prefab path'
-                        },
-                        newPrefabName: {
-                            type: 'string',
-                            description: 'New prefab name'
-                        }
-                    },
-                    required: ['sourcePrefabPath', 'targetPrefabPath']
-                }
-            },
-            {
-                name: 'restore_prefab_node',
-                description: 'Restore prefab node using prefab asset (built-in undo record)',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        nodeUuid: {
-                            type: 'string',
-                            description: 'Prefab instance node UUID'
-                        },
-                        assetUuid: {
-                            type: 'string',
-                            description: 'Prefab asset UUID'
-                        }
-                    },
-                    required: ['nodeUuid', 'assetUuid']
-                }
-            }
-        ];
+        return (Object.keys(prefabSchemas) as Array<keyof typeof prefabSchemas>).map(name => ({
+            name,
+            description: prefabToolMeta[name],
+            inputSchema: toInputSchema(prefabSchemas[name]),
+        }));
     }
 
     async execute(toolName: string, args: any): Promise<ToolResponse> {
-        switch (toolName) {
+        const schemaName = toolName as keyof typeof prefabSchemas;
+        const schema = prefabSchemas[schemaName];
+        if (!schema) {
+            throw new Error(`Unknown tool: ${toolName}`);
+        }
+        const validation = validateArgs(schema, args ?? {});
+        if (!validation.ok) {
+            return validation.response;
+        }
+        const a = validation.data as any;
+
+        switch (schemaName) {
             case 'get_prefab_list':
-                return await this.getPrefabList(args.folder);
+                return await this.getPrefabList(a.folder);
             case 'load_prefab':
-                return await this.loadPrefab(args.prefabPath);
+                return await this.loadPrefab(a.prefabPath);
             case 'instantiate_prefab':
-                return await this.instantiatePrefab(args);
+                return await this.instantiatePrefab(a);
             case 'create_prefab':
-                return await this.createPrefab(args);
+                return await this.createPrefab(a);
             case 'update_prefab':
-                return await this.updatePrefab(args.prefabPath, args.nodeUuid);
+                return await this.updatePrefab(a.prefabPath, a.nodeUuid);
             case 'revert_prefab':
-                return await this.revertPrefab(args.nodeUuid);
+                return await this.revertPrefab(a.nodeUuid);
             case 'get_prefab_info':
-                return await this.getPrefabInfo(args.prefabPath);
+                return await this.getPrefabInfo(a.prefabPath);
             case 'validate_prefab':
-                return await this.validatePrefab(args.prefabPath);
+                return await this.validatePrefab(a.prefabPath);
             case 'duplicate_prefab':
-                return await this.duplicatePrefab(args);
+                return await this.duplicatePrefab(a);
             case 'restore_prefab_node':
-                return await this.restorePrefabNode(args.nodeUuid, args.assetUuid);
-            default:
-                throw new Error(`Unknown tool: ${toolName}`);
+                return await this.restorePrefabNode(a.nodeUuid, a.assetUuid);
         }
     }
 
