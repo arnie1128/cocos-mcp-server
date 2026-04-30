@@ -16,7 +16,7 @@ P1 ✅ done (主架構部分)
    └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
 P4 🚧 in-progress
    ├── T-P4-3 Prefab façade 工具集    ✅ code done（⚠️ 未實機驗證）
-   ├── T-P4-1 EventHandler 工具集     ⏳ pending（Phase 2）
+   ├── T-P4-1 EventHandler 工具集     ✅ code done（⚠️ 未實機驗證）
    └── T-P4-2 Panel composable 拆分   ⏳ pending（Phase 3，可選）
 P2/P3 ⏳ pending
 ```
@@ -167,7 +167,7 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 詳細可行性分析：[`docs/analysis/v15-feasibility.md`](analysis/v15-feasibility.md)
 任務分解：[`docs/roadmap/05-v15-spec-parity.md`](roadmap/05-v15-spec-parity.md)
 
-**Phase 1 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-3 Prefab façade 工具集：
+**Phase 1 已落地**（commit `a5cc858`）—— T-P4-3 Prefab façade 工具集：
 
 完整 prefab API 在 **scene façade**（`scene-facade-interface.d.ts`），只能透過
 `Editor.Message.request('scene', 'execute-scene-script', { name, method, args })`
@@ -208,10 +208,25 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 - façade 偵測順序：`cce.Prefab` → `cce.SceneFacadeManager.instance` →
   `cce.SceneFacadeManager`。實機若三者都不通，要回 scene.ts 補正確路徑。
 
-**Phase 2 入口** — T-P4-1 EventHandler 工具：在 `component-tools.ts` 新增
-`add_event_handler` / `remove_event_handler` / `list_event_handlers`，
-路徑用 host `set-property` on `clickEvents`，dump 結構先以 dev script 抓
-ground truth（一次性，不入庫）。
+**Phase 2 已落地**（commit `<TBD-after-this-commit>`）—— T-P4-1 EventHandler 工具：
+
+- `source/scene.ts`：補三個方法（addEventHandler / removeEventHandler /
+  listEventHandlers）、加 `resolveComponentContext()` helper、加
+  `serializeEventHandler()` helper。實作走「scene-script + new
+  cc.EventHandler」路徑（v15-feasibility 路徑 B），並同時設 `component`
+  + `_componentName` 規避 cocos-engine#16517。
+- `source/tools/component-tools.ts`：新增三個 MCP 工具
+  `add_event_handler` / `remove_event_handler` / `list_event_handlers`，
+  入參用 zod schema，預設 `componentType=cc.Button`、
+  `eventArrayProperty=clickEvents`，支援 Toggle / ScrollView 等其他
+  EventHandler 屬性。
+- 工具總數 160 → 163；tsc + smoke 通過。
+- ⚠️ 未實機驗證項：
+  - 3.8.x 上 push 後是否需要 `Editor.Message.request('scene', 'save-scene')`
+    才能持久化（目前只 send `snapshot`，按 cocos 內部約定理應已記錄 dirty
+    + undo）。
+  - `cc.EventHandler` 在 scene-script 進程是否可直接 `require('cc')` 取到。
+  - issue #16517 workaround `_componentName` 的實際必要性。
 
 **Phase 3 入口** — T-P4-2 Panel composable：拆 `useServerStatus` /
 `useToolConfig` / `useSettings`，只動 `panels/default/index.ts`，不動

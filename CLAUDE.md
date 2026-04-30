@@ -45,7 +45,7 @@ source/
 │   ├── scene-advanced-tools.ts    #  23 tools
 │   ├── scene-view-tools.ts        #  20 tools
 │   ├── node-tools.ts              #  15 tools
-│   ├── component-tools.ts         #  11 tools  (1776 lines)
+│   ├── component-tools.ts         #  10 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  13 tools  (P4 T-P4-3 added link/unlink/get_prefab_data)
 │   ├── project-tools.ts           #  24 tools
 │   ├── debug-tools.ts             #  11 tools

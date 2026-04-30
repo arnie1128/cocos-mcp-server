@@ -40,6 +40,42 @@ function getPrefabFacade(): FacadeLookup {
     };
 }
 
+type ComponentLookup =
+    | { ok: true; scene: any; node: any; component: any }
+    | { ok: false; error: string };
+
+function resolveComponentContext(nodeUuid: string, componentType: string): ComponentLookup {
+    const { director, js } = require('cc');
+    const scene = director.getScene();
+    if (!scene) {
+        return { ok: false, error: 'No active scene' };
+    }
+    const node = scene.getChildByUuid(nodeUuid);
+    if (!node) {
+        return { ok: false, error: `Node with UUID ${nodeUuid} not found` };
+    }
+    const ComponentClass = js.getClassByName(componentType);
+    if (!ComponentClass) {
+        return { ok: false, error: `Component type ${componentType} not found` };
+    }
+    const component = node.getComponent(ComponentClass);
+    if (!component) {
+        return { ok: false, error: `Component ${componentType} not found on node` };
+    }
+    return { ok: true, scene, node, component };
+}
+
+function serializeEventHandler(eh: any) {
+    if (!eh) return null;
+    return {
+        targetUuid: eh.target?.uuid ?? null,
+        targetName: eh.target?.name ?? null,
+        component: eh.component ?? eh._componentName ?? null,
+        handler: eh.handler ?? null,
+        customEventData: eh.customEventData ?? '',
+    };
+}
+
 export const methods: { [key: string]: (...any: any) => any } = {
     /**
      * Create a new scene
@@ -469,6 +505,137 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const data = prefabMgr.value.getPrefabData(nodeUuid);
             return { success: true, data };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Append a cc.EventHandler entry to a component's event array
+     * (e.g. cc.Button.clickEvents, cc.Toggle.checkEvents).
+     *
+     * Sets both `component` and `_componentName` because cocos-engine
+     * issue #16517 reports that runtime-pushed EventHandlers don't
+     * dispatch unless `_componentName` is populated on 3.8.x.
+     */
+    addEventHandler(
+        nodeUuid: string,
+        componentType: string,
+        eventArrayProperty: string,
+        targetUuid: string,
+        componentName: string,
+        handler: string,
+        customEventData?: string,
+    ) {
+        try {
+            const cc = require('cc');
+            const ctx = resolveComponentContext(nodeUuid, componentType);
+            if (!ctx.ok) {
+                return { success: false, error: ctx.error };
+            }
+            const targetNode = ctx.scene.getChildByUuid(targetUuid);
+            if (!targetNode) {
+                return { success: false, error: `Target node with UUID ${targetUuid} not found` };
+            }
+            const arr = ctx.component[eventArrayProperty];
+            if (!Array.isArray(arr)) {
+                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array (got ${typeof arr})` };
+            }
+
+            const eh = new cc.EventHandler();
+            eh.target = targetNode;
+            eh.component = componentName;
+            // Workaround for cocos-engine#16517: dispatcher reads
+            // _componentName, not component, in 3.8.x runtime path.
+            (eh as any)._componentName = componentName;
+            eh.handler = handler;
+            eh.customEventData = customEventData ?? '';
+            arr.push(eh);
+
+            Editor.Message.send('scene', 'snapshot');
+            return {
+                success: true,
+                data: {
+                    index: arr.length - 1,
+                    count: arr.length,
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Remove a cc.EventHandler entry by index, or by matching
+     * (targetUuid, handler) pair. If both are provided, index wins.
+     */
+    removeEventHandler(
+        nodeUuid: string,
+        componentType: string,
+        eventArrayProperty: string,
+        index: number | null,
+        targetUuid: string | null,
+        handler: string | null,
+    ) {
+        try {
+            const ctx = resolveComponentContext(nodeUuid, componentType);
+            if (!ctx.ok) {
+                return { success: false, error: ctx.error };
+            }
+            const arr = ctx.component[eventArrayProperty];
+            if (!Array.isArray(arr)) {
+                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array` };
+            }
+
+            let removeAt = -1;
+            if (typeof index === 'number' && index >= 0) {
+                removeAt = index;
+            } else if (targetUuid || handler) {
+                removeAt = arr.findIndex((eh: any) => {
+                    const ehTargetUuid = eh?.target?.uuid;
+                    const matchesTarget = !targetUuid || ehTargetUuid === targetUuid;
+                    const matchesHandler = !handler || eh?.handler === handler;
+                    return matchesTarget && matchesHandler;
+                });
+            }
+            if (removeAt < 0 || removeAt >= arr.length) {
+                return { success: false, error: 'No matching event handler to remove' };
+            }
+            const removed = arr.splice(removeAt, 1)[0];
+            Editor.Message.send('scene', 'snapshot');
+            return {
+                success: true,
+                data: {
+                    index: removeAt,
+                    remaining: arr.length,
+                    removed: serializeEventHandler(removed),
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Inspect a component's EventHandler array (read-only).
+     */
+    listEventHandlers(nodeUuid: string, componentType: string, eventArrayProperty: string) {
+        try {
+            const ctx = resolveComponentContext(nodeUuid, componentType);
+            if (!ctx.ok) {
+                return { success: false, error: ctx.error };
+            }
+            const arr = ctx.component[eventArrayProperty];
+            if (!Array.isArray(arr)) {
+                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array` };
+            }
+            return {
+                success: true,
+                data: {
+                    count: arr.length,
+                    handlers: arr.map(serializeEventHandler),
+                },
+            };
         } catch (error: any) {
             return { success: false, error: error?.message ?? String(error) };
         }

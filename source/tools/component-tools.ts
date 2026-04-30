@@ -1,6 +1,7 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 
 const setComponentPropertyValueDescription =
     'Property value - Use the corresponding data format based on propertyType:\n\n' +
@@ -82,6 +83,28 @@ const componentSchemas = {
     get_available_components: z.object({
         category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter'),
     }),
+    add_event_handler: z.object({
+        nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
+        componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
+        eventArrayProperty: z.string().default('clickEvents').describe('Component property holding the EventHandler array (cc.Button.clickEvents, cc.Toggle.checkEvents, …)'),
+        targetNodeUuid: z.string().describe('Node UUID where the callback component lives (most often the same as nodeUuid)'),
+        componentName: z.string().describe('Class name (cc-class) of the script that owns the callback method'),
+        handler: z.string().describe('Method name on the target component, e.g. "onClick"'),
+        customEventData: z.string().optional().describe('Optional string passed back when the event fires'),
+    }),
+    remove_event_handler: z.object({
+        nodeUuid: z.string().describe('Node UUID owning the component'),
+        componentType: z.string().default('cc.Button').describe('Component class name'),
+        eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+        index: z.number().int().min(0).optional().describe('Zero-based index to remove. Takes precedence over targetNodeUuid/handler matching when provided.'),
+        targetNodeUuid: z.string().optional().describe('Match handlers whose target node has this UUID'),
+        handler: z.string().optional().describe('Match handlers with this method name'),
+    }),
+    list_event_handlers: z.object({
+        nodeUuid: z.string().describe('Node UUID owning the component'),
+        componentType: z.string().default('cc.Button').describe('Component class name'),
+        eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+    }),
 } as const;
 
 const componentToolMeta: Record<keyof typeof componentSchemas, string> = {
@@ -92,6 +115,9 @@ const componentToolMeta: Record<keyof typeof componentSchemas, string> = {
     set_component_property: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
     attach_script: 'Attach a script component to a node',
     get_available_components: 'Get list of available component types',
+    add_event_handler: 'Append a cc.EventHandler entry to a component event array (default: cc.Button.clickEvents). Use this to wire onClick / onCheck / onValueChanged callbacks.',
+    remove_event_handler: 'Remove an EventHandler entry by index, or by matching targetNodeUuid + handler name.',
+    list_event_handlers: 'List EventHandler entries currently bound to a component event array.',
 };
 
 export class ComponentTools implements ToolExecutor {
@@ -130,6 +156,31 @@ export class ComponentTools implements ToolExecutor {
                 return await this.attachScript(a.nodeUuid, a.scriptPath);
             case 'get_available_components':
                 return await this.getAvailableComponents(a.category);
+            case 'add_event_handler':
+                return await runSceneMethodAsToolResponse('addEventHandler', [
+                    a.nodeUuid,
+                    a.componentType,
+                    a.eventArrayProperty,
+                    a.targetNodeUuid,
+                    a.componentName,
+                    a.handler,
+                    a.customEventData,
+                ]);
+            case 'remove_event_handler':
+                return await runSceneMethodAsToolResponse('removeEventHandler', [
+                    a.nodeUuid,
+                    a.componentType,
+                    a.eventArrayProperty,
+                    a.index ?? null,
+                    a.targetNodeUuid ?? null,
+                    a.handler ?? null,
+                ]);
+            case 'list_event_handlers':
+                return await runSceneMethodAsToolResponse('listEventHandlers', [
+                    a.nodeUuid,
+                    a.componentType,
+                    a.eventArrayProperty,
+                ]);
         }
     }
 
