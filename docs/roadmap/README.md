@@ -8,7 +8,7 @@
 | 階段 | 主題 | 預估工時 | 風險 | 文件 |
 |---|---|---|---|---|
 | **P0** | 基線硬傷修復 ✅ done 2026-04-30 | ~2 小時 | 低 | [`01-baseline-fixes.md`](./01-baseline-fixes.md) |
-| **P1** | 架構債清理（4/6 完成，剩 SDK 換 + structured content） | ~6-8 天 | 中 | [`02-architecture.md`](./02-architecture.md) |
+| **P1** | 架構債清理 ✅ done 2026-05-01 | ~7 天 | 中 | [`02-architecture.md`](./02-architecture.md) |
 | **P2** | 工具收斂（評估 + 選擇性執行） | ~1-2 週 | 中 | [`03-tool-consolidation.md`](./03-tool-consolidation.md) |
 | **P4** | v1.5.0 部分對齊（事件綁定 + 面板 UI） | ~3-5 天 | 中 | [`05-v15-spec-parity.md`](./05-v15-spec-parity.md) |
 | **P3** | MCP 進階能力（Resources/Prompts/Notifications） | ~1-2 週 | 中-高 | [`04-protocol-extensions.md`](./04-protocol-extensions.md) |

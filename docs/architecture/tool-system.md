@@ -129,11 +129,14 @@ export interface ToolResponse {
 }
 ```
 
-目前 `MCPServer.handleMessage` 仍把整個 `ToolResponse` 序列化成 JSON 字串
-包進 MCP `content[0].text`。Client 看到的是 string，不是結構化物件。
+**T-P1-5 已落地**（commit `4c55c3d`）：`source/mcp-server-sdk.ts`
+`buildToolResult()` 依 `ToolResponse.success` 分流：
 
-T-P1-5 計畫改成 MCP structured content（依 `success` 分流，失敗走
-`isError: true`），會跟 T-P1-1 SDK 換掉一起做。
+- `success: true` → `content: [{type:'text', text: JSON.stringify(result)}]`
+  + `structuredContent: result`（後者讓現代 MCP client 直接拿到結構化資料；
+  前者保留向後相容，避免舊 client 看不到內容）。
+- `success: false` → `content: [{type:'text', text: <error|message>}]` +
+  `isError: true`，client 端可正確顯示為錯誤而非成功字串。
 
 ## 七、Schema 撰寫風格（P1 T-P1-4 後）
 

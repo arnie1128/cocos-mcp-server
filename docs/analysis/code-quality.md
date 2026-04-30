@@ -15,9 +15,9 @@
 | 1.3 console.log 未受 debug flag 控制 | ✅ fixed | P0 T-P0-3 + P1 T-P1-3，commits `c42531a` + `c411a9b`；`source/lib/log.ts` logger 物件，14 檔全部走 `logger.{debug,info}` 或 `debugLog` |
 | 2.1 預製體 API try-catch 階梯 | ✅ fixed | P1 T-P1-6，commit `117d846`；對 `@cocos/creator-types` 驗證後，scene 模組唯一存在的是 `restore-prefab`，兩段 ladder 與其專屬 helper 全已刪除（~250 行死代碼） |
 | 2.2 工具雙重實例化 | ✅ fixed | P1 T-P1-2，commit `c411a9b`；`source/tools/registry.ts` 一次實例化，`MCPServer` / `ToolManager` 共用 |
-| 2.3 自寫 HTTP/JSON-RPC 而非用官方 SDK | ⏳ pending | P1 T-P1-1（下一個任務） |
+| 2.3 自寫 HTTP/JSON-RPC 而非用官方 SDK | ✅ fixed | P1 T-P1-1，commits `4c55c3d` feat / `cda18f2` cleanup / `63d5b9e` review fix；`source/mcp-server-sdk.ts` 用 `@modelcontextprotocol/sdk` 低階 `Server` + `StreamableHTTPServerTransport` stateful；協議版本由 SDK 自動協商 |
 | 2.4 JSON Schema 全手寫 | ✅ fixed | P1 T-P1-4，commits `6e6d720` 起 5 batches 至 `8342036`；14 檔（157 tools）全部走 zod，schema 行數從 ~3200 縮為 ~1100 |
-| 2.5 ToolResponse 包字串而非 structured content | ⏳ pending | P1 T-P1-5（與 T-P1-1 一起） |
+| 2.5 ToolResponse 包字串而非 structured content | ✅ fixed | P1 T-P1-5（含於 `4c55c3d`）；`buildToolResult()` 依 `success` 分流，成功路徑帶 `structuredContent`，失敗路徑帶 `isError: true` |
 | 3.1 沒有測試串接 | ⏳ deferred | 暫無排程 |
 | 3.2 build 產物進版控 | 🟡 acknowledged | `.gitignore` 已加註解標明 `dist/` 是刻意例外（Cocos 商城安裝後不跑 build） |
 | 3.3 i18n 覆蓋率不全 | ⏳ deferred | 暫無排程 |

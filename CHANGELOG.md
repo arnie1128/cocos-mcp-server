@@ -1,0 +1,62 @@
+# Changelog
+
+## v2.0.0 — 2026-05-01
+
+First major release of this fork. Diverges from upstream LiDaxian/cocos-mcp-server@v1.4.0
+(commit `754adec`). Upstream's announced v1.5.0 was never published; this fork is on a
+separate track per ADR 0001.
+
+### Highlights
+
+- **Switched to the official `@modelcontextprotocol/sdk`** (low-level `Server` +
+  `StreamableHTTPServerTransport` in stateful mode). Hand-rolled HTTP+JSON-RPC dispatch
+  is gone; protocol version is now negotiated by the SDK (verified at `2025-06-18`).
+- **Structured tool responses** (T-P1-5). `tools/call` results now branch on
+  `ToolResponse.success`: success → `structuredContent` plus a JSON-stringified text
+  for back-compat; failure → `isError: true` with the error message in text content.
+- **All 157 tools migrated to zod** (T-P1-4). Schema definitions dropped from ~3200
+  lines to ~1100; schemas double as runtime arg validators. `relaxJsonSchema` helper
+  in `source/lib/schema.ts` smooths over zod 4 vs hand-written conventions
+  (`additionalProperties: false`, `.default()` vs `required`).
+- **Single tool registry instance** (T-P1-2). `MCPServer` and `ToolManager` share the
+  same `createToolRegistry()` output instead of double-instantiating every tool class.
+- **Global logger** (T-P1-3). `source/lib/log.ts` exposes
+  `logger.{debug,info,warn,error}` plus a back-compat `debugLog` alias. Debug
+  output is gated by `settings.enableDebugLog`; warn/error always emit.
+- **Prefab Editor.Message channels verified** (T-P1-6). Two fallback ladders that
+  called non-existent channels (`apply-prefab`, `revert-prefab`, `connect-prefab-instance`,
+  etc.) were dead code; replaced with the single channel that actually exists
+  (`scene/restore-prefab` taking `{ uuid }`). Removed ~250 lines of guessed-API code.
+- **Server lifecycle hardening**. Idle session sweep (30 min default),
+  `httpServer.closeAllConnections()` on stop, `updateSettings()` reentry guard.
+- **Panel checkbox fix** (B-001). `<ui-checkbox v-model>` doesn't bind to Cocos
+  custom elements; replaced with `:value` + `@change` for the autoStart and
+  debugLog toggles. Side-fixed a field-name mismatch where `saveSettings()` was
+  silently dropping the debug-log setting.
+
+### Breaking changes
+
+- **Clients must `initialize` before other JSON-RPC methods on `/mcp`**, per Streamable
+  HTTP spec. The previous hand-rolled server accepted bare `tools/list` calls; the new
+  one returns `400 Bad Request: No valid session ID provided`. Modern MCP clients
+  (Claude Desktop, Cursor, Cline) already do this. The REST short-circuit
+  `POST /api/{category}/{tool}` is unchanged for ad-hoc curl testing.
+- **Hardcoded `protocolVersion: '2024-11-05'` is gone**. Protocol version is now
+  negotiated; clients receive whatever is mutually supported.
+
+### Tooling
+
+- `scripts/smoke-mcp-sdk.js` — offline smoke test (stub registry, 2 tools).
+- `scripts/live-test.js` — 59-check live test against a running editor (read across
+  14 categories, write flows for nodes/components/sceneAdvanced/sceneView/prefab,
+  scene-switch with restore guard).
+
+### Code review
+
+This release went through a three-way review (Codex / Gemini / self) with two
+iterations. Findings and fixes are documented in commit `63d5b9e`.
+
+---
+
+Original work © LiDaxian (upstream `cocos-mcp-server` v1.4.0). Fork modifications
+© 2026 shang. Both released under the project's existing license.

@@ -1,8 +1,8 @@
 # P1 — 架構債清理
 
-**Status**: in-progress（2026-04-30 起）
-**預估工時**: ~6-8 天
-**風險**: 中（會動到工具註冊與 server transport）
+**Status**: ✅ done（2026-04-30 ~ 2026-05-01）
+**實際工時**: ~7 天
+**風險**: 已落地（無新增風險）
 **前置**: P0 完成
 
 ## 進度
@@ -25,8 +25,18 @@
   回傳 metadata；(c) `updatePrefab` 改為 fail-loud（apply-back-to-asset 沒
   公開 API）；(d) `revertPrefab`、`restorePrefabNode`、scene-advanced 的
   `restorePrefab` 三處改用正確 channel 名稱與 `{ uuid }` 參數格式。
-- ⏳ T-P1-1 換官方 MCP SDK — 待做。
-- ⏳ T-P1-5 structured content — 待做（與 T-P1-1 一起）。
+- ✅ T-P1-1 換官方 MCP SDK（commits `4c55c3d` feat / `cda18f2` cleanup
+  / `63d5b9e` 三方 review fix）：`source/mcp-server-sdk.ts` 用低階 `Server`
+  + `StreamableHTTPServerTransport` stateful（每個 `mcp-session-id` 一對
+  Server+Transport）；REST endpoints `/health`、`/api/tools`、
+  `/api/{cat}/{tool}` 共用同一 `http.Server`；協議版本由 SDK 自動協商
+  （測過 `2025-06-18`）。session 加閒置 sweep（30min idle）、
+  `httpServer.closeAllConnections()` 強制斷 keep-alive、
+  `updateSettings` 重入 guard。版本由 1.4.0 → 2.0.0。
+- ✅ T-P1-5 structured content（含於 `4c55c3d`）：`tools/call` 回應依
+  `success` 分流——成功路徑帶 `structuredContent`（同時保留
+  `content[].text` 為 JSON.stringify 結果做向後相容），失敗路徑加
+  `isError: true` + 錯誤訊息文字。
 
 ## 範圍
 
@@ -109,8 +119,8 @@ HTTP endpoint 形式可能變更（從手寫 JSON-RPC 換成 SDK 標準 transpor
      具體欄位錯誤訊息。
 3. ✅ getTools() 改為由 `nodeSchemas` map 動態產出；execute() 入口先
    `validateArgs` 再 dispatch。
-4. ⏳ 剩餘 13 個工具檔待擴展（依複雜度排序：先 server/preferences/broadcast
-   等簡單檔，最後 prefab/component/scene-advanced）。
+4. ✅ 剩餘 13 個工具檔全部改完（依複雜度由簡到難分 5 批 commit；最後 prefab
+   / component / scene-advanced 也完成）。
 
 **驗證**（已完成）：
 
