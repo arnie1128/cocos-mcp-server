@@ -607,10 +607,16 @@ export const methods: { [key: string]: (...any: any) => any } = {
             if (typeof index === 'number' && index >= 0) {
                 removeAt = index;
             } else if (targetUuid || handler) {
+                // Trim around comparisons so callers passing UUIDs / handler
+                // names with leading/trailing whitespace (LLM tool args often
+                // come with stray spaces) still find a match.
+                const targetUuidNorm = targetUuid?.trim() || null;
+                const handlerNorm = handler?.trim() || null;
                 removeAt = arr.findIndex((eh: any) => {
-                    const ehTargetUuid = eh?.target?.uuid;
-                    const matchesTarget = !targetUuid || ehTargetUuid === targetUuid;
-                    const matchesHandler = !handler || eh?.handler === handler;
+                    const ehTargetUuid = typeof eh?.target?.uuid === 'string' ? eh.target.uuid.trim() : eh?.target?.uuid;
+                    const ehHandler = typeof eh?.handler === 'string' ? eh.handler.trim() : eh?.handler;
+                    const matchesTarget = !targetUuidNorm || ehTargetUuid === targetUuidNorm;
+                    const matchesHandler = !handlerNorm || ehHandler === handlerNorm;
                     return matchesTarget && matchesHandler;
                 });
             }

@@ -256,63 +256,92 @@ export class ComponentTools implements ToolExecutor {
 
     private async addComponent(nodeUuid: string, componentType: string): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
-            // 先查找节点上是否已存在该组件
-            const allComponentsInfo = await this.getComponents(nodeUuid);
-            if (allComponentsInfo.success && allComponentsInfo.data?.components) {
-                const existingComponent = allComponentsInfo.data.components.find((comp: any) => comp.type === componentType);
-                if (existingComponent) {
-                    resolve({
-                        success: true,
-                        message: `Component '${componentType}' already exists on node`,
-                        data: {
-                            nodeUuid: nodeUuid,
-                            componentType: componentType,
-                            componentVerified: true,
-                            existing: true
-                        }
-                    });
-                    return;
-                }
+            // Snapshot existing components so we can detect post-add additions
+            // even when Cocos reports them under a cid (custom scripts) rather
+            // than the class name the caller supplied.
+            const beforeInfo = await this.getComponents(nodeUuid);
+            const beforeList: any[] = beforeInfo.success && beforeInfo.data?.components ? beforeInfo.data.components : [];
+            const beforeTypes = new Set(beforeList.map((c: any) => c.type));
+
+            const existingComponent = beforeList.find((comp: any) => comp.type === componentType);
+            if (existingComponent) {
+                resolve({
+                    success: true,
+                    message: `Component '${componentType}' already exists on node`,
+                    data: {
+                        nodeUuid,
+                        componentType,
+                        componentVerified: true,
+                        existing: true,
+                    },
+                });
+                return;
             }
+
             // 尝试直接使用 Editor API 添加组件
             Editor.Message.request('scene', 'create-component', {
                 uuid: nodeUuid,
-                component: componentType
-            }).then(async (result: any) => {
+                component: componentType,
+            }).then(async () => {
                 // 等待一段时间让Editor完成组件添加
-                await new Promise(resolve => setTimeout(resolve, 100));
-                // 重新查询节点信息验证组件是否真的添加成功
+                await new Promise(r => setTimeout(r, 100));
                 try {
-                    const allComponentsInfo2 = await this.getComponents(nodeUuid);
-                    if (allComponentsInfo2.success && allComponentsInfo2.data?.components) {
-                        const addedComponent = allComponentsInfo2.data.components.find((comp: any) => comp.type === componentType);
-                        if (addedComponent) {
-                            resolve({
-                                success: true,
-                                message: `Component '${componentType}' added successfully`,
-                                data: {
-                                    nodeUuid: nodeUuid,
-                                    componentType: componentType,
-                                    componentVerified: true,
-                                    existing: false
-                                }
-                            });
-                        } else {
-                            resolve({
-                                success: false,
-                                error: `Component '${componentType}' was not found on node after addition. Available components: ${allComponentsInfo2.data.components.map((c: any) => c.type).join(', ')}`
-                            });
-                        }
-                    } else {
+                    const afterInfo = await this.getComponents(nodeUuid);
+                    if (!afterInfo.success || !afterInfo.data?.components) {
                         resolve({
                             success: false,
-                            error: `Failed to verify component addition: ${allComponentsInfo2.error || 'Unable to get node components'}`
+                            error: `Failed to verify component addition: ${afterInfo.error || 'Unable to get node components'}`,
                         });
+                        return;
                     }
+                    const afterList: any[] = afterInfo.data.components;
+
+                    // Strict match: built-in components like cc.Sprite show their
+                    // class name in `type`. Hits the same shape the caller passed.
+                    const addedComponent = afterList.find((comp: any) => comp.type === componentType);
+                    if (addedComponent) {
+                        resolve({
+                            success: true,
+                            message: `Component '${componentType}' added successfully`,
+                            data: {
+                                nodeUuid,
+                                componentType,
+                                componentVerified: true,
+                                existing: false,
+                            },
+                        });
+                        return;
+                    }
+
+                    // Lenient fallback: custom scripts surface as a cid (e.g.
+                    // "9b4a7ueT9xD6aRE+AlOusy1") in __comps__.type, not as the
+                    // class name. If the component count grew, accept the new
+                    // entry as the one we just added.
+                    const newEntries = afterList.filter((comp: any) => !beforeTypes.has(comp.type));
+                    if (newEntries.length > 0) {
+                        const registeredAs = newEntries[0].type;
+                        resolve({
+                            success: true,
+                            message: `Component '${componentType}' added successfully (registered as cid '${registeredAs}'; this is normal for custom scripts).`,
+                            data: {
+                                nodeUuid,
+                                componentType,
+                                registeredAs,
+                                componentVerified: true,
+                                existing: false,
+                            },
+                        });
+                        return;
+                    }
+
+                    resolve({
+                        success: false,
+                        error: `Component '${componentType}' was not found on node after addition. Available components: ${afterList.map((c: any) => c.type).join(', ')}`,
+                    });
                 } catch (verifyError: any) {
                     resolve({
                         success: false,
-                        error: `Failed to verify component addition: ${verifyError.message}`
+                        error: `Failed to verify component addition: ${verifyError.message}`,
                     });
                 }
             }).catch((err: Error) => {
@@ -561,19 +590,27 @@ export class ComponentTools implements ToolExecutor {
                 const allComponents = componentsResponse.data.components;
                 
                 // Step 2: 查找目标组件
+                // We capture the matched index here so Step 5 doesn't need a
+                // second `scene/query-node` call: getComponents above maps
+                // __comps__ 1:1 (preserves order) on the direct API path,
+                // which is the only path that yields `data.components` in
+                // this shape — the runSceneMethod fallback returns a different
+                // shape that wouldn't reach here without erroring earlier.
                 let targetComponent = null;
+                let targetComponentIndex = -1;
                 const availableTypes: string[] = [];
-                
+
                 for (let i = 0; i < allComponents.length; i++) {
                     const comp = allComponents[i];
                     availableTypes.push(comp.type);
-                    
+
                     if (comp.type === componentType) {
                         targetComponent = comp;
+                        targetComponentIndex = i;
                         break;
                     }
                 }
-                
+
                 if (!targetComponent) {
                     // 提供更详细的错误信息和建议
                     const instruction = this.generateComponentSuggestion(componentType, availableTypes, property);
@@ -751,36 +788,8 @@ export class ComponentTools implements ToolExecutor {
                 // 用于验证的实际期望值（对于组件引用需要特殊处理）
                 let actualExpectedValue = processedValue;
                 
-                // Step 5: 获取原始节点数据来构建正确的路径
-                const rawNodeData = await Editor.Message.request('scene', 'query-node', nodeUuid);
-                if (!rawNodeData || !rawNodeData.__comps__) {
-                    resolve({
-                        success: false,
-                        error: `Failed to get raw node data for property setting`
-                    });
-                    return;
-                }
-                
-                // 找到原始组件的索引
-                let rawComponentIndex = -1;
-                for (let i = 0; i < rawNodeData.__comps__.length; i++) {
-                    const comp = rawNodeData.__comps__[i] as any;
-                    const compType = comp.__type__ || comp.cid || comp.type || 'Unknown';
-                    if (compType === componentType) {
-                        rawComponentIndex = i;
-                        break;
-                    }
-                }
-                
-                if (rawComponentIndex === -1) {
-                    resolve({
-                        success: false,
-                        error: `Could not find component index for setting property`
-                    });
-                    return;
-                }
-                
-                // 构建正确的属性路径
+                // Step 5: 构建属性路径（component index 已在 Step 2 捕获）
+                const rawComponentIndex = targetComponentIndex;
                 let propertyPath = `__comps__.${rawComponentIndex}.${property}`;
                 
                 // 特殊处理资源类属性
