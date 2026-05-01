@@ -3,17 +3,65 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.5 完工 + doc 重整 / P2 待開新 session）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 P2 量測完成 / 已 close）
+
+當下版本：**v2.1.5**（origin/main HEAD = 18810a0 doc 重整 commit）。
+本 session **沒動 code**，只跑 P2 量測 + 寫結論。產出：
+
+- `scripts/measure-tool-tokens.js`（新增）— 一次性量測 script。stub Editor
+  載真實 registry 抓 160 個 tool schema → 量現況 `tools/list` 大小 +
+  模擬 P2 兩種收斂形態（router-A lossless oneOf / router-B lossy
+  enum-only）+ 對 5 個樣本 tool 經 SDK server 跑 round-trip。
+- `docs/adr/0001-skip-v1.5.0-spec.md`（補註）— P2 量測結果 + 否決理由
+  量化寫進 ADR。
+- `docs/roadmap/03-tool-consolidation.md`（標 ❌ CLOSED）— 文首 TL;DR
+  + 量測結論；舊計畫保留作歷史備查。
+- `docs/roadmap/README.md` — P2 ❌ closed、v1.5.0 對照表 sync。
+
+不用 bump version：純 docs + 一次性 script，沒動 source/。Cocos Creator
+面板顯示版本仍 2.1.5。
+
+### P2 量測結論（CLOSE）
+
+| 形態 | chars | tokens (≈chars/3.5) | vs current |
+|---|---:|---:|---:|
+| current 160 flat tools | 51,983 | 14,852 | — |
+| router-A lossless oneOf | 71,278 | 20,365 | **+37.1%（更大）** |
+| router-B lossy enum-only | 17,143 | 4,898 | -67.0%（丟 validation） |
+
+逐 category 14 組 router-A **全部都比 flat 大**（最低 -13%、最高 -99%）。
+oneOf 框架成本（每分支重複 title/description/properties/required + args
+wrapper）抵不過省下的「tool name / category prefix 重複」。
+
+Round-trip：5 樣本平均 ~257 tokens / call；P2 加 action field 多 ~6
+tokens / call（< 3%），可忽略。
+
+**判斷**：按決策門檻 ≥30% 啟動 / <15% close，lossless 收益是 **負的
+37%**（schema 反而變大）→ **CLOSE P2**。lossy 形態雖 -67% 但等於丟掉
+arg validation；對 Cocos Creator 領域（UUID / dump path / propertyType
+易打錯）不划算。上游 v1.5.0「-50% tokens」被證實只在 lossy 形態下成立
+的行銷數字。
+
+### 後續路線
+
+- 想再降 prompt 預算 → **P3**（Resources/Prompts 把不變內容移出 prompt），
+  或 ToolManager 砍冷門 tool 集合。不再走 P2。
+- 沒有 in-flight 任務，沒有未推 commit（量測 script + doc 變更等 user
+  指示）。下一個 session 可直接接 P3 或等 user 提新 backlog。
+
+---
+
+## ✅ 上一個 session（v2.1.5 完工 + doc 重整）入口（保留作歷史備查）
 
 當下版本：**v2.1.5**（origin/main HEAD = doc 重整 commit，已 push）。
 P0/P1/P4/v2.1.1/v2.1.2/v2.1.2-audit/v2.1.3/v2.1.4 全部完工，**v2.1.5 5 條
-live-test backlog 全清**。本 session 在 v2.1.5 之後又做了一輪 **doc 重整**：
+live-test backlog 全清**。上一 session 在 v2.1.5 之後又做了一輪 **doc 重整**：
 歸檔上游 README/FEATURE_GUIDE、重寫 root README（zh-TW、fork-accurate）、
 寫 `scripts/generate-tools-doc.js` + 自動產 `docs/tools.md`、清掉 dead
 artifact `TestScript.js`。沒有 in-flight 程式碼任務。
 
-**下一步是 P2 工具收斂評估**（ADR 0001 §4 的 conditional gate）—— **新開
-session 處理**，不在本 backlog。動工順序見下方「P2 待辦」。
+~~下一步是 P2 工具收斂評估~~ → **本 session 已完成評估並 close P2**，見上方
+P2 量測結論。下方「P2 待辦」段落已過時，保留作歷史對照。
 
 **`package.json:version` 已 bump 到 `2.1.5`**（patch bump：每條都是新增 opt-in
 旗標 / 重寫 buggy implementation，沒有公共 tool name 增減；工具數仍 160）。
@@ -108,33 +156,30 @@ error 無 dialog / collision (overwrite) → silent 覆寫 / 都在 ~330ms。
 | 項目 | 狀態 | 何時做 |
 |---|---|---|
 | v1.4.0 Prefab 100% 對齊（fileId / `__id__` 全鏈路） | 🟡 code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），缺 byte-level diff 驗證 | **觸發再做**：有人回報 byte-level 不一致時、或主動配「乾淨 fixture 專案」session 比對 |
-| v1.5.0 #1 工具收斂為 50 個 | ❌ 未做 | **下一個 session 啟動 P2 評估**（先量測 token） |
-| v1.5.0 #2 token -50% | ❌ 未量測 | 同 P2 評估 |
+| v1.5.0 #1 工具收斂為 50 個 | ❌ **closed**（量測後否決，2026-05-01） | 不再做（lossless 反而 +37%；lossy 達 -67% 但丟 arg validation） |
+| v1.5.0 #2 token -50% | ❌ **closed**（量測證實是 lossy-only 行銷數字） | 不再做；後續若要降 prompt 走 P3 Resources/Prompts |
 | v1.5.0 #3 Prefab 完整 API | ✅ done（P4 T-P4-3 + v2.1.4 set_link 合併） | — |
 | v1.5.0 #4 事件綁定 | ✅ done（P4 T-P4-1 + v2.1.2 持久化修補） | — |
 | v1.5.0 #5 介面參數更清晰 | 🟡 v2.1.5 batch 已改 5 個工具的描述、其餘 ~155 個多半還是上游英文短描述 | **不獨立排**：未來改某工具時順便修；或下次重跑 generator 時順手 review |
 | v1.5.0 #6 面板 UI 簡潔 | ✅ done（P4 T-P4-2，縮小範圍只拆 composable） | — |
 | v1.5.0 #7 整體架構效率 | ❌ 跳過（無可測指標，ADR 0001） | — |
 
-### P2 待辦（下次 session 啟動點）
+### ~~P2 待辦~~ → 已完成評估並 close（保留作歷史對照）
 
-依 ADR 0001 §4：「token 量測撐得起才做收斂；撐不起就直接 close P2」。
-**啟動 P2 必走步驟**：
+本 session（2026-05-01 後段）已執行此段步驟，結果見上方「P2 量測結論」。
+不再是 backlog。
 
-1. **寫 token 量測 script**（`scripts/measure-tokens.js` 之類）：
-   - mock 一個 MCP client，跑 `tools/list` → 用 anthropic 或 tiktoken 算
-     全 160 工具 schema 文字的 prompt token cost
-   - 對選定的 ~10 個常用工具跑 `tools/call`（含 args + structured response）→
-     算 round-trip token
-   - 對照「假想 P2 後的 50 個 action router」估算合併 schema 的 token
-   - 不需要乾淨 fixture 專案；對 `cocos_cs_349` + `a-test.scene` 跑就行
-2. **比對結果**：差距 ≥30% → 啟動 P2；< 15% → 直接 close P2、補進 ADR 0001
-3. P2 真要動工的話，**分批切**（不要一次重寫 14 個 tool 檔），每批一個
-   category、跑 schema diff 確認等價、再合併
+當時規劃的步驟，僅供回顧：
 
-P2 之外的 backlog（roadmap 級別）：
-- **P3 MCP 進階能力**（Resources / Prompts / Notifications）：與 P2 互不相依，
-  順序視當下需求；見 `docs/roadmap/04-protocol-extensions.md`
+1. ~~寫 token 量測 script~~ → 已寫 `scripts/measure-tool-tokens.js`
+2. ~~比對結果，差距 ≥30% / <15% 決策~~ → 量出 lossless **+37%**（負收益）
+   →按門檻 close、補進 ADR 0001
+3. ~~分批切~~ → 不適用（P2 已關）
+
+非 P2 的 roadmap-level backlog：
+- **P3 MCP 進階能力**（Resources / Prompts / Notifications）：見
+  `docs/roadmap/04-protocol-extensions.md`。**P2 close 後，這是降 prompt
+  預算的唯一可行方向**。
 - **Prefab byte-level 比對**：上面表格的 v1.4.0 #1，乾淨 fixture 專案 session
 
 ### 觀察 / 提醒
@@ -174,7 +219,7 @@ _（v2.1.0 ~ v2.1.4 詳細修補史、Phase 1-3 落地紀錄、T-P1-1/T-P1-5/T-P
 [`docs/archive/handoff-history.md`](archive/handoff-history.md)，HANDOFF
 保持為「下次接手只看這份」的活檔。）_
 
-## 進度快照（最後更新：2026-05-01 v2.1.5 完工）
+## 進度快照（最後更新：2026-05-01 P2 量測 close）
 
 ```
 P0 ✅ done
@@ -184,13 +229,14 @@ v2.1.2 ✅ done（P1 host-side nudge 4d15563 + P2(b) 拿 placeholder + P3 文件
 v2.1.2-audit ✅ done（round-1 d5c97ef + project sweep e2ffa3d/ccb5d04）
 v2.1.3 ✅ done（scene-bridge migration + prefab fallback 大清掃 + _componentName 修補）
 v2.1.4 ✅ done（Solo backlog 6 條 + /review 反修 1 條）
-v2.1.5 ✅ done（本 session，live-test backlog 5 條全清，每條 user-driven 實機驗證）
+v2.1.5 ✅ done（live-test backlog 5 條全清，每條 user-driven 實機驗證）
    ├── set_component_property propertyType mismatch preflight  ✅ 4e5e316
    ├── node_create_node layer 參數 + Canvas auto UI_2D         ✅ 48bad45
    ├── scene_create_scene template (empty/2d-ui/3d-basic)       ✅ cf2272a
    ├── preserveContentSize flag for cc.Sprite.spriteFrame      ✅ 9230234
    └── save_scene_as 從 dialog 改為程式化（pre-check + copy）   ✅ d36221e
-P2/P3 ⏳ pending（roadmap 級別，非 v2 patch）
+P2 ❌ closed（量測後否決：lossless +37% / lossy -67% 但丟 validation）
+P3 ⏳ pending（roadmap 級別，是降 prompt 預算的唯一可行方向）
 ```
 
 ## 環境快速確認
@@ -198,7 +244,11 @@ P2/P3 ⏳ pending（roadmap 級別，非 v2 patch）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -6          # 最頂為 d36221e（v2.1.5 wrap）
+git log --oneline -6          # 最頂為 18810a0（doc 重整）
+
+# P2 量測重跑（任何時候都可重跑、輸出穩定）
+node scripts/measure-tool-tokens.js
+# 預期：current 51,983 chars / router-A +37.1% / router-B -67% / decision: CLOSE P2
 npm run build                 # 預期 tsc 無輸出
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js');
 const r = createToolRegistry();

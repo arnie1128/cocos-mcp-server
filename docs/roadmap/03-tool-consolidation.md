@@ -1,6 +1,33 @@
-# P2 — 工具收斂（條件式執行）
+# P2 — 工具收斂（已 CLOSED）
 
-**Status**: pending（**先量測再決定是否執行**）
+**Status**: ❌ **CLOSED — 量測結果不值得執行**（2026-05-01）
+**Decision**: see [ADR 0001 補註](../adr/0001-skip-v1.5.0-spec.md#補註p2-工具收斂量測結果2026-05-01)
+**Measurement**: `scripts/measure-tool-tokens.js`
+
+## TL;DR
+
+跑完量測後決定 close。重點數據：
+
+- 現況 160 flat tools 的 `tools/list` payload ≈ 52K chars / 14.8K tokens。
+- P2 lossless（14 個 router + oneOf 保留 sub-schema）→ 71K chars / 20.4K
+  tokens，**比現況多 37%**——是負收益。
+- P2 lossy（14 個 router + enum + free-form args）→ 17K chars / 4.9K
+  tokens，砍 67%，但代價是丟掉 per-action arg validation。對 Cocos
+  Creator 領域（UUID / dump path 容易打錯）這個交換不划算。
+- 上游 v1.5.0 README 宣稱「-50% tokens」只在 lossy 形態下達成，是
+  行銷數字，不是無代價的優化。
+- Round-trip 每 call ~257 tokens，P2 增加 action field 多 ~6 tokens
+  / call（< 3%）。
+
+由於 P1 已換到官方 SDK + zod schema，schema 表達已經接近 minimum；要
+再降 prompt 預算的方向應該是 P3 的 Resources/Prompts feature（把
+不變內容移出 prompt），或經由 ToolManager 砍冷門 tool 集合。
+
+下面內容保留作歷史備查（原始計畫與門檻）。
+
+---
+
+**Status (legacy)**: pending（**先量測再決定是否執行**）
 **預估工時**: ~1-2 週（若執行）
 **風險**: 中（會改變對外工具名稱，需通知 client）
 **前置**: P1 完成 + token 量測結果
