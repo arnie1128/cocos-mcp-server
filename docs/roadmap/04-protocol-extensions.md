@@ -12,26 +12,46 @@
 
 ## 任務清單
 
-### T-P3-1：Resources
+### T-P3-1：Resources ✅ done at v2.2.0 (2026-05-02)
 
-**動機**：場景樹、預製體清單、資源清單目前都是工具呼叫，AI 每次都要
-`tools/call` 一次才能拿到。改成 Resources 後，client 可以自選載入時機，
-甚至訂閱變更。
+**落地**：6 個 static resource + 2 個 RFC 6570 template，URI 前綴
+`cocos://`（對齊 cocos-cli + FunplayAI prior art，見
+`docs/research/t-p3-1-prior-art.md`）。
 
-**做法**：
+| URI | 對應 tool |
+|---|---|
+| `cocos://scene/current` | `scene_get_current_scene` |
+| `cocos://scene/hierarchy` | `scene_get_scene_hierarchy` |
+| `cocos://scene/list` | `scene_get_scene_list` |
+| `cocos://prefabs` + `cocos://prefabs{?folder}` | `prefab_get_prefab_list` |
+| `cocos://project/info` | `project_get_project_info` |
+| `cocos://assets` + `cocos://assets{?type,folder}` | `project_get_assets` |
 
-1. 註冊 Resources：
-   - `cocos://scene/current` — 當前場景元資料。
-   - `cocos://scene/hierarchy` — 完整場景樹（JSON）。
-   - `cocos://prefabs` — 全專案 prefab 清單。
-   - `cocos://assets/{path}` — 任意資源 query。
-2. 實作 `resources/list`、`resources/read` handler。
-3. 大資源（hierarchy）支援分頁或僅回傳 root 層 + child UUIDs。
+實作要點：
 
-**驗證**：
+- `source/resources/registry.ts` URI → handler 對應，handler 透過既有
+  `ToolExecutor` 取資料，保證 resource read 與 tools/call 回傳同一份 JSON。
+- `source/mcp-server-sdk.ts` capability 補 `resources: { listChanged: true,
+  subscribe: false }`；`subscribe` 留給 T-P3-3。
+- 對應 6 個 read-only tool description 補 deprecation 提示，但 tool
+  本體保留——deprecated 條件 + 清除策略見 CHANGELOG v2.2.0 + HANDOFF B-2。
+- `scripts/smoke-mcp-sdk.js` 加 5 條 resource round-trip check（list /
+  templates/list / read static / read template + query / read unknown）。
 
-- Claude Desktop 能列出並讀取上述 resource。
-- 對比同一個 AI scenario，`tools/call` 次數應減少。
+Deprecation tracker（v2.2.0 起）：
+
+| 既存 tool | Deprecated since | Scheduled removal | 觀測訊號 |
+|---|---|---|---|
+| `scene_get_current_scene` | v2.2.0 | v3.0.0 | 客戶端是否仍 hit `tools/call` |
+| `scene_get_scene_hierarchy` | v2.2.0 | v3.0.0 | 同上 |
+| `scene_get_scene_list` | v2.2.0 | v3.0.0 | 同上 |
+| `prefab_get_prefab_list` | v2.2.0 | v3.0.0 | 同上 |
+| `project_get_project_info` | v2.2.0 | v3.0.0 | 同上 |
+| `project_get_assets` | v2.2.0 | v3.0.0 | 同上 |
+
+清除前提（兩條都要）：(a) 主流 client 全支援 `resources/*`；(b) 自家
+`live-test.js` + REST `/api/*` 沒人在跑這 6 個。
+
 
 ### T-P3-2：Prompts
 

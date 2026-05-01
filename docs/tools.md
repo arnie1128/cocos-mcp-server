@@ -52,13 +52,13 @@ Tool description 也直接來自 zod `.describe()` 文字。
 
 ### `scene_get_current_scene`
 
-Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID.
+Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.
 
 **參數**：無
 
 ### `scene_get_scene_list`
 
-List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets.
+List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.
 
 **參數**：無
 
@@ -104,7 +104,7 @@ Close the current scene. Editor state side effect; save first if unsaved changes
 
 ### `scene_get_scene_hierarchy`
 
-Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries.
+Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -680,7 +680,7 @@ Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data�
 
 ### `prefab_get_prefab_list`
 
-List .prefab assets under a folder with name/path/uuid. No scene or asset mutation.
+List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -802,7 +802,7 @@ Open Build panel for the requested platform; does not start the build.
 
 ### `project_get_project_info`
 
-Read project name/path/uuid/version/Cocos version and config.
+Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.
 
 **參數**：無
 
@@ -841,7 +841,7 @@ Read basic metadata for one db:// asset path.
 
 ### `project_get_assets`
 
-List assets under a folder using type-specific filename patterns.
+List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|

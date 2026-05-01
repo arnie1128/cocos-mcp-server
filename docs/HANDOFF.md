@@ -3,49 +3,77 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 B-1 description sweep / v2.1.7）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 T-P3-1 Resources / v2.2.0）
 
-當下版本：**v2.1.7**（origin/main HEAD = `ff62dd7`，已 push）。
-本 session 一個動作：**B-1 description sweep 全清**，無 in-flight 任務、無未推 commit。
+當下版本：**v2.2.0**（origin/main HEAD 待 push；本 session 動工
+B-2/T-P3-1，無 in-flight 任務）。
 
-| SHA | 內容 | 行數 |
+### B-2 / T-P3-1 Resources（minor bump 2.1.7 → 2.2.0）
+
+落地 MCP `resources/*` capability。Client 可選擇用 resources 拿
+read-only state，避免每個 query 都走 `tools/call`。
+
+| URI | 對應既存 tool | 形態 |
 |---|---|---|
-| `ff62dd7` | docs(tools): rewrite descriptions, bump 2.1.7 | +1118 -1096 |
+| `cocos://scene/current` | `scene_get_current_scene` | static |
+| `cocos://scene/hierarchy` | `scene_get_scene_hierarchy` | static |
+| `cocos://scene/list` | `scene_get_scene_list` | static |
+| `cocos://prefabs` + `cocos://prefabs{?folder}` | `prefab_get_prefab_list` | static + RFC 6570 template |
+| `cocos://project/info` | `project_get_project_info` | static |
+| `cocos://assets` + `cocos://assets{?type,folder}` | `project_get_assets` | static + RFC 6570 template |
 
-### B-1 description sweep（commit `ff62dd7`）
+**新增檔**：
 
-由 codex 一次包辦 14 個 category / 全 160 個 tool 的 description 改寫。
-策略偏離 HANDOFF 原計畫（每 1-3 個 category 一輪 patch bump）改成
-**單一 patch bump**，省雜訊也乾淨。
+- `source/resources/registry.ts` — URI → handler 對應、`url.parse` 拆
+  query string、handler 透過既有 ToolExecutor 取資料保證 byte-identical
+- `docs/research/t-p3-1-prior-art.md` — cocos-cli / FunplayAI / 我們三家
+  URI 設計對照、最終決議
 
-語言：HANDOFF 原 §B-1 寫「中文」是錯的——v2.1.5 五個 reference tool
-（`set_component_property` / `create_node` / `create_scene` /
-`save_scene_as` / `preserveContentSize`）實際全是英文，codex 跟著
-reference 走英文，正確。
+**修改檔**：
 
-風格全對齊 v2.1.5 reference：
+- `source/mcp-server-sdk.ts` — capability 補 `resources: { listChanged:
+  true, subscribe: false }`，setRequestHandler 接 `ListResources` /
+  `ListResourceTemplates` / `ReadResource`
+- `source/tools/{scene,prefab,project}-tools.ts` — 6 個對應 tool
+  description 補 "Also exposed as resource cocos://...; prefer the
+  resource when the client supports MCP resources." deprecation 提示
+- `scripts/smoke-mcp-sdk.js` — 加 stub `scene` / `prefab` / `project`
+  category，加 5 條 resource round-trip check（list / templates/list /
+  read static / read template+query / read unknown）
+- `CHANGELOG.md` v2.2.0 區塊 + Deprecated 條目
+- `docs/roadmap/04-protocol-extensions.md` T-P3-1 標 ✅ done + 加
+  deprecation tracker 表
 
-- 都標 side effect（`Mutates scene` / `No mutation` / `Editor state side effect`）
-- 標相似 tool 差異（如 `get_components` 提示「use before remove_component
-  or set_component_property」）
-- 保留領域知識（`update_prefab.prefabPath` 注「apply uses nodeUuid linked
-  prefab data」對應 landmine #3；`add_event_handler` 注「nudge the editor
-  model for persistence」對應 landmine #11）
-- v2.1.5 已改的 5 個 rich descriptions **未被覆寫**
+**參考 repo（已 clone 到 `D:/1_dev/cocos-mcp-references/`）**：
 
-驗證：
+- `cocos-cli/src/mcp/{resources.ts,mcp.middleware.ts}` — 官方 anchor，
+  capability 用 `{ subscribe, listChanged, templates }`，URI 前綴 `cli://`
+  + `cocos://`（CLI 跑在 editor 外，所以 docs/api 走 resources）
+- `funplay-cocos-mcp/lib/resources.js` — 唯一 ship resources + prompts
+  的 embedded extension，URI 前綴 `cocos://`，全 `text/plain` MIME
+- `cocos-creator-mcp/`（harady）/ `cocos-mcp-extension/`（Spaydo）/
+  `RomaRogov-cocos-mcp/` — 同架構但無 resources，只當 tool 命名 / panel
+  UX 參考
+
+**驗證**（全綠）：
 
 - `npm run build` tsc clean
-- `node scripts/smoke-mcp-sdk.js` 綠
-- `node scripts/measure-tool-tokens.js` decision 仍 = CLOSE P2
-  （router-A 從 +37.1% 收斂到 +30.4%——current schema 隨描述變大
-  所以 gap 縮但仍遠超 close 線；ADR 補註裡的數字可隨手 sync 但不影響
-  結論）
-- `node scripts/generate-tools-doc.js` 重生 docs/tools.md，工具數
-  **160 / 14 categories** 不變
+- `node scripts/smoke-mcp-sdk.js` ✅ 12 checks（含 5 條新 resources）
+- `node scripts/measure-tool-tokens.js` decision = CLOSE P2 不變
+  （router-A +30.1% / router-B -62.8%）
+- `node scripts/generate-tools-doc.js` 14 categories / 160 tools 不變
 - dist + package.json 已 sync 到 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`
 
-落差表 v1.5.0 #5「介面參數更清晰」從 🟡（5/160）✅ closed at v2.1.7。
+**Deprecated 生命週期**（CHANGELOG v2.2.0 已落檔）：
+
+6 個對應的 read-only tool **保留**，description 帶提示。清除條件
+（兩條都要）：
+
+- (a) 主流 client（Claude Desktop / Claude Code / Cline / Continue）全支援 `resources/*`
+- (b) `live-test.js` + ad-hoc REST 都改走 resources 一個 minor 版本
+
+兩條達成才走 major bump 3.0.0 拔。完整 tracker 見
+`docs/roadmap/04-protocol-extensions.md` T-P3-1 區塊。
 
 ---
 

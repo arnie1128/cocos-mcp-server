@@ -304,6 +304,11 @@ token cost is measured.
 - Do not edit files in `dist/` — that is `tsc` output. The repo currently
   tracks `dist/` from the original author; treat it as build artifact, not
   source of truth.
+- **`releaseDate` format**: ISO 8601 datetime with UTC+8 offset
+  (e.g. `"2026-05-02T02:03:21+08:00"`). The cocos plugin schema does not
+  validate this field — it is a free-form string shown in the cocos panel.
+  Bump it together with `version`. Date-only `"YYYY-MM-DD"` (the upstream
+  convention) loses ordering info when multiple bumps land same day.
 - **Bump `package.json` `version` after every code-level change** (anything
   touching `source/`). Patch bump (`2.1.1 → 2.1.2`) for fixes / cleanup /
   refactor / single-backlog landing. Minor bump (`2.1.x → 2.2.0`) when

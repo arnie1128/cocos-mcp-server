@@ -55,7 +55,7 @@ const prefabSchemas = {
 } as const;
 
 const prefabToolMeta: Record<keyof typeof prefabSchemas, string> = {
-    get_prefab_list: 'List .prefab assets under a folder with name/path/uuid. No scene or asset mutation.',
+    get_prefab_list: 'List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.',
     load_prefab: 'Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or create_node assetUuid/assetPath to add one to the scene.',
     instantiate_prefab: 'Instantiate a prefab into the current scene; mutates scene and preserves prefab link.',
     create_prefab: 'Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.',

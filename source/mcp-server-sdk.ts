@@ -6,11 +6,15 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
+    ListResourcesRequestSchema,
+    ListResourceTemplatesRequestSchema,
+    ReadResourceRequestSchema,
     isInitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
 import { setDebugLogEnabled, logger } from './lib/log';
 import { ToolRegistry } from './tools/registry';
+import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 
 const SERVER_NAME = 'cocos-mcp-server';
 const SERVER_VERSION = '2.0.0';
@@ -44,6 +48,7 @@ export class MCPServer {
     private httpServer: http.Server | null = null;
     private sessions: Map<string, SessionEntry> = new Map();
     private tools: ToolRegistry;
+    private resources: ResourceRegistry;
     private toolsList: ToolDefinition[] = [];
     private enabledTools: any[] = [];
     private cleanupInterval: NodeJS.Timeout | null = null;
@@ -52,6 +57,7 @@ export class MCPServer {
     constructor(settings: MCPServerSettings, registry: ToolRegistry) {
         this.settings = settings;
         this.tools = registry;
+        this.resources = createResourceRegistry(registry);
         setDebugLogEnabled(settings.enableDebugLog);
         logger.debug(`[MCPServer] Using shared tool registry (${Object.keys(registry).length} categories)`);
     }
@@ -59,7 +65,14 @@ export class MCPServer {
     private buildSdkServer(): Server {
         const sdkServer = new Server(
             { name: SERVER_NAME, version: SERVER_VERSION },
-            { capabilities: { tools: { listChanged: true } } }
+            {
+                capabilities: {
+                    tools: { listChanged: true },
+                    // T-P3-1: read-only state surface. subscribe stays false
+                    // until T-P3-3 wires Cocos broadcast → resources/updated.
+                    resources: { listChanged: true, subscribe: false },
+                },
+            }
         );
         sdkServer.setRequestHandler(ListToolsRequestSchema, async () => ({
             tools: this.toolsList.map(t => ({
@@ -79,6 +92,17 @@ export class MCPServer {
                     isError: true,
                 };
             }
+        });
+        sdkServer.setRequestHandler(ListResourcesRequestSchema, async () => ({
+            resources: this.resources.list(),
+        }));
+        sdkServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+            resourceTemplates: this.resources.listTemplates(),
+        }));
+        sdkServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+            const { uri } = request.params;
+            const content = await this.resources.read(uri);
+            return { contents: [content] };
         });
         return sdkServer;
     }
