@@ -40,7 +40,7 @@ P4 ✅ done（v2.1.1 包含實機驗證 + 4-way review 修補 823b783）
    ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機 4/4 通（含 dispatch fired）
    │                                  ⚠️ 持久化 bug → v2.1.2 P1
    └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
-v2.1.2 ⏳ backlog（P1 持久化 bug + P2(b) 拿掉 placeholder console_logs）
+v2.1.2 ✅ done（P1 持久化 bug 修補 + P2(b) 拿掉 placeholder console_logs）
 P2/P3 ⏳ pending
 ```
 
@@ -74,7 +74,8 @@ P2/P3 ⏳ pending
 - `source/panels/default/index.ts` 384 → 80 行；新增三個 composables
 
 **累積成果**：
-- 14 tool 檔 / **163 tools**（v2.1.1 加 6 個：3 prefab façade + 3 EventHandler）
+- 14 tool 檔 / **162 tools**（v2.1.1 加 6 個：3 prefab façade + 3 EventHandler；
+  v2.1.2 拿掉 1 個 placeholder `debug_get_console_logs`）
   全部走 zod schema（手寫 JSON Schema 從 ~3200 行縮為 ~1100 行）；helper 在
   `source/lib/schema.ts` 抹平 zod 4 與手寫風格差異
   （`additionalProperties:false`、`.default()` 與 `required` 互動）
@@ -344,10 +345,16 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   新陣列、寫進 disk。實證：nudge 前 disk clickEvents 為空；nudge 後 disk
   正確寫出 2 筆 cc.ClickEvent。`addEventHandler` / `removeEventHandler`
   改成 async 並在 mutation 後 `await nudgeComponentSerializationModel(...)`。
-- **P2(b) `debug_get_console_logs` 拿掉**：`debug-tools.ts:60-65`
-  `setupConsoleCapture()` 是 placeholder（只 debugLog 一句、沒掛 listener），
-  `consoleMessages` 永遠空陣列。從 schema/registry 拿掉，描述改指向
-  已可用的 `debug_get_project_logs` 與 `debug_search_project_logs`。
+- ✅ **P2(b) `debug_get_console_logs` 拿掉**（fix landed 2026-05-01）：
+  原本 `setupConsoleCapture()` 是 placeholder（只 `debugLog` 一句、沒掛
+  任何 listener），`consoleMessages` 永遠空陣列；tool 永遠回 `[]` 騙
+  caller。本次直接從 schema / meta / switch 拿掉 `get_console_logs` 入口，
+  順便把 dead 的 `consoleMessages` field、`setupConsoleCapture`、
+  `addConsoleMessage` 一起刪。`clear_console` 保留（仍透過
+  `Editor.Message.send('console', 'clear')` 工作正常）。Console 內容查詢
+  改指向已可用的 `debug_get_project_logs` 與 `debug_search_project_logs`
+  （讀 `temp/logs/project.log`，包含 PreviewInEditor 的 runtime log）。
+  總工具數 163 → 162；debug 類 10 → 9。
 - **P4 #16517 workaround 評估**：實機 disk 上沒 `_componentName` 欄位
   仍 dispatch 成功（project.log line 40786 已實證），workaround 可能冗餘。
   P1 修補完後（EventHandler 真正持久化），可再做一次「不設 _componentName

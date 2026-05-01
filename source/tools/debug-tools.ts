@@ -1,14 +1,10 @@
-import { ToolDefinition, ToolResponse, ToolExecutor, ConsoleMessage, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
+import { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const debugSchemas = {
-    get_console_logs: z.object({
-        limit: z.number().default(100).describe('Number of recent logs to retrieve'),
-        filter: z.enum(['all', 'log', 'warn', 'error', 'info']).default('all').describe('Filter logs by type'),
-    }),
     clear_console: z.object({}),
     execute_script: z.object({
         script: z.string().describe('JavaScript code to execute'),
@@ -37,7 +33,6 @@ const debugSchemas = {
 } as const;
 
 const debugToolMeta: Record<keyof typeof debugSchemas, string> = {
-    get_console_logs: 'Get editor console logs',
     clear_console: 'Clear editor console',
     execute_script: 'Execute JavaScript in scene context',
     get_node_tree: 'Get detailed node tree for debugging',
@@ -50,32 +45,6 @@ const debugToolMeta: Record<keyof typeof debugSchemas, string> = {
 };
 
 export class DebugTools implements ToolExecutor {
-    private consoleMessages: ConsoleMessage[] = [];
-    private readonly maxMessages = 1000;
-
-    constructor() {
-        this.setupConsoleCapture();
-    }
-
-    private setupConsoleCapture(): void {
-        // Intercept Editor console messages
-        // Note: Editor.Message.addBroadcastListener may not be available in all versions
-        // This is a placeholder for console capture implementation
-        debugLog('Console capture setup - implementation depends on Editor API availability');
-    }
-
-    private addConsoleMessage(message: any): void {
-        this.consoleMessages.push({
-            timestamp: new Date().toISOString(),
-            ...message
-        });
-
-        // Keep only latest messages
-        if (this.consoleMessages.length > this.maxMessages) {
-            this.consoleMessages.shift();
-        }
-    }
-
     getTools(): ToolDefinition[] {
         return (Object.keys(debugSchemas) as Array<keyof typeof debugSchemas>).map(name => ({
             name,
@@ -97,8 +66,6 @@ export class DebugTools implements ToolExecutor {
         const a = validation.data as any;
 
         switch (schemaName) {
-            case 'get_console_logs':
-                return await this.getConsoleLogs(a.limit, a.filter);
             case 'clear_console':
                 return await this.clearConsole();
             case 'execute_script':
@@ -120,28 +87,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async getConsoleLogs(limit: number = 100, filter: string = 'all'): Promise<ToolResponse> {
-        let logs = this.consoleMessages;
-        
-        if (filter !== 'all') {
-            logs = logs.filter(log => log.type === filter);
-        }
-
-        const recentLogs = logs.slice(-limit);
-        
-        return {
-            success: true,
-            data: {
-                total: logs.length,
-                returned: recentLogs.length,
-                logs: recentLogs
-            }
-        };
-    }
-
     private async clearConsole(): Promise<ToolResponse> {
-        this.consoleMessages = [];
-        
         try {
             // Note: Editor.Message.send may not return a promise in all versions
             Editor.Message.send('console', 'clear');
