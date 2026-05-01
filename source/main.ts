@@ -91,14 +91,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
 
     getFilteredToolsList() {
         if (!mcpServer) return [];
-        
-        // 获取当前启用的工具
+        // updateEnabledTools rebuilds toolsList already filtered by the
+        // current enabled set inside setupTools(); getAvailableTools then
+        // returns that filtered list. The previous getFilteredTools() did
+        // a redundant second filter on the same set.
         const enabledTools = toolManager.getEnabledTools();
-        
-        // 更新MCP服务器的启用工具列表
         mcpServer.updateEnabledTools(enabledTools);
-        
-        return mcpServer.getFilteredTools(enabledTools);
+        return mcpServer.getAvailableTools();
     },
     /**
      * @en Get server settings

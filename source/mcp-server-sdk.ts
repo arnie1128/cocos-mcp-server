@@ -182,14 +182,6 @@ export class MCPServer {
         logger.debug(`[MCPServer] Setup tools: ${this.toolsList.length} tools available`);
     }
 
-    public getFilteredTools(enabledTools: any[]): ToolDefinition[] {
-        if (!enabledTools || enabledTools.length === 0) {
-            return this.toolsList;
-        }
-        const enabledToolNames = new Set(enabledTools.map(t => `${t.category}_${t.name}`));
-        return this.toolsList.filter(t => enabledToolNames.has(t.name));
-    }
-
     public async executeToolCall(toolName: string, args: any): Promise<any> {
         const [category, ...rest] = toolName.split('_');
         const executor = this.tools[category];
