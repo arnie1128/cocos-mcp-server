@@ -159,29 +159,10 @@ export class PrefabToolsTest {
         console.log('测试4完成\n');
     }
 
-    // 测试UUID生成
-    testUUIDGeneration() {
-        console.log('测试UUID生成...');
-        
-        const uuids = [];
-        for (let i = 0; i < 5; i++) {
-            const uuid = this.prefabTools['generateUUID']();
-            uuids.push(uuid);
-            console.log(`UUID ${i + 1}: ${uuid}`);
-        }
-        
-        // 检查UUID格式
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        const validUuids = uuids.filter(uuid => uuidPattern.test(uuid));
-        
-        console.log(`UUID格式验证: ${validUuids.length}/${uuids.length} 个有效`);
-        console.log('UUID生成测试完成\n');
-    }
 }
 
 // 如果直接运行此文件
 if (typeof module !== 'undefined' && module.exports) {
     const test = new PrefabToolsTest();
     test.runAllTests();
-    test.testUUIDGeneration();
-} 
+}

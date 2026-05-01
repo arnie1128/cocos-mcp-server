@@ -39,22 +39,15 @@ const prefabSchemas = {
     validate_prefab: z.object({
         prefabPath: z.string().describe('Prefab asset path'),
     }),
-    duplicate_prefab: z.object({
-        sourcePrefabPath: z.string().describe('Source prefab path'),
-        targetPrefabPath: z.string().describe('Target prefab path'),
-        newPrefabName: z.string().optional().describe('New prefab name'),
-    }),
     restore_prefab_node: z.object({
         nodeUuid: z.string().describe('Prefab instance node UUID'),
         assetUuid: z.string().describe('Prefab asset UUID'),
     }),
-    link_prefab: z.object({
-        nodeUuid: z.string().describe('Node UUID to connect to a prefab asset'),
-        assetUuid: z.string().describe('Prefab asset UUID to link the node to'),
-    }),
-    unlink_prefab: z.object({
-        nodeUuid: z.string().describe('Prefab instance node UUID to detach'),
-        removeNested: z.boolean().default(false).describe('Whether to also unlink nested prefab instances under this node'),
+    set_link: z.object({
+        mode: z.enum(['link', 'unlink']).describe('Operation: "link" attaches a regular node to a prefab asset; "unlink" detaches a prefab instance.'),
+        nodeUuid: z.string().describe('Node UUID. For mode="link", the node to attach; for mode="unlink", the prefab instance to detach.'),
+        assetUuid: z.string().optional().describe('Prefab asset UUID. Required when mode="link"; ignored when mode="unlink".'),
+        removeNested: z.boolean().default(false).describe('When mode="unlink", also unlink nested prefab instances under this node. Ignored when mode="link".'),
     }),
     get_prefab_data: z.object({
         nodeUuid: z.string().describe('Prefab instance node UUID'),
@@ -70,10 +63,8 @@ const prefabToolMeta: Record<keyof typeof prefabSchemas, string> = {
     revert_prefab: 'Revert prefab instance to original',
     get_prefab_info: 'Get detailed prefab information',
     validate_prefab: 'Validate a prefab file format',
-    duplicate_prefab: 'Duplicate an existing prefab',
     restore_prefab_node: 'Restore prefab node using prefab asset (built-in undo record)',
-    link_prefab: 'Connect a regular node to a prefab asset (cce.SceneFacade.linkPrefab)',
-    unlink_prefab: 'Break a prefab instance link, optionally clearing nested instances (cce.SceneFacade.unlinkPrefab)',
+    set_link: 'Attach or detach a prefab link on a node (mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab).',
     get_prefab_data: 'Read the prefab dump for a prefab instance node (cce.SceneFacade.getPrefabData)',
 };
 
@@ -115,14 +106,10 @@ export class PrefabTools implements ToolExecutor {
                 return await this.getPrefabInfo(a.prefabPath);
             case 'validate_prefab':
                 return await this.validatePrefab(a.prefabPath);
-            case 'duplicate_prefab':
-                return await this.duplicatePrefab(a);
             case 'restore_prefab_node':
                 return await this.restorePrefabNode(a.nodeUuid, a.assetUuid);
-            case 'link_prefab':
-                return await this.linkPrefab(a.nodeUuid, a.assetUuid);
-            case 'unlink_prefab':
-                return await this.unlinkPrefab(a.nodeUuid, a.removeNested);
+            case 'set_link':
+                return await this.setLink(a);
             case 'get_prefab_data':
                 return await this.getPrefabData(a.nodeUuid);
         }
@@ -299,35 +286,6 @@ export class PrefabTools implements ToolExecutor {
         });
     }
 
-    private generateUUID(): string {
-        // 生成符合Cocos Creator格式的UUID
-        const chars = '0123456789abcdef';
-        let uuid = '';
-        for (let i = 0; i < 32; i++) {
-            if (i === 8 || i === 12 || i === 16 || i === 20) {
-                uuid += '-';
-            }
-            uuid += chars[Math.floor(Math.random() * chars.length)];
-        }
-        return uuid;
-    }
-
-    private createMetaData(prefabName: string, prefabUuid: string): any {
-        return {
-            "ver": "1.1.50",
-            "importer": "prefab",
-            "imported": true,
-            "uuid": prefabUuid,
-            "files": [
-                ".json"
-            ],
-            "subMetas": {},
-            "userData": {
-                "syncNodeName": prefabName
-            }
-        };
-    }
-
     private async updatePrefab(prefabPath: string, nodeUuid: string): Promise<ToolResponse> {
         // Apply path. There is no host-process Editor.Message channel for
         // this; the operation lives on the scene facade and is reachable
@@ -346,12 +304,14 @@ export class PrefabTools implements ToolExecutor {
         };
     }
 
-    private async linkPrefab(nodeUuid: string, assetUuid: string): Promise<ToolResponse> {
-        return runSceneMethodAsToolResponse('linkPrefab', [nodeUuid, assetUuid]);
-    }
-
-    private async unlinkPrefab(nodeUuid: string, removeNested: boolean): Promise<ToolResponse> {
-        return runSceneMethodAsToolResponse('unlinkPrefab', [nodeUuid, removeNested]);
+    private async setLink(a: { mode: 'link' | 'unlink'; nodeUuid: string; assetUuid?: string; removeNested: boolean }): Promise<ToolResponse> {
+        if (a.mode === 'link') {
+            if (!a.assetUuid) {
+                return { success: false, error: 'set_link with mode="link" requires assetUuid' };
+            }
+            return runSceneMethodAsToolResponse('linkPrefab', [a.nodeUuid, a.assetUuid]);
+        }
+        return runSceneMethodAsToolResponse('unlinkPrefab', [a.nodeUuid, a.removeNested]);
     }
 
     private async getPrefabData(nodeUuid: string): Promise<ToolResponse> {
@@ -498,86 +458,6 @@ export class PrefabTools implements ToolExecutor {
             nodeCount,
             componentCount
         };
-    }
-
-    private async duplicatePrefab(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                const { sourcePrefabPath, targetPrefabPath, newPrefabName } = args;
-                
-                // 读取源预制体
-                const sourceInfo = await this.getPrefabInfo(sourcePrefabPath);
-                if (!sourceInfo.success) {
-                    resolve({
-                        success: false,
-                        error: `无法读取源预制体: ${sourceInfo.error}`
-                    });
-                    return;
-                }
-
-                // 读取源预制体内容
-                const sourceContent = await this.readPrefabContent(sourcePrefabPath);
-                if (!sourceContent.success) {
-                    resolve({
-                        success: false,
-                        error: `无法读取源预制体内容: ${sourceContent.error}`
-                    });
-                    return;
-                }
-
-                // 生成新的UUID
-                const newUuid = this.generateUUID();
-                
-                // 修改预制体数据
-                const modifiedData = this.modifyPrefabForDuplication(sourceContent.data, newPrefabName, newUuid);
-                
-                // 创建新的meta数据
-                const newMetaData = this.createMetaData(newPrefabName || 'DuplicatedPrefab', newUuid);
-                
-                // 预制体复制功能暂时禁用，因为涉及复杂的序列化格式
-                resolve({
-                    success: false,
-                    error: '预制体复制功能暂时不可用',
-                    instruction: '请在 Cocos Creator 编辑器中手动复制预制体：\n1. 在资源管理器中选择要复制的预制体\n2. 右键选择复制\n3. 在目标位置粘贴'
-                });
-
-            } catch (error) {
-                resolve({
-                    success: false,
-                    error: `复制预制体时发生错误: ${error}`
-                });
-            }
-        });
-    }
-
-    private async readPrefabContent(prefabPath: string): Promise<{ success: boolean; data?: any; error?: string }> {
-        return new Promise((resolve) => {
-            Editor.Message.request('asset-db', 'read-asset', prefabPath).then((content: string) => {
-                try {
-                    const prefabData = JSON.parse(content);
-                    resolve({ success: true, data: prefabData });
-                } catch (parseError) {
-                    resolve({ success: false, error: '预制体文件格式错误' });
-                }
-            }).catch((error: any) => {
-                resolve({ success: false, error: error.message || '读取预制体文件失败' });
-            });
-        });
-    }
-
-    private modifyPrefabForDuplication(prefabData: any[], newName: string, newUuid: string): any[] {
-        // 修改预制体数据以创建副本
-        const modifiedData = [...prefabData];
-        
-        // 修改第一个元素（预制体资产）
-        if (modifiedData[0] && modifiedData[0].__type__ === 'cc.Prefab') {
-            modifiedData[0]._name = newName || 'DuplicatedPrefab';
-        }
-
-        // 更新所有UUID引用（简化版本）
-        // 在实际应用中，可能需要更复杂的UUID映射处理
-        
-        return modifiedData;
     }
 
     private async restorePrefabNode(nodeUuid: string, assetUuid: string): Promise<ToolResponse> {
