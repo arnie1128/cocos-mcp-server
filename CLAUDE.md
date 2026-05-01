@@ -109,13 +109,19 @@ that target until token cost is measured.
    `applyPrefab`, `linkPrefab`, `unlinkPrefab`, `getPrefabData`. The
    editor-side `prefab-tools.ts` now uses `runSceneMethodAsToolResponse`
    from `lib/scene-bridge.ts` for these. `update_prefab` no longer
-   fail-loudly — it routes to `applyPrefab`; `create_prefab` tries the
-   facade first and only falls back to the legacy hand-rolled JSON path
-   if the facade is unavailable. New MCP tools: `prefab_link_prefab`,
-   `prefab_unlink_prefab`, `prefab_get_prefab_data`. The legacy hand-rolled
-   JSON path in `prefab-tools.ts` (~1000 lines under `createPrefabCustom` /
-   `createStandardPrefabContent`) is kept for now as a fallback; deletion
-   blocked on real-editor verification of the facade path.
+   fail-loudly — it routes to `applyPrefab`. New MCP tools:
+   `prefab_link_prefab`, `prefab_unlink_prefab`, `prefab_get_prefab_data`.
+
+   **v2.1.3 cleanup**: the legacy hand-rolled JSON fallback path
+   (`createPrefabWithAssetDB`, `createPrefabNative`, `createPrefabCustom` and
+   the helpers under `createStandardPrefabContent` / `createCompleteNodeTree`,
+   ~1000 lines) has been removed. The fallback was originally kept "in case
+   the facade path fails on some build", but every prefab form tested in
+   v2.1.1 / v2.1.2 went through the facade cleanly, and keeping a 1000-line
+   shadow path that is never exercised is a maintenance trap (dead code that
+   looks plausible). If the facade path turns out to fail on a specific build
+   in the future, restore the legacy code from git history — see commit
+   message of the removal commit for the exact pre-removal SHA.
 4. ~~**`console.log` is not gated**~~ — fixed in P0 + P1 T-P1-3.
    `source/lib/log.ts` exposes `logger.{debug,info,warn,error}` plus a
    backwards-compat `debugLog` alias. All 14 tool files, `mcp-server-sdk.ts`,
@@ -224,6 +230,17 @@ that target until token cost is measured.
    from scene-script (won't propagate). Don't trust `snapshot` alone for
    persistence.
 
+   **`enabled` dump shape: keep the nested+flat dual read** (audit round-1
+   fix `d5c97ef`). The dump returned by `scene/query-node` for component
+   `enabled` shows up in two shapes — nested `{ enabled: { value: true } }`
+   on some builds / components, flat `{ enabled: true }` on others. Both
+   are real; we have hit each in real-editor testing. `nudgeEditorModel`
+   reads nested first, falls back to flat. Do NOT "simplify" this to a
+   single read — past simplifier suggestions to collapse the two paths
+   would re-introduce the bug where disabled components get nudged back
+   to `enabled: true` because the flat shape silently fell through to
+   the nested-shape default.
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.
@@ -236,6 +253,19 @@ that target until token cost is measured.
 - Do not edit files in `dist/` — that is `tsc` output. The repo currently
   tracks `dist/` from the original author; treat it as build artifact, not
   source of truth.
+- **Bump `package.json` `version` after every code-level change** (anything
+  touching `source/`). Patch bump (`2.1.1 → 2.1.2`) for fixes / cleanup /
+  refactor / single-backlog landing. Minor bump (`2.1.x → 2.2.0`) when
+  adding new MCP tools or expanding public surface. Major only when asked.
+  Pure docs / HANDOFF / CHANGELOG updates do **not** require a bump. If a
+  session lands several code commits as a coordinated batch, bump once at
+  the end of the batch — not per-commit. The reason: Cocos Creator reads
+  this `version` to display the plugin version in its panel; without
+  bumping, reload shows a stale string and the user can't tell whether
+  the plugin actually picked up the change. After bumping, also sync
+  `dist/` + `package.json` to the user's installed plugin path (the
+  current path is in `docs/HANDOFF.md` §環境快速確認 — it is per-machine,
+  not constant, so don't hard-code it elsewhere).
 
 ## Where to look next
 
