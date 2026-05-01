@@ -11,20 +11,20 @@ export interface ToolConfig {
 const PACKAGE_NAME = 'cocos-mcp-server';
 
 const CATEGORY_DISPLAY: { [key: string]: string } = {
-    scene: '场景工具',
-    node: '节点工具',
-    component: '组件工具',
-    prefab: '预制体工具',
-    project: '项目工具',
-    debug: '调试工具',
-    preferences: '偏好设置工具',
-    server: '服务器工具',
-    broadcast: '广播工具',
-    sceneAdvanced: '高级场景工具',
-    sceneView: '场景视图工具',
-    referenceImage: '参考图片工具',
-    assetAdvanced: '高级资源工具',
-    validation: '验证工具',
+    scene: '場景工具',
+    node: '節點工具',
+    component: '組件工具',
+    prefab: '預製體工具',
+    project: '項目工具',
+    debug: '調試工具',
+    preferences: '偏好設置工具',
+    server: '服務器工具',
+    broadcast: '廣播工具',
+    sceneAdvanced: '高級場景工具',
+    sceneView: '場景視圖工具',
+    referenceImage: '參考圖片工具',
+    assetAdvanced: '高級資源工具',
+    validation: '驗證工具',
 };
 
 export function useToolConfig() {

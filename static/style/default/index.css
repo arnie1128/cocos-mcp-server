@@ -14,7 +14,7 @@ header h2 {
     font-size: 18px;
 }
 
-/* Vue3 应用样式 */
+/* Vue3 應用樣式 */
 .mcp-app {
     display: flex;
     flex-direction: column;
@@ -22,7 +22,7 @@ header h2 {
     overflow: hidden;
 }
 
-/* 选项卡导航样式 */
+/* 選項卡導航樣式 */
 .tab-navigation {
     display: flex;
     border-bottom: 1px solid var(--color-normal-border);
@@ -53,7 +53,7 @@ header h2 {
     background: var(--color-panel);
 }
 
-/* 选项卡内容样式 */
+/* 選項卡內容樣式 */
 .tab-content {
     display: flex;
     flex-direction: column;
@@ -112,7 +112,7 @@ ui-prop {
     margin-bottom: 10px;
 }
 
-/* 工具管理器样式 */
+/* 工具管理器樣式 */
 .tool-manager {
     display: flex;
     flex-direction: column;
@@ -283,7 +283,7 @@ ui-prop {
     align-items: center;
 }
 
-/* 模态框样式 */
+/* 模態框樣式 */
 .modal {
     position: fixed;
     top: 0;
@@ -357,7 +357,7 @@ ui-prop {
     padding-top: 15px;
 }
 
-/* 按钮样式 */
+/* 按鈕樣式 */
 ui-button.small {
     font-size: 12px;
     padding: 4px 8px;
@@ -374,7 +374,7 @@ ui-button.secondary:hover {
     background: var(--color-normal-fill);
 }
 
-/* 空状态样式 */
+/* 空狀態樣式 */
 .empty-state {
     text-align: center;
     padding: 40px 20px;

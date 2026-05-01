@@ -49,7 +49,7 @@ module.exports = Editor.Panel.define({
                 this.updateUI();
             } catch (error) {
                 logger.error('Failed to load tool manager state:', error);
-                this.showError('加载工具管理器状态失败');
+                this.showError('加載工具管理器狀態失敗');
             }
         },
 
@@ -62,7 +62,7 @@ module.exports = Editor.Panel.define({
 
         updateConfigSelector(this: any) {
             const selector = this.$.configSelector;
-            selector.innerHTML = '<option value="">选择配置...</option>';
+            selector.innerHTML = '<option value="">選擇配置...</option>';
             
             this.configurations.forEach((config: any) => {
                 const option = document.createElement('option');
@@ -81,8 +81,8 @@ module.exports = Editor.Panel.define({
             if (!this.currentConfiguration) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <h3>没有选择配置</h3>
-                        <p>请先选择一个配置或创建新配置</p>
+                        <h3>沒有選擇配置</h3>
+                        <p>請先選擇一個配置或創建新配置</p>
                     </div>
                 `;
                 return;
@@ -173,7 +173,7 @@ module.exports = Editor.Panel.define({
             }));
 
             try {
-                // 先更新本地状态
+                // 先更新本地狀態
                 categoryTools.forEach((tool: any) => {
                     tool.enabled = enabled;
                 });
@@ -184,15 +184,15 @@ module.exports = Editor.Panel.define({
                 this.updateCategoryCounts();
                 this.updateToolCheckboxes(category, enabled);
 
-                // 然后发送到后端
+                // 然後發送到後端
                 await Editor.Message.request('cocos-mcp-server', 'updateToolStatusBatch', 
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
                 logger.error('Failed to toggle category tools:', error);
-                this.showError('切换类别工具失败');
+                this.showError('切換類別工具失敗');
                 
-                // 如果后端更新失败，回滚本地状态
+                // 如果後端更新失敗，回滾本地狀態
                 categoryTools.forEach((tool: any) => {
                     tool.enabled = !enabled;
                 });
@@ -208,7 +208,7 @@ module.exports = Editor.Panel.define({
             logger.debug(`Updating tool status: ${category}.${name} = ${enabled}`);
             logger.debug(`Current config ID: ${this.currentConfiguration.id}`);
 
-            // 先更新本地状态
+            // 先更新本地狀態
             const tool = this.currentConfiguration.tools.find((t: any) => 
                 t.category === category && t.name === name);
             if (!tool) {
@@ -220,11 +220,11 @@ module.exports = Editor.Panel.define({
                 tool.enabled = enabled;
                 logger.debug(`Updated local tool state: ${tool.name} = ${tool.enabled}`);
                 
-                // 立即更新UI（只更新统计信息，不重新渲染工具列表）
+                // 立即更新UI（只更新統計信息，不重新渲染工具列表）
                 this.updateStatusBar();
                 this.updateCategoryCounts();
 
-                // 然后发送到后端
+                // 然後發送到後端
                 logger.debug(`Sending to backend: configId=${this.currentConfiguration.id}, category=${category}, name=${name}, enabled=${enabled}`);
                 const result = await Editor.Message.request('cocos-mcp-server', 'updateToolStatus', 
                     this.currentConfiguration.id, category, name, enabled);
@@ -232,9 +232,9 @@ module.exports = Editor.Panel.define({
                 
             } catch (error) {
                 logger.error('Failed to update tool status:', error);
-                this.showError('更新工具状态失败');
+                this.showError('更新工具狀態失敗');
                 
-                // 如果后端更新失败，回滚本地状态
+                // 如果後端更新失敗，回滾本地狀態
                 tool.enabled = !enabled;
                 this.updateStatusBar();
                 this.updateCategoryCounts();
@@ -263,26 +263,26 @@ module.exports = Editor.Panel.define({
         updateCategoryCounts(this: any) {
             if (!this.currentConfiguration) return;
 
-            // 更新每个类别的计数显示
+            // 更新每個類別的計數顯示
             document.querySelectorAll('.category-checkbox').forEach((checkbox: any) => {
                 const category = checkbox.dataset.category;
                 const categoryTools = this.currentConfiguration.tools.filter((t: any) => t.category === category);
                 const enabledCount = categoryTools.filter((t: any) => t.enabled).length;
                 const totalCount = categoryTools.length;
                 
-                // 更新计数显示
+                // 更新計數顯示
                 const countSpan = checkbox.parentElement.querySelector('span');
                 if (countSpan) {
                     countSpan.textContent = `${enabledCount}/${totalCount}`;
                 }
                 
-                // 更新类别复选框状态
+                // 更新類別複選框狀態
                 checkbox.checked = enabledCount === totalCount;
             });
         },
 
         updateToolCheckboxes(this: any, category: string, enabled: boolean) {
-            // 更新特定类别的所有工具复选框
+            // 更新特定類別的所有工具複選框
             document.querySelectorAll(`.tool-checkbox[data-category="${category}"]`).forEach((checkbox: any) => {
                 checkbox.checked = enabled;
             });
@@ -308,7 +308,7 @@ module.exports = Editor.Panel.define({
             if (!this.currentConfiguration) return;
 
             this.editingConfig = this.currentConfiguration;
-            this.$.modalTitle.textContent = '编辑配置';
+            this.$.modalTitle.textContent = '編輯配置';
             this.$.configName.value = this.currentConfiguration.name;
             this.$.configDescription.value = this.currentConfiguration.description || '';
             this.showModal('configModal');
@@ -319,7 +319,7 @@ module.exports = Editor.Panel.define({
             const description = this.$.configDescription.value.trim();
 
             if (!name) {
-                this.showError('配置名称不能为空');
+                this.showError('配置名稱不能為空');
                 return;
             }
 
@@ -335,15 +335,15 @@ module.exports = Editor.Panel.define({
                 await this.loadToolManagerState();
             } catch (error) {
                 logger.error('Failed to save configuration:', error);
-                this.showError('保存配置失败');
+                this.showError('保存配置失敗');
             }
         },
 
         async deleteConfiguration(this: any) {
             if (!this.currentConfiguration) return;
 
-            const confirmed = await Editor.Dialog.warn('确认删除', {
-                detail: `确定要删除配置 "${this.currentConfiguration.name}" 吗？此操作不可撤销。`
+            const confirmed = await Editor.Dialog.warn('確認刪除', {
+                detail: `確定要刪除配置 "${this.currentConfiguration.name}" 嗎？此操作不可撤銷。`
             });
             
             if (confirmed) {
@@ -353,7 +353,7 @@ module.exports = Editor.Panel.define({
                     await this.loadToolManagerState();
                 } catch (error) {
                     logger.error('Failed to delete configuration:', error);
-                    this.showError('删除配置失败');
+                    this.showError('刪除配置失敗');
                 }
             }
         },
@@ -367,7 +367,7 @@ module.exports = Editor.Panel.define({
                 await this.loadToolManagerState();
             } catch (error) {
                 logger.error('Failed to apply configuration:', error);
-                this.showError('应用配置失败');
+                this.showError('應用配置失敗');
             }
         },
 
@@ -379,10 +379,10 @@ module.exports = Editor.Panel.define({
                     this.currentConfiguration.id);
                 
                 Editor.Clipboard.write('text', result.configJson);
-                Editor.Dialog.info('导出成功', { detail: '配置已复制到剪贴板' });
+                Editor.Dialog.info('導出成功', { detail: '配置已複製到剪貼板' });
             } catch (error) {
                 logger.error('Failed to export configuration:', error);
-                this.showError('导出配置失败');
+                this.showError('導出配置失敗');
             }
         },
 
@@ -394,7 +394,7 @@ module.exports = Editor.Panel.define({
         async confirmImport(this: any) {
             const configJson = this.$.importConfigJson.value.trim();
             if (!configJson) {
-                this.showError('请输入配置JSON');
+                this.showError('請輸入配置JSON');
                 return;
             }
 
@@ -402,10 +402,10 @@ module.exports = Editor.Panel.define({
                 await Editor.Message.request('cocos-mcp-server', 'importToolConfiguration', configJson);
                 this.hideModal('importModal');
                 await this.loadToolManagerState();
-                Editor.Dialog.info('导入成功', { detail: '配置已成功导入' });
+                Editor.Dialog.info('導入成功', { detail: '配置已成功導入' });
             } catch (error) {
                 logger.error('Failed to import configuration:', error);
-                this.showError('导入配置失败');
+                this.showError('導入配置失敗');
             }
         },
 
@@ -421,7 +421,7 @@ module.exports = Editor.Panel.define({
             }));
 
             try {
-                // 先更新本地状态
+                // 先更新本地狀態
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = true;
                 });
@@ -431,15 +431,15 @@ module.exports = Editor.Panel.define({
                 this.updateStatusBar();
                 this.updateToolsDisplay();
 
-                // 然后发送到后端
+                // 然後發送到後端
                 await Editor.Message.request('cocos-mcp-server', 'updateToolStatusBatch', 
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
                 logger.error('Failed to select all tools:', error);
-                this.showError('全选工具失败');
+                this.showError('全選工具失敗');
                 
-                // 如果后端更新失败，回滚本地状态
+                // 如果後端更新失敗，回滾本地狀態
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = false;
                 });
@@ -460,7 +460,7 @@ module.exports = Editor.Panel.define({
             }));
 
             try {
-                // 先更新本地状态
+                // 先更新本地狀態
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = false;
                 });
@@ -470,15 +470,15 @@ module.exports = Editor.Panel.define({
                 this.updateStatusBar();
                 this.updateToolsDisplay();
 
-                // 然后发送到后端
+                // 然後發送到後端
                 await Editor.Message.request('cocos-mcp-server', 'updateToolStatusBatch', 
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
                 logger.error('Failed to deselect all tools:', error);
-                this.showError('取消全选工具失败');
+                this.showError('取消全選工具失敗');
                 
-                // 如果后端更新失败，回滚本地状态
+                // 如果後端更新失敗，回滾本地狀態
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = true;
                 });
@@ -489,20 +489,20 @@ module.exports = Editor.Panel.define({
 
         getCategoryDisplayName(this: any, category: string): string {
             const categoryNames: any = {
-                'scene': '场景工具',
-                'node': '节点工具',
-                'component': '组件工具',
-                'prefab': '预制体工具',
-                'project': '项目工具',
-                'debug': '调试工具',
-                'preferences': '偏好设置工具',
-                'server': '服务器工具',
-                'broadcast': '广播工具',
-                'sceneAdvanced': '高级场景工具',
-                'sceneView': '场景视图工具',
-                'referenceImage': '参考图片工具',
-                'assetAdvanced': '高级资源工具',
-                'validation': '验证工具'
+                'scene': '場景工具',
+                'node': '節點工具',
+                'component': '組件工具',
+                'prefab': '預製體工具',
+                'project': '項目工具',
+                'debug': '調試工具',
+                'preferences': '偏好設置工具',
+                'server': '服務器工具',
+                'broadcast': '廣播工具',
+                'sceneAdvanced': '高級場景工具',
+                'sceneView': '場景視圖工具',
+                'referenceImage': '參考圖片工具',
+                'assetAdvanced': '高級資源工具',
+                'validation': '驗證工具'
             };
             return categoryNames[category] || category;
         },
@@ -516,17 +516,17 @@ module.exports = Editor.Panel.define({
         },
 
         showError(this: any, message: string) {
-            Editor.Dialog.error('错误', { detail: message });
+            Editor.Dialog.error('錯誤', { detail: message });
         },
 
         async saveChanges(this: any) {
             if (!this.currentConfiguration) {
-                this.showError('没有选择配置');
+                this.showError('沒有選擇配置');
                 return;
             }
 
             try {
-                // 确保当前配置已保存到后端
+                // 確保當前配置已保存到後端
                 await Editor.Message.request('cocos-mcp-server', 'updateToolConfiguration', 
                     this.currentConfiguration.id, {
                         name: this.currentConfiguration.name,
@@ -537,7 +537,7 @@ module.exports = Editor.Panel.define({
                 Editor.Dialog.info('保存成功', { detail: '配置更改已保存' });
             } catch (error) {
                 logger.error('Failed to save changes:', error);
-                this.showError('保存更改失败');
+                this.showError('保存更改失敗');
             }
         },
 
@@ -581,6 +581,6 @@ module.exports = Editor.Panel.define({
         // 清理工作
     },
     close() {
-        // 面板关闭清理
+        // 面板關閉清理
     }
 } as any); 

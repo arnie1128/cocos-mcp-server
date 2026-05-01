@@ -156,7 +156,7 @@ export class NodeTools implements ToolExecutor {
             try {
                 let targetParentUuid = args.parentUuid;
                 
-                // 如果没有提供父节点UUID，获取场景根节点
+                // 如果沒有提供父節點UUID，獲取場景根節點
                 if (!targetParentUuid) {
                     try {
                         const sceneInfo = await Editor.Message.request('scene', 'query-node-tree');
@@ -177,7 +177,7 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 如果提供了assetPath，先解析为assetUuid
+                // 如果提供了assetPath，先解析為assetUuid
                 let finalAssetUuid = args.assetUuid;
                 if (args.assetPath && !finalAssetUuid) {
                     try {
@@ -201,17 +201,17 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 构建create-node选项
+                // 構建create-node選項
                 const createNodeOptions: any = {
                     name: args.name
                 };
 
-                // 设置父节点
+                // 設置父節點
                 if (targetParentUuid) {
                     createNodeOptions.parent = targetParentUuid;
                 }
 
-                // 从资源实例化
+                // 從資源實例化
                 if (finalAssetUuid) {
                     createNodeOptions.assetUuid = finalAssetUuid;
                     if (args.unlinkPrefab) {
@@ -219,31 +219,31 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 添加组件
+                // 添加組件
                 if (args.components && args.components.length > 0) {
                     createNodeOptions.components = args.components;
                 } else if (args.nodeType && args.nodeType !== 'Node' && !finalAssetUuid) {
-                    // 只有在不从资源实例化时才添加nodeType组件
+                    // 只有在不從資源實例化時才添加nodeType組件
                     createNodeOptions.components = [args.nodeType];
                 }
 
-                // 保持世界变换
+                // 保持世界變換
                 if (args.keepWorldTransform) {
                     createNodeOptions.keepWorldTransform = true;
                 }
 
-                // 不使用dump参数处理初始变换，创建后使用set_node_transform设置
+                // 不使用dump參數處理初始變換，創建後使用set_node_transform設置
 
                 debugLog('Creating node with options:', createNodeOptions);
 
-                // 创建节点
+                // 創建節點
                 const nodeUuid = await Editor.Message.request('scene', 'create-node', createNodeOptions);
                 const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
 
-                // 处理兄弟索引
+                // 處理兄弟索引
                 if (args.siblingIndex !== undefined && args.siblingIndex >= 0 && uuid && targetParentUuid) {
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 100)); // 等待内部状态更新
+                        await new Promise(resolve => setTimeout(resolve, 100)); // 等待內部狀態更新
                         await Editor.Message.request('scene', 'set-parent', {
                             parent: targetParentUuid,
                             uuids: [uuid],
@@ -254,10 +254,10 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 添加组件（如果提供的话）
+                // 添加組件（如果提供的話）
                 if (args.components && args.components.length > 0 && uuid) {
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 100)); // 等待节点创建完成
+                        await new Promise(resolve => setTimeout(resolve, 100)); // 等待節點創建完成
                         for (const componentType of args.components) {
                             try {
                                 const result = await this.componentTools.execute('add_component', {
@@ -278,10 +278,10 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 设置初始变换（如果提供的话）
+                // 設置初始變換（如果提供的話）
                 if (args.initialTransform && uuid) {
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 150)); // 等待节点和组件创建完成
+                        await new Promise(resolve => setTimeout(resolve, 150)); // 等待節點和組件創建完成
                         await this.setNodeTransform({
                             uuid: uuid,
                             position: args.initialTransform.position,
@@ -294,7 +294,7 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
-                // 获取创建后的节点信息进行验证
+                // 獲取創建後的節點信息進行驗證
                 let verificationData: any = null;
                 try {
                     const nodeInfo = await this.getNodeInfo(uuid);
@@ -353,7 +353,7 @@ export class NodeTools implements ToolExecutor {
                     return;
                 }
                 
-                // 根据实际返回的数据结构解析节点信息
+                // 根據實際返回的數據結構解析節點信息
                 const info: NodeInfo = {
                     uuid: nodeData.uuid?.value || uuid,
                     name: nodeData.name?.value || 'Unknown',
@@ -412,7 +412,7 @@ export class NodeTools implements ToolExecutor {
                 
                 resolve({ success: true, data: nodes });
             }).catch((err: Error) => {
-                // 备用方案：使用场景脚本
+                // 備用方案：使用場景腳本
                 runSceneMethod('findNodes', [pattern, exactMatch]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
@@ -424,7 +424,7 @@ export class NodeTools implements ToolExecutor {
 
     private async findNodeByName(name: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 优先尝试使用 Editor API 查询节点树并搜索
+            // 優先嚐試使用 Editor API 查詢節點樹並搜索
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 const foundNode = this.searchNodeInTree(tree, name);
                 if (foundNode) {
@@ -440,7 +440,7 @@ export class NodeTools implements ToolExecutor {
                     resolve({ success: false, error: `Node '${name}' not found` });
                 }
             }).catch((err: Error) => {
-                // 备用方案：使用场景脚本
+                // 備用方案：使用場景腳本
                 runSceneMethod('findNodeByName', [name]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
@@ -469,7 +469,7 @@ export class NodeTools implements ToolExecutor {
 
     private async getAllNodes(): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 尝试查询场景节点树
+            // 嘗試查詢場景節點樹
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 const nodes: any[] = [];
                 
@@ -501,7 +501,7 @@ export class NodeTools implements ToolExecutor {
                     }
                 });
             }).catch((err: Error) => {
-                // 备用方案：使用场景脚本
+                // 備用方案：使用場景腳本
                 runSceneMethod('getAllNodes', []).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
@@ -523,7 +523,7 @@ export class NodeTools implements ToolExecutor {
 
     private async setNodeProperty(uuid: string, property: string, value: any): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 尝试直接使用 Editor API 设置节点属性
+            // 嘗試直接使用 Editor API 設置節點屬性
             Editor.Message.request('scene', 'set-property', {
                 uuid: uuid,
                 path: property,
@@ -557,7 +557,7 @@ export class NodeTools implements ToolExecutor {
                     });
                 });
             }).catch((err: Error) => {
-                // 如果直接设置失败，尝试使用场景脚本
+                // 如果直接設置失敗，嘗試使用場景腳本
                 runSceneMethod('setNodeProperty', [uuid, property, value]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {

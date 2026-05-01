@@ -107,7 +107,7 @@ const connectionMethods = [
 let connected = false;
 for (const method of connectionMethods) {
     try { await method(); connected = true; break; }
-    catch (error) { console.warn('預制体连接方法失败...'); }
+    catch (error) { console.warn('預制體連接方法失敗...'); }
 }
 ```
 
@@ -198,7 +198,7 @@ mcp-tool-tester），但 `package.json` 沒有 test script。
 ### 3.3 i18n 覆蓋率不全
 
 `i18n/zh.js` 與 `i18n/en.js` 只覆蓋面板字串，工具錯誤訊息（如
-`prefab-tools.ts` 內大量「預制体未找到」「無法找到或讀取預制體文件」）
+`prefab-tools.ts` 內大量「預制體未找到」「無法找到或讀取預制體文件」）
 全部硬碼中文。
 
 **影響**：英文 client 收到中文錯誤；除錯時不易 grep。

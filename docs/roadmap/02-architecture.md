@@ -163,7 +163,7 @@ HTTP endpoint 形式可能變更（從手寫 JSON-RPC 換成 SDK 標準 transpor
 
 - `tsc --noEmit` 通過。
 - 實機（建立 prefab → 拖至場景 → 修改後 apply）一回合完整跑通。
-- ladder log（`預制體連接方法失败`、`所有預制體連接API都失败`）不再
+- ladder log（`預制體連接方法失敗`、`所有預制體連接API都失敗`）不再
   出現於正常流程。
 
 **不在範圍**：「100% 對齊官方序列化格式」（`fileId` / `__id__` 全鏈路一致）

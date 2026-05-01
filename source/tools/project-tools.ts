@@ -256,7 +256,7 @@ export class ProjectTools implements ToolExecutor {
 
     private async getProjectSettings(category: string = 'general'): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 使用正确的 project API 查询项目配置
+            // 使用正確的 project API 查詢項目配置
             const configMap: Record<string, string> = {
                 general: 'project',
                 physics: 'physics',
@@ -283,7 +283,7 @@ export class ProjectTools implements ToolExecutor {
 
     private async refreshAssets(folder?: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 使用正确的 asset-db API 刷新资源
+            // 使用正確的 asset-db API 刷新資源
             const targetPath = folder || 'db://assets';
             
             Editor.Message.request('asset-db', 'refresh-asset', targetPath).then(() => {
@@ -357,7 +357,7 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             let pattern = `${folder}/**/*`;
             
-            // 添加类型过滤
+            // 添加類型過濾
             if (type !== 'all') {
                 const typeExtensions: Record<string, string> = {
                     'scene': '.scene',
@@ -404,7 +404,7 @@ export class ProjectTools implements ToolExecutor {
 
     private async getBuildSettings(): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            // 检查构建器是否准备就绪
+            // 檢查構建器是否準備就緒
             Editor.Message.request('builder', 'query-worker-ready').then((ready: boolean) => {
                 resolve({
                     success: true,

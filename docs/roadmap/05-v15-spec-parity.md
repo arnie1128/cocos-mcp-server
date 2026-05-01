@@ -1,8 +1,12 @@
 # P4 — v1.5.0 部分對齊（選擇性）
 
-**Status**: done — 程式碼層（2026-05-01 落地）；⚠️ 實機驗證項見 HANDOFF.md
-**預估工時**：~3-5 天
-**風險**：中（事件綁定需 ground truth、prefab façade 需實機驗 url 格式）
+**Status**: ✅ done（v2.1.1 程式碼 + v2.1.2 EventHandler 持久化修補 +
+v2.1.3 façade fallback 整鏈清理 + v2.1.4 P2-lite link/unlink 合併）；
+全部實機驗證項已通過。詳見 [`docs/HANDOFF.md`](../HANDOFF.md) §進度快照
+與 [`docs/archive/handoff-history.md`](../archive/handoff-history.md)
+（Phase 1/2/3 詳細紀錄）。
+**實際工時**：v2.1.0–v2.1.4 累積 ~10 天
+**風險**：已落地（無新增風險）
 **前置**：P1 完成（依賴 SDK + zod schema 樣板）；與 P3 互不相依
 **依據**：[`docs/analysis/v15-feasibility.md`](../analysis/v15-feasibility.md)
 
@@ -52,7 +56,7 @@
 
 2. **`source/tools/prefab-tools.ts`** 改動：
    - `updatePrefab`：從 fail loudly 改為走 `execute-scene-script` 呼叫
-     scene 端 `applyPrefab`。失敗時清楚回報（含 façade 是否抛例外）。
+     scene 端 `applyPrefab`。失敗時清楚回報（含 façade 是否拋例外）。
    - `createPrefab` 系列：保留現有「自寫 JSON」分支作 fallback，但前置
      一個「scene-script `createPrefabFromNode` 呼叫」分支；若成功則略過
      後續手刻 JSON 路徑。Commit 內標記手刻路徑為 deprecated（不立刻刪）。

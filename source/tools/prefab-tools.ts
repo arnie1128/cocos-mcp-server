@@ -169,30 +169,30 @@ export class PrefabTools implements ToolExecutor {
     private async instantiatePrefab(args: any): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
-                // 获取预制体资源信息
+                // 獲取預製體資源信息
                 const assetInfo = await Editor.Message.request('asset-db', 'query-asset-info', args.prefabPath);
                 if (!assetInfo) {
-                    throw new Error('预制体未找到');
+                    throw new Error('預製體未找到');
                 }
 
-                // 使用正确的 create-node API 从预制体资源实例化
+                // 使用正確的 create-node API 從預製體資源實例化
                 const createNodeOptions: any = {
                     assetUuid: assetInfo.uuid
                 };
 
-                // 设置父节点
+                // 設置父節點
                 if (args.parentUuid) {
                     createNodeOptions.parent = args.parentUuid;
                 }
 
-                // 设置节点名称
+                // 設置節點名稱
                 if (args.name) {
                     createNodeOptions.name = args.name;
                 } else if (assetInfo.name) {
                     createNodeOptions.name = assetInfo.name;
                 }
 
-                // 设置初始属性（如位置）
+                // 設置初始屬性（如位置）
                 if (args.position) {
                     createNodeOptions.dump = {
                         position: {
@@ -201,12 +201,12 @@ export class PrefabTools implements ToolExecutor {
                     };
                 }
 
-                // 创建节点
+                // 創建節點
                 const nodeUuid = await Editor.Message.request('scene', 'create-node', createNodeOptions);
                 const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
 
-                // 注意：create-node API从预制体资源创建时应该自动建立预制体关联
-                debugLog('预制体节点创建成功:', {
+                // 注意：create-node API從預製體資源創建時應該自動建立預製體關聯
+                debugLog('預製體節點創建成功:', {
                     nodeUuid: uuid,
                     prefabUuid: assetInfo.uuid,
                     prefabPath: args.prefabPath
@@ -219,14 +219,14 @@ export class PrefabTools implements ToolExecutor {
                         prefabPath: args.prefabPath,
                         parentUuid: args.parentUuid,
                         position: args.position,
-                        message: '预制体实例化成功，已建立预制体关联'
+                        message: '預製體實例化成功，已建立預製體關聯'
                     }
                 });
             } catch (err: any) {
                 resolve({ 
                     success: false, 
-                    error: `预制体实例化失败: ${err.message}`,
-                    instruction: '请检查预制体路径是否正确，确保预制体文件格式正确'
+                    error: `預製體實例化失敗: ${err.message}`,
+                    instruction: '請檢查預製體路徑是否正確，確保預製體文件格式正確'
                 });
             }
         });
@@ -235,12 +235,12 @@ export class PrefabTools implements ToolExecutor {
     private async createPrefab(args: any): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
-                // 支持 prefabPath 和 savePath 两种参数名
+                // 支持 prefabPath 和 savePath 兩種參數名
                 const pathParam = args.prefabPath || args.savePath;
                 if (!pathParam) {
                     resolve({
                         success: false,
-                        error: '缺少预制体路径参数。请提供 prefabPath 或 savePath。'
+                        error: '缺少預製體路徑參數。請提供 prefabPath 或 savePath。'
                     });
                     return;
                 }
@@ -280,7 +280,7 @@ export class PrefabTools implements ToolExecutor {
             } catch (error) {
                 resolve({
                     success: false,
-                    error: `创建预制体时发生错误: ${error}`
+                    error: `創建預製體時發生錯誤: ${error}`
                 });
             }
         });
@@ -363,17 +363,17 @@ export class PrefabTools implements ToolExecutor {
     private async validatePrefab(prefabPath: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             try {
-                // 读取预制体文件内容
+                // 讀取預製體文件內容
                 Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
                     if (!assetInfo) {
                         resolve({
                             success: false,
-                            error: '预制体文件不存在'
+                            error: '預製體文件不存在'
                         });
                         return;
                     }
 
-                    // 验证预制体格式
+                    // 驗證預製體格式
                     Editor.Message.request('asset-db', 'read-asset', prefabPath).then((content: string) => {
                         try {
                             const prefabData = JSON.parse(content);
@@ -386,31 +386,31 @@ export class PrefabTools implements ToolExecutor {
                                     issues: validationResult.issues,
                                     nodeCount: validationResult.nodeCount,
                                     componentCount: validationResult.componentCount,
-                                    message: validationResult.isValid ? '预制体格式有效' : '预制体格式存在问题'
+                                    message: validationResult.isValid ? '預製體格式有效' : '預製體格式存在問題'
                                 }
                             });
                         } catch (parseError) {
                             resolve({
                                 success: false,
-                                error: '预制体文件格式错误，无法解析JSON'
+                                error: '預製體文件格式錯誤，無法解析JSON'
                             });
                         }
                     }).catch((error: any) => {
                         resolve({
                             success: false,
-                            error: `读取预制体文件失败: ${error.message}`
+                            error: `讀取預製體文件失敗: ${error.message}`
                         });
                     });
                 }).catch((error: any) => {
                     resolve({
                         success: false,
-                        error: `查询预制体信息失败: ${error.message}`
+                        error: `查詢預製體信息失敗: ${error.message}`
                     });
                 });
             } catch (error) {
                 resolve({
                     success: false,
-                    error: `验证预制体时发生错误: ${error}`
+                    error: `驗證預製體時發生錯誤: ${error}`
                 });
             }
         });
@@ -421,24 +421,24 @@ export class PrefabTools implements ToolExecutor {
         let nodeCount = 0;
         let componentCount = 0;
 
-        // 检查基本结构
+        // 檢查基本結構
         if (!Array.isArray(prefabData)) {
-            issues.push('预制体数据必须是数组格式');
+            issues.push('預製體數據必須是數組格式');
             return { isValid: false, issues, nodeCount, componentCount };
         }
 
         if (prefabData.length === 0) {
-            issues.push('预制体数据为空');
+            issues.push('預製體數據為空');
             return { isValid: false, issues, nodeCount, componentCount };
         }
 
-        // 检查第一个元素是否为预制体资产
+        // 檢查第一個元素是否為預製體資產
         const firstElement = prefabData[0];
         if (!firstElement || firstElement.__type__ !== 'cc.Prefab') {
-            issues.push('第一个元素必须是cc.Prefab类型');
+            issues.push('第一個元素必須是cc.Prefab類型');
         }
 
-        // 统计节点和组件
+        // 統計節點和組件
         prefabData.forEach((item: any, index: number) => {
             if (item.__type__ === 'cc.Node') {
                 nodeCount++;
@@ -447,9 +447,9 @@ export class PrefabTools implements ToolExecutor {
             }
         });
 
-        // 检查必要的字段
+        // 檢查必要的字段
         if (nodeCount === 0) {
-            issues.push('预制体必须包含至少一个节点');
+            issues.push('預製體必須包含至少一個節點');
         }
 
         return {
@@ -474,13 +474,13 @@ export class PrefabTools implements ToolExecutor {
                     data: {
                         nodeUuid: nodeUuid,
                         assetUuid: assetUuid,
-                        message: '预制体节点还原成功'
+                        message: '預製體節點還原成功'
                     }
                 });
             }).catch((error: any) => {
                 resolve({
                     success: false,
-                    error: `预制体节点还原失败: ${error.message}`
+                    error: `預製體節點還原失敗: ${error.message}`
                 });
             });
         });

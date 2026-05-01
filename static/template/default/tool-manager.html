@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>工具管理器</title>
@@ -23,7 +24,7 @@
             padding-right: 8px;
         }
 
-        /* 容器滚动条样式 */
+        /* 容器捲軸樣式 */
         .container::-webkit-scrollbar {
             width: 8px;
         }
@@ -416,7 +417,7 @@
             line-height: 1.5;
         }
 
-        /* 滚动条样式 */
+        /* 捲軸樣式 */
         .tools-container::-webkit-scrollbar {
             width: 8px;
         }
@@ -435,7 +436,7 @@
             background: #6a6a6a;
         }
 
-        /* 工具管理区域标题 */
+        /* 工具管理區域標題 */
         .tools-section-header {
             display: flex;
             justify-content: space-between;
@@ -477,32 +478,33 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <!-- 头部 -->
+        <!-- 頭部 -->
         <div class="header">
             <h2 id="panelTitle">工具管理器</h2>
             <div class="config-controls">
                 <button class="btn btn-primary" id="createConfigBtn">新建配置</button>
-                <button class="btn" id="importConfigBtn">导入配置</button>
-                <button class="btn" id="exportConfigBtn">导出配置</button>
+                <button class="btn" id="importConfigBtn">匯入配置</button>
+                <button class="btn" id="exportConfigBtn">匯出配置</button>
             </div>
         </div>
 
-        <!-- 配置选择器 -->
+        <!-- 配置選擇器 -->
         <div class="config-section">
             <div class="config-header">
-                <div class="config-title">当前配置</div>
+                <div class="config-title">當前配置</div>
                 <div class="config-controls">
-                    <button class="btn" id="editConfigBtn">编辑</button>
-                    <button class="btn btn-danger" id="deleteConfigBtn">删除</button>
+                    <button class="btn" id="editConfigBtn">編輯</button>
+                    <button class="btn btn-danger" id="deleteConfigBtn">刪除</button>
                 </div>
             </div>
             <div class="config-selector">
                 <select id="configSelector">
-                    <option value="">选择配置...</option>
+                    <option value="">選擇配置...</option>
                 </select>
-                <button class="btn btn-primary" id="applyConfigBtn">应用</button>
+                <button class="btn btn-primary" id="applyConfigBtn">應用</button>
             </div>
         </div>
 
@@ -511,29 +513,29 @@
             <div class="tools-section-header">
                 <div class="tools-section-title">工具管理</div>
                 <div class="tools-section-controls">
-                    <button class="btn" id="selectAllBtn">全选</button>
-                    <button class="btn" id="deselectAllBtn">取消全选</button>
+                    <button class="btn" id="selectAllBtn">全選</button>
+                    <button class="btn" id="deselectAllBtn">取消全選</button>
                 </div>
             </div>
             <div id="toolsContainer" class="tools-container">
-                <div class="loading">加载中...</div>
+                <div class="loading">載入中...</div>
             </div>
         </div>
 
-        <!-- 状态栏 -->
+        <!-- 狀態列 -->
         <div class="status-bar">
             <div class="status-info">
-                <span>总工具数: <span id="totalToolsCount">0</span></span>
-                <span>已启用: <span id="enabledToolsCount">0</span></span>
+                <span>總工具數: <span id="totalToolsCount">0</span></span>
+                <span>已啟用: <span id="enabledToolsCount">0</span></span>
                 <span>已禁用: <span id="disabledToolsCount">0</span></span>
             </div>
             <div>
-                <button class="btn" id="saveChangesBtn">保存更改</button>
+                <button class="btn" id="saveChangesBtn">儲存更改</button>
             </div>
         </div>
     </div>
 
-    <!-- 新建/编辑配置模态框 -->
+    <!-- 新建/編輯配置模態框 -->
     <div id="configModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -542,41 +544,42 @@
             </div>
             <form id="configForm">
                 <div class="form-group">
-                    <label class="form-label" for="configName">配置名称 *</label>
+                    <label class="form-label" for="configName">配置名稱 *</label>
                     <input type="text" id="configName" class="form-input" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="configDescription">描述</label>
-                    <textarea id="configDescription" class="form-textarea" placeholder="可选：添加配置描述"></textarea>
+                    <textarea id="configDescription" class="form-textarea" placeholder="可選：新增配置描述"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn" id="cancelConfigBtn">取消</button>
-                    <button type="submit" class="btn btn-primary" id="saveConfigBtn">保存</button>
+                    <button type="submit" class="btn btn-primary" id="saveConfigBtn">儲存</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 导入配置模态框 -->
+    <!-- 匯入配置模態框 -->
     <div id="importModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">导入配置</div>
+                <div class="modal-title">匯入配置</div>
                 <button class="modal-close" id="closeImportModal">&times;</button>
             </div>
             <div class="form-group">
                 <label class="form-label" for="importConfigJson">配置JSON</label>
-                <textarea id="importConfigJson" class="form-textarea" placeholder="粘贴配置JSON内容"></textarea>
+                <textarea id="importConfigJson" class="form-textarea" placeholder="貼上配置JSON內容"></textarea>
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn" id="cancelImportBtn">取消</button>
-                <button type="button" class="btn btn-primary" id="confirmImportBtn">导入</button>
+                <button type="button" class="btn btn-primary" id="confirmImportBtn">匯入</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 这里将包含面板的JavaScript逻辑
+        // 這裡將包含面板的JavaScript邏輯
     </script>
 </body>
-</html> 
+
+</html>

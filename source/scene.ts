@@ -300,7 +300,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 return { success: false, error: `Node with UUID ${nodeUuid} not found` };
             }
 
-            // 设置属性
+            // 設置屬性
             if (property === 'position') {
                 node.setPosition(value.x || 0, value.y || 0, value.z || 0);
             } else if (property === 'rotation') {
@@ -312,7 +312,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             } else if (property === 'name') {
                 node.name = value;
             } else {
-                // 尝试直接设置属性
+                // 嘗試直接設置屬性
                 (node as any)[property] = value;
             }
 

@@ -13,10 +13,10 @@ export class ToolManager {
         this.settings = this.readToolManagerSettings();
         this.initializeAvailableTools(registry);
 
-        // 如果没有配置，自动创建一个默认配置
+        // 如果沒有配置，自動創建一個默認配置
         if (this.settings.configurations.length === 0) {
             debugLog('[ToolManager] No configurations found, creating default configuration...');
-            this.createConfiguration('默认配置', '自动创建的默认工具配置');
+            this.createConfiguration('默認配置', '自動創建的默認工具配置');
         } else {
             this.reconcileConfigurationsWithRegistry();
         }
@@ -115,7 +115,7 @@ export class ToolManager {
     private importToolConfiguration(configJson: string): ToolConfiguration {
         try {
             const config = JSON.parse(configJson);
-            // 验证配置格式
+            // 驗證配置格式
             if (!config.id || !config.name || !Array.isArray(config.tools)) {
                 throw new Error('Invalid configuration format');
             }
@@ -133,7 +133,7 @@ export class ToolManager {
                 this.availableTools.push({
                     category,
                     name: tool.name,
-                    enabled: true, // 默认启用
+                    enabled: true, // 默認啟用
                     description: tool.description,
                 });
             }
@@ -158,7 +158,7 @@ export class ToolManager {
 
     public createConfiguration(name: string, description?: string): ToolConfiguration {
         if (this.settings.configurations.length >= this.settings.maxConfigSlots) {
-            throw new Error(`已达到最大配置槽位数量 (${this.settings.maxConfigSlots})`);
+            throw new Error(`已達到最大配置槽位數量 (${this.settings.maxConfigSlots})`);
         }
 
         const config: ToolConfiguration = {
@@ -204,7 +204,7 @@ export class ToolManager {
 
         this.settings.configurations.splice(configIndex, 1);
         
-        // 如果删除的是当前配置，清空当前配置ID
+        // 如果刪除的是當前配置，清空當前配置ID
         if (this.settings.currentConfigId === configId) {
             this.settings.currentConfigId = this.settings.configurations.length > 0 
                 ? this.settings.configurations[0].id 
@@ -289,13 +289,13 @@ export class ToolManager {
     public importConfiguration(configJson: string): ToolConfiguration {
         const config = this.importToolConfiguration(configJson);
         
-        // 生成新的ID和时间戳
+        // 生成新的ID和時間戳
         config.id = uuidv4();
         config.createdAt = new Date().toISOString();
         config.updatedAt = new Date().toISOString();
 
         if (this.settings.configurations.length >= this.settings.maxConfigSlots) {
-            throw new Error(`已达到最大配置槽位数量 (${this.settings.maxConfigSlots})`);
+            throw new Error(`已達到最大配置槽位數量 (${this.settings.maxConfigSlots})`);
         }
 
         this.settings.configurations.push(config);

@@ -16,13 +16,13 @@ in commits.
 ### Repro
 
 1. Open the `Cocos MCP Server` panel.
-2. Tick **自动启动** (auto start) under 服务器设置.
+2. Tick **自動啟動** (auto start) under 服務器設置.
 3. The checkbox visually unticks itself (or never shows ticked at all) — no
    way to confirm the value was committed.
-4. Click **保存设置**, close the panel, reopen it. Checkbox still appears
+4. Click **保存設置**, close the panel, reopen it. Checkbox still appears
    unticked even though the underlying setting was written.
 
-The same bug affects **调试日志** (debug log).
+The same bug affects **調試日誌** (debug log).
 
 ### Root cause
 
@@ -69,7 +69,7 @@ pair, matching the working pattern. Sketch:
 ```
 
 The `watch(settings, ...)` already flips `settingsChanged.value = true` when
-either field updates, so the **保存设置** button will enable correctly.
+either field updates, so the **保存設置** button will enable correctly.
 
 ### Side issue (verify when fixing)
 

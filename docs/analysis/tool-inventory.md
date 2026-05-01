@@ -1,6 +1,22 @@
 # 工具盤點
 
-> 撰寫日期：2026-04-30，基線：`754adec`。
+> ⚠️ **STALE SNAPSHOT — 不再維護**。撰寫日期：2026-04-30，基線：`754adec`。
+> 此檔為 fork 起點的工具普查，留下來看當時架構分析（§3.1-3.4 對 prefab-tools
+> 異常肥大、set_component_property 過載、scene-advanced 雜燴、validation 名
+> 實不符的批評）仍然有 reference 價值；**但統計數字早已過期**。
+>
+> **取得當前工具數的正確管道**：
+> - `CLAUDE.md` §What this is（活檔，每次工具增刪都更新）
+> - `docs/HANDOFF.md` §進度快照 + §環境快速確認的 `health` curl 命令
+> - 直接跑：`node -e "const {createToolRegistry} = require('./dist/tools/registry.js'); …"`（HANDOFF 環境快速確認段有完整 one-liner）
+>
+> 截至 v2.1.4（2026-05-01）：14 類 / **160 tools**。各檔行數也大幅縮減
+> （`prefab-tools.ts` 從 2855 → ~470）。
+>
+> ---
+>
+> 以下為 2026-04-30 原文（**勿改**，僅作歷史快照）：
+>
 > 統計來源：`grep -nE "name:\s*'[a-z_]+'" source/tools/*.ts`
 >
 > 本檔為快照，不事後改寫。**驗證後的數字**（P1 T-P1-4 落地後，
@@ -11,7 +27,7 @@
 
 ## 一、總計
 
-**約 170 個工具定義**，分布於 14 個 `*-tools.ts` 檔。
+**約 170 個工具定義**，分佈於 14 個 `*-tools.ts` 檔。
 
 > README 寫「150+」、FEATURE_GUIDE 寫「158」、實測 grep 170。差異主要來自
 > 計算口徑（部分 tool 在 schema 內 enum 一個欄位被解讀成多種「動作」）。
