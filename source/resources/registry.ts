@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as url from 'url';
 import { ToolRegistry } from '../tools/registry';
 import { ToolResponse } from '../types';
@@ -5,13 +7,13 @@ import { ToolResponse } from '../types';
 /**
  * MCP Resources for cocos-mcp-server.
  *
- * T-P3-1 surface — see docs/research/t-p3-1-prior-art.md and
- * docs/HANDOFF.md §B-2 for design rationale.
+ * Surface — see docs/research/t-p3-1-prior-art.md and
+ * docs/roadmap/06-version-plan-v23-v27.md for design rationale.
  *
- * Each resource is backed by an existing read-only ToolExecutor call.
- * Resource read paths reuse the tool runtime so behaviour stays
- * byte-identical between resource read and tool call (smoke-mcp-sdk.js
- * enforces this with an equivalence check).
+ * - Tool-backed resources reuse the existing read-only ToolExecutor call so
+ *   resource read and tools/call return byte-identical data.
+ * - Docs resources read markdown files at request time so user edits to
+ *   CLAUDE.md / docs/*.md are reflected immediately, no extension reload.
  *
  * URI prefix is `cocos://` to align with cocos-cli (official) and
  * FunplayAI (closest sibling embedded extension).
@@ -38,6 +40,14 @@ export interface ResourceContent {
 }
 
 const MIME_JSON = 'application/json';
+const MIME_MARKDOWN = 'text/markdown';
+
+// Resolve the extension root so docs resources can read from disk regardless
+// of where cocos installs the plugin. dist/resources/registry.js sits two
+// levels deep, so `../..` is the extension root.
+function getExtensionRoot(): string {
+    return path.resolve(__dirname, '..', '..');
+}
 
 const STATIC_RESOURCES: ResourceDescriptor[] = [
     {
@@ -76,6 +86,24 @@ const STATIC_RESOURCES: ResourceDescriptor[] = [
         description: 'Asset list under db://assets, all types. Use the cocos://assets{?type,folder} template to filter by type or sub-folder. Backed by project_get_assets.',
         mimeType: MIME_JSON,
     },
+    {
+        uri: 'cocos://docs/landmines',
+        name: 'Landmines reference',
+        description: 'Project landmines list extracted from CLAUDE.md §Landmines. Read this when a tool call surprises you with editor-state behaviour — most surprises are documented as landmines.',
+        mimeType: MIME_MARKDOWN,
+    },
+    {
+        uri: 'cocos://docs/tools',
+        name: 'Auto-generated tool reference',
+        description: 'docs/tools.md generated from the live tool registry. Authoritative listing of every tool, its description, and its inputSchema.',
+        mimeType: MIME_MARKDOWN,
+    },
+    {
+        uri: 'cocos://docs/handoff',
+        name: 'Session handoff',
+        description: 'docs/HANDOFF.md — current backlog, version plan pointers, environment check commands, rollback anchors. Read this for project orientation.',
+        mimeType: MIME_MARKDOWN,
+    },
 ];
 
 const TEMPLATE_RESOURCES: ResourceTemplateDescriptor[] = [
@@ -93,18 +121,55 @@ const TEMPLATE_RESOURCES: ResourceTemplateDescriptor[] = [
     },
 ];
 
-type Handler = (registry: ToolRegistry, query: Record<string, string>) => Promise<any>;
+interface ResourceHandler {
+    mimeType: string;
+    // Returns the raw text body for the resource. Caller wraps into MCP shape.
+    fetch: (registry: ToolRegistry, query: Record<string, string>) => Promise<string>;
+}
 
-const HANDLERS: Record<string, Handler> = {
-    'cocos://scene/current': (r) => callTool(r, 'scene', 'get_current_scene', {}),
-    'cocos://scene/hierarchy': (r) => callTool(r, 'scene', 'get_scene_hierarchy', {}),
-    'cocos://scene/list': (r) => callTool(r, 'scene', 'get_scene_list', {}),
-    'cocos://prefabs': (r, q) => callTool(r, 'prefab', 'get_prefab_list', q.folder ? { folder: q.folder } : {}),
-    'cocos://project/info': (r) => callTool(r, 'project', 'get_project_info', {}),
-    'cocos://assets': (r, q) => callTool(r, 'project', 'get_assets', {
-        ...(q.type ? { type: q.type } : {}),
-        ...(q.folder ? { folder: q.folder } : {}),
-    }),
+const HANDLERS: Record<string, ResourceHandler> = {
+    'cocos://scene/current': {
+        mimeType: MIME_JSON,
+        fetch: async (r) => JSON.stringify(await callTool(r, 'scene', 'get_current_scene', {})),
+    },
+    'cocos://scene/hierarchy': {
+        mimeType: MIME_JSON,
+        fetch: async (r) => JSON.stringify(await callTool(r, 'scene', 'get_scene_hierarchy', {})),
+    },
+    'cocos://scene/list': {
+        mimeType: MIME_JSON,
+        fetch: async (r) => JSON.stringify(await callTool(r, 'scene', 'get_scene_list', {})),
+    },
+    'cocos://prefabs': {
+        mimeType: MIME_JSON,
+        fetch: async (r, q) => JSON.stringify(await callTool(r, 'prefab', 'get_prefab_list', q.folder ? { folder: q.folder } : {})),
+    },
+    'cocos://project/info': {
+        mimeType: MIME_JSON,
+        fetch: async (r) => JSON.stringify(await callTool(r, 'project', 'get_project_info', {})),
+    },
+    'cocos://assets': {
+        mimeType: MIME_JSON,
+        fetch: async (r, q) => JSON.stringify(await callTool(r, 'project', 'get_assets', {
+            ...(q.type ? { type: q.type } : {}),
+            ...(q.folder ? { folder: q.folder } : {}),
+        })),
+    },
+    'cocos://docs/landmines': {
+        mimeType: MIME_MARKDOWN,
+        // Extract just the §Landmines section from CLAUDE.md so AI doesn't get
+        // unrelated convention chatter. If the section header changes upstream,
+        // fall back to whole file with a note.
+        fetch: async () => readDocsSection(path.join(getExtensionRoot(), 'CLAUDE.md'), '## Landmines'),
+    },
+    'cocos://docs/tools': {
+        mimeType: MIME_MARKDOWN,
+        fetch: async () => readDocsFile(path.join(getExtensionRoot(), 'docs', 'tools.md')),
+    },
+    'cocos://docs/handoff': {
+        mimeType: MIME_MARKDOWN,
+        fetch: async () => readDocsFile(path.join(getExtensionRoot(), 'docs', 'HANDOFF.md')),
+    },
 };
 
 async function callTool(registry: ToolRegistry, category: string, tool: string, args: any): Promise<any> {
@@ -117,10 +182,39 @@ async function callTool(registry: ToolRegistry, category: string, tool: string, 
         const msg = response.error ?? response.message ?? `${category}_${tool} failed`;
         throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
     }
-    // Return the raw ToolResponse so callers can see data + message; clients
-    // mostly care about .data, but keeping the envelope keeps parity with
-    // tools/call structuredContent.
     return response;
+}
+
+function readDocsFile(absPath: string): string {
+    if (!fs.existsSync(absPath)) {
+        return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`\n\nThe docs resource expected this file at the extension root. If the\nextension was installed without source files, fetch the latest from\nhttps://github.com/arnie1128/cocos-mcp-server.`;
+    }
+    return fs.readFileSync(absPath, 'utf8');
+}
+
+function readDocsSection(absPath: string, sectionHeader: string): string {
+    if (!fs.existsSync(absPath)) {
+        return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`.`;
+    }
+    const content = fs.readFileSync(absPath, 'utf8');
+    const lines = content.split('\n');
+    // Match exact header or "## Header (...)" form. Section headers in CLAUDE.md
+    // sometimes carry a parenthetical hint after the title, e.g.
+    // "## Landmines (read before editing)".
+    const startIdx = lines.findIndex(l => {
+        const t = l.trim();
+        return t === sectionHeader || t.startsWith(sectionHeader + ' ') || t.startsWith(sectionHeader + '(');
+    });
+    if (startIdx === -1) {
+        return `# Section not found\n\nSection header \`${sectionHeader}\` not found in ${path.basename(absPath)}.\nReturning whole file as fallback.\n\n---\n\n${content}`;
+    }
+    // Find the next top-level (## ) heading after the section header to bound it.
+    // sectionHeader is like "## Landmines"; the next sibling heading starts with "## " (2 hashes, space).
+    let endIdx = lines.length;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        if (/^##\s/.test(lines[i])) { endIdx = i; break; }
+    }
+    return lines.slice(startIdx, endIdx).join('\n');
 }
 
 export class ResourceRegistry {
@@ -140,11 +234,11 @@ export class ResourceRegistry {
         if (!handler) {
             throw new Error(`Unknown resource URI: ${uri}`);
         }
-        const data = await handler(this.registry, query);
+        const text = await handler.fetch(this.registry, query);
         return {
             uri,
-            mimeType: MIME_JSON,
-            text: JSON.stringify(data),
+            mimeType: handler.mimeType,
+            text,
         };
     }
 }
@@ -153,12 +247,6 @@ export class ResourceRegistry {
 // the parsed query params for parameterized handlers.
 function parseUri(uri: string): { base: string; query: Record<string, string> } {
     const parsed = url.parse(uri, true);
-    // url.parse splits scheme://host/path?q. For cocos://scene/current:
-    //   parsed.protocol = 'cocos:'
-    //   parsed.host     = 'scene'
-    //   parsed.pathname = '/current'
-    //   parsed.query    = {}
-    // Reconstruct base without query/fragment.
     if (!parsed.protocol || !parsed.host) {
         return { base: uri, query: {} };
     }

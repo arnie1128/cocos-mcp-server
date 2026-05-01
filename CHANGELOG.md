@@ -1,5 +1,70 @@
 # Changelog
 
+## v2.3.0 — 2026-05-02
+
+AI workflow 強化：MCP 內最小 Code Mode + AI 視覺驗證閉環 + AI 自助查 docs。
+參考 FunplayAI execute_javascript / harady debug_screenshot / cocos-cli
+text/markdown docs resources。詳細規劃見
+`docs/roadmap/06-version-plan-v23-v27.md` §v2.3.0。
+
+### New tools (3)
+
+- `debug_execute_javascript` — `[primary]` 統一 sandbox。`context: 'scene'|'editor'`。
+  AI 做複合操作（讀 → 改 → 驗）一次完成，不用打 5-10 個 narrow tool。
+  Editor context 預設 OFF，需在 panel 設定 `enableEditorContextEval: true`
+  opt-in（避免 prompt-injection 風險）。
+- `debug_screenshot` — Electron `webContents.capturePage()` → PNG。
+  AI 改完 UI 自我驗證閉環。
+- `debug_batch_screenshot` — 多時間點抓圖、間隔可控。
+
+### Existing tools
+
+- `debug_execute_script` 改成 `[compat]` 標籤，內部直接 alias 到
+  `execute_javascript(code, 'scene')`——保持向下相容
+- 所有 non-primary tool 在 `tools/list` 自動補 `[specialist]` prefix（在
+  `mcp-server-sdk.ts:setupTools()` 統一加 1 行 prefix，不需逐 tool 改 source）
+
+### New MCP resources (3)
+
+- `cocos://docs/landmines` — `text/markdown`，從 CLAUDE.md 抽 §Landmines
+- `cocos://docs/tools` — `text/markdown`，docs/tools.md 全文
+- `cocos://docs/handoff` — `text/markdown`，docs/HANDOFF.md 全文
+
+讀檔即時載入（不在 build time bake-in），user 改 CLAUDE.md 後立即反映。
+AI 卡關時可自助查 landmine 紀錄。
+
+### Settings
+
+- 新增 `enableEditorContextEval: boolean`（默認 false）。控制
+  `execute_javascript` 的 `context='editor'` 是否可用。對應 runtime flag 在
+  `source/lib/runtime-flags.ts`。
+
+### Files added
+
+- `source/lib/runtime-flags.ts`
+
+### Files modified
+
+- `source/types/index.ts` — `MCPServerSettings` 加 `enableEditorContextEval?`
+- `source/settings.ts` — DEFAULT_SETTINGS 補 `enableEditorContextEval: false`
+- `source/mcp-server-sdk.ts` — wire settings → runtime-flag、setupTools 加
+  `[specialist]` prefix
+- `source/tools/debug-tools.ts` — 加 `execute_javascript` / `screenshot` /
+  `batch_screenshot`，`execute_script` 改走 alias
+- `source/resources/registry.ts` — 加 3 個 markdown docs resource、handler
+  改成 per-resource MIME
+- `scripts/smoke-mcp-sdk.js` — 加 docs/handoff round-trip + [specialist]
+  prefix check (現 14 條)
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks
+- `node scripts/measure-tool-tokens.js` decision = CLOSE P2 不變
+- `node scripts/generate-tools-doc.js` 14 categories / **163 tools** (+3)
+
+---
+
 ## v2.2.0 — 2026-05-02
 
 T-P3-1 Resources surface (read-only state via MCP `resources/*` capability).

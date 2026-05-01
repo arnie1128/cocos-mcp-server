@@ -5,23 +5,30 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.2.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.3.0）
 
-**當下版本**：v2.2.0（origin/main HEAD 為 v2.2.0 commit，已 push、無
+**當下版本**：v2.3.0（origin/main HEAD 為 v2.3.0 commit、已 push、無
 in-flight 任務）。
 
-**最後 4 個 commit**（最新到舊）：
+**v2.3.0 改動**（execute_javascript + screenshot + docs markdown，3 條 task
+全清，~3 小時實際工時）：
 
-| SHA | 內容 |
+| 區 | 內容 |
 |---|---|
-| 即將推送 | docs reorg：HANDOFF slim、新增 docs/roadmap/06 + docs/research/repos/* |
-| `4e89abc` | docs(handoff): swap RomaRogov reference to cocos-code-mode, finalize v2.3-v2.7 plan + UTCP analysis |
-| `52ed57e` | docs(handoff): rebuild B-2 backlog + cross-repo survey notes |
-| `ec007a9` | docs(handoff): mark v2.2.0 done, refresh entry point |
-| `4e5ab45` | feat(resources): add MCP resources/* capability (T-P3-1), bump 2.2.0 |
+| 新增 tool（3）| `debug_execute_javascript` `[primary]` / `debug_screenshot` / `debug_batch_screenshot` |
+| 改既有 tool | `debug_execute_script` 改 `[compat]`，alias 到 execute_javascript scene context |
+| Tool 描述 | 所有 non-primary tool 在 tools/list 自動補 `[specialist]` prefix（在 mcp-server-sdk setupTools 加 1 行，不改 source）|
+| 新增 resource（3）| `cocos://docs/landmines` / `cocos://docs/tools` / `cocos://docs/handoff`（全 `text/markdown`）|
+| 新增檔 | `source/lib/runtime-flags.ts`（gate `enableEditorContextEval`）|
+| Settings | 新增 `enableEditorContextEval: false` 默認，opt-in 才允 `execute_javascript(context='editor')` |
+| Smoke | 14 條 check（+ docs/handoff round-trip + [specialist] prefix）|
+| Tool 數 | 14 categories / **163 tools**（+3） |
 
-**下一個動工**：v2.3.0（execute_javascript + screenshot + docs markdown，
-~2 天）。細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.3.0](roadmap/06-version-plan-v23-v27.md)。
+詳細 changelog 在 CHANGELOG.md v2.3.0 區塊。
+
+**下一個動工**：v2.4.0 6-step 重構（含 InstanceReference + TS 定義生成 +
+`@mcpTool` decorator，~4 天）。細拆見
+[`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0](roadmap/06-version-plan-v23-v27.md)。
 
 ---
 
@@ -35,8 +42,8 @@ in-flight 任務）。
 
 | 版本 | 主題 | 估時 | 狀態 |
 |---|---|---|---|
-| **v2.3.0** | execute_javascript + screenshot + docs markdown | 2 天 | ⏳ next |
-| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ⏳ |
+| **v2.3.0** | execute_javascript + screenshot + docs markdown | 2 天 | ✅ done |
+| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ⏳ next |
 | **v2.4.1** | Asset interpreters（asset meta 編輯能力） | 2-3 天 | ⏳ |
 | **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
@@ -82,7 +89,8 @@ v2.1.2 — v2.1.5 ✅ done（修補 + audit 系列）
 v2.1.6 ✅ done（P2 量測 close + 死碼清掃 -3286 行）
 v2.1.7 ✅ done（B-1 description sweep 全 14 categories / 160 tools）
 v2.2.0 ✅ done（T-P3-1 Resources）
-P2 ❌ closed（量測後否決：lossless +30.1% / lossy -62.8% 但丟 validation）
+v2.3.0 ✅ done（execute_javascript + screenshot + docs markdown，163 tools）
+P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
 B-2 ⏳ 擴充功能（next v2.3.0；細拆見 docs/roadmap/06）
@@ -98,27 +106,27 @@ B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -6          # 最頂為 v2.2.0 系列 commit
+git log --oneline -6          # 最頂為 v2.3.0 系列 commit
 
 # tsc + smoke + 工具數
 npm run build                 # 預期 tsc 無輸出
-node scripts/smoke-mcp-sdk.js # 預期 ✅ all smoke checks passed（含 5 條 resources round-trip）
+node scripts/smoke-mcp-sdk.js # 預期 ✅ all smoke checks passed（14 條，含 docs/handoff + [specialist] prefix）
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js');
 const r = createToolRegistry();
 let total = 0;
 for (const c of Object.keys(r)) total += r[c].getTools().length;
 console.log('categories:', Object.keys(r).length, 'tools:', total);"
-# 預期：categories: 14 tools: 160
+# 預期：categories: 14 tools: 163（v2.3.0 加 execute_javascript / screenshot / batch_screenshot）
 
 # Resource registry 健檢（不需 cocos editor）
 node -e "const {createResourceRegistry} = require('./dist/resources/registry.js');
 const r = createResourceRegistry({});
 console.log('static:', r.list().length, 'templates:', r.listTemplates().length);"
-# 預期：static: 6 templates: 2
+# 預期：static: 9 templates: 2（v2.3.0 加 cocos://docs/* 三個 markdown resource）
 
 # P2 量測重跑（任何時候都可重跑、輸出穩定，可拿來做 regression 比對）
 node scripts/measure-tool-tokens.js
-# 預期：router-A +30.1% / router-B -62.8% / decision: CLOSE P2
+# 預期：router-A +29.4% / router-B -63% / decision: CLOSE P2
 
 # tools.md 重產
 node scripts/generate-tools-doc.js
@@ -183,6 +191,7 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.3.0 改動前（v2.2.0 release 點） | `git reset --hard 16655bb` 然後 `git push --force-with-lease` |
 | v2.2.0 T-P3-1 Resources 改動前（v2.1.7 release 點） | `git reset --hard ab7191b` 然後 `git push --force-with-lease` |
 | v2.1.7 description sweep 改動前（v2.1.6 release 點） | `git reset --hard 05d865e` 然後 `git push --force-with-lease` |
 | v2.1.6 死碼清掃前（保留 P2 close 的 doc 改動） | `git reset --hard 12c20c4` 然後 `git push --force-with-lease` |

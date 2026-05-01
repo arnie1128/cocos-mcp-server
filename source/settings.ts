@@ -8,7 +8,8 @@ const DEFAULT_SETTINGS: MCPServerSettings = {
     autoStart: false,
     enableDebugLog: false,
     allowedOrigins: ['*'],
-    maxConnections: 10
+    maxConnections: 10,
+    enableEditorContextEval: false
 };
 
 const DEFAULT_TOOL_MANAGER_SETTINGS: ToolManagerSettings = {

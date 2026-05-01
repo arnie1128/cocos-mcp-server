@@ -5,7 +5,7 @@
 > 重新生成。手寫的章節介紹（category 描述、總覽段）放在 generator 內。
 
 Cocos MCP Server 透過 [Model Context Protocol](https://modelcontextprotocol.io/) 對外暴露
-**160 個工具**，分 **14** 個 category。
+**163 個工具**，分 **14** 個 category。
 每個工具的 input schema 由 zod 在 `source/tools/<category>-tools.ts` 內定義，
 經過 `lib/schema.ts:toInputSchema` 轉成 JSON Schema 後送出 `tools/list`，
 Tool description 也直接來自 zod `.describe()` 文字。
@@ -34,7 +34,7 @@ Tool description 也直接來自 zod `.describe()` 文字。
 | [`component`](#component) | 10 | 組件 CRUD、property 設定、事件綁定（cc.EventHandler）。`set_component_property` 對 reference… |
 | [`prefab`](#prefab) | 11 | Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data、restore。除了 `restore_prefab… |
 | [`project`](#project) | 24 | 資源管理 + 專案建構：asset CRUD、build / preview server、設定查詢。覆蓋大多數 asset-db 高頻操作。 |
-| [`debug`](#debug) | 9 | console log 與系統資訊：取得 / 清空 console、讀 project log 檔、編輯器資訊。 |
+| [`debug`](#debug) | 12 | console log 與系統資訊：取得 / 清空 console、讀 project log 檔、編輯器資訊。 |
 | [`preferences`](#preferences) | 7 | 編輯器偏好設定的讀寫。 |
 | [`server`](#server) | 6 | MCP server 自身的狀態與環境資訊。 |
 | [`broadcast`](#broadcast) | 5 | `Editor.Message` 廣播訊息監聽 / 發送。 |
@@ -986,7 +986,7 @@ Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.
 
 console log 與系統資訊：取得 / 清空 console、讀 project log 檔、編輯器資訊。
 
-本 category 共 **9** 個工具。
+本 category 共 **12** 個工具。
 
 ### `debug_clear_console`
 
@@ -994,9 +994,18 @@ Clear the Cocos Editor Console UI. No project side effects.
 
 **參數**：無
 
+### `debug_execute_javascript`
+
+[primary] Execute JavaScript in scene or editor context. Use this as the default first tool for compound operations (read → mutate → verify) — one call replaces 5-10 narrow specialist tools and avoids per-call token overhead. context="scene" inspects/mutates cc.Node graph; context="editor" runs in host process for Editor.Message + fs (default off, opt-in).
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `code` | string | ✓ |  | JavaScript source to execute. Has access to cc.* in scene context, Editor.* in editor context. |
+| `context` | enum: `scene` \| `editor` |  | `"scene"` | Execution sandbox. "scene" runs inside the cocos scene script context (cc, director, find). "editor" runs in the editor host process (Editor, asset-db, fs, require). Editor context is OFF by default and must be opt-in via panel setting `enableEditorContextEval` — arbitrary code in the host process is a prompt-injection risk. |
+
 ### `debug_execute_script`
 
-Execute arbitrary JavaScript in scene context; can mutate the current scene.
+[compat] Scene-only JavaScript eval. Prefer execute_javascript with context="scene" — kept as compatibility entrypoint for older clients.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1057,6 +1066,26 @@ Search temp/logs/project.log for string/regex and return line context.
 | `pattern` | string | ✓ |  | Search string or regex. Invalid regex is treated as a literal string. |
 | `maxResults` | number |  | `20` | Maximum matches to return. Default 20. |
 | `contextLines` | number |  | `2` | Context lines before/after each match. Default 2. |
+
+### `debug_screenshot`
+
+Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `savePath` | string |  |  | Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png. |
+| `windowTitle` | string |  |  | Optional substring match on window title to pick a specific Electron window. Default: focused window. |
+| `includeBase64` | boolean |  | `false` | Embed PNG bytes as base64 in response data (large; default false). When false, only the saved file path is returned. |
+
+### `debug_batch_screenshot`
+
+Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `savePathPrefix` | string |  |  | Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>. |
+| `delaysMs` | array<number> |  | `[0]` | Delay (ms) before each capture. Length determines how many shots taken. Default [0] = single shot. |
+| `windowTitle` | string |  |  | Optional substring match on window title. |
 
 ---
 

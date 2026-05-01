@@ -176,6 +176,8 @@ function getJson(pathname) {
         if (resList.status !== 200) throw new Error('resources/list non-200');
         if (!/cocos:\/\/scene\/current/.test(resList.body)) throw new Error('resources/list missing cocos://scene/current');
         if (!/cocos:\/\/assets/.test(resList.body)) throw new Error('resources/list missing cocos://assets');
+        if (!/cocos:\/\/docs\/landmines/.test(resList.body)) throw new Error('resources/list missing cocos://docs/landmines (v2.3.0)');
+        if (!/text\/markdown/.test(resList.body)) throw new Error('resources/list missing text/markdown mimeType (v2.3.0)');
 
         // 9. POST /mcp resources/templates/list
         const tmplList = await postJson('/mcp', {
@@ -213,6 +215,19 @@ function getJson(pathname) {
         }, sessionHeaders);
         console.log('[POST /mcp resources/read unknown]', resErr.status, resErr.body.substring(0, 300));
         if (!/Unknown resource URI/.test(resErr.body)) throw new Error('unknown URI should surface error');
+
+        // 13. POST /mcp resources/read — markdown docs resource (v2.3.0)
+        const resDocs = await postJson('/mcp', {
+            jsonrpc: '2.0', id: 10, method: 'resources/read',
+            params: { uri: 'cocos://docs/handoff' },
+        }, sessionHeaders);
+        console.log('[POST /mcp resources/read docs/handoff]', resDocs.status, resDocs.body.substring(0, 200));
+        if (resDocs.status !== 200) throw new Error('resources/read docs/handoff non-200');
+        if (!/"mimeType":"text\/markdown"/.test(resDocs.body)) throw new Error('docs resource should report text/markdown mimeType');
+        if (!/Session Handoff/.test(resDocs.body)) throw new Error('docs/handoff should contain HANDOFF.md content');
+
+        // 14. tools/list should carry [specialist] / [primary] prefix tags (v2.3.0)
+        if (!/\[specialist\] Echo/.test(list.body)) throw new Error('tools/list should prefix non-primary tools with [specialist]');
 
         console.log('\n✅ all smoke checks passed');
     } catch (err) {

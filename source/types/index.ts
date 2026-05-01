@@ -4,6 +4,11 @@ export interface MCPServerSettings {
     enableDebugLog: boolean;
     allowedOrigins: string[];
     maxConnections: number;
+    // v2.3.0: opt-in for execute_javascript with context='editor'.
+    // Editor host context can require() Node modules and touch fs — arbitrary
+    // AI code there is a prompt-injection risk. Default false; user flips on
+    // in panel UI when they explicitly want broad host-side scripting.
+    enableEditorContextEval?: boolean;
 }
 
 export interface ServerStatus {

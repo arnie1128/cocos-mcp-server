@@ -13,6 +13,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
 import { setDebugLogEnabled, logger } from './lib/log';
+import { setEditorContextEvalEnabled } from './lib/runtime-flags';
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 
@@ -59,6 +60,7 @@ export class MCPServer {
         this.tools = registry;
         this.resources = createResourceRegistry(registry);
         setDebugLogEnabled(settings.enableDebugLog);
+        setEditorContextEvalEnabled(settings.enableEditorContextEval ?? false);
         logger.debug(`[MCPServer] Using shared tool registry (${Object.keys(registry).length} categories)`);
     }
 
@@ -194,9 +196,15 @@ export class MCPServer {
             for (const tool of toolSet.getTools()) {
                 const fqName = `${category}_${tool.name}`;
                 if (enabledFilter && !enabledFilter.has(fqName)) continue;
+                // T-V23-1: tag every non-primary tool [specialist] so AI prefers
+                // execute_javascript for compound operations. The two execute_*
+                // tools already carry their own [primary]/[compat] prefix in
+                // their description text — leave those alone.
+                const desc = tool.description;
+                const alreadyTagged = desc.startsWith('[primary]') || desc.startsWith('[compat]') || desc.startsWith('[specialist]');
                 next.push({
                     name: fqName,
-                    description: tool.description,
+                    description: alreadyTagged ? desc : `[specialist] ${desc}`,
                     inputSchema: tool.inputSchema,
                 });
             }
