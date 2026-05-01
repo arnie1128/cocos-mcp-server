@@ -4,7 +4,7 @@ import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod } from '../lib/scene-bridge';
-import { nodeReferenceShape, resolveOrToolError } from '../lib/resolve-node';
+import { resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 

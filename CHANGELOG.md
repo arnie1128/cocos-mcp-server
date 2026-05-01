@@ -1,5 +1,76 @@
 # Changelog
 
+## v2.4.1 — 2026-05-02
+
+Three-way review fixes (claude / codex / gemini) on v2.4.0. No new tools,
+no API removals. All fixes are correctness, robustness, and doc honesty
+hardening.
+
+### Must-fix
+
+- **`batch-set` is now sequential, not concurrent**. v2.4.0 used
+  `Promise.allSettled` which fired every `scene/set-property` in
+  parallel against the same node. Cocos scene IPC has no documented
+  ordering guarantee for concurrent same-node writes, and overlapping
+  paths (e.g. `position` and `position.x`) produced undefined final
+  state. Now serial-await per entry; duplicate paths reject up-front;
+  overlapping paths are warned in the response. (Gemini + Codex +
+  Claude consensus.) Fix at `source/lib/batch-set.ts`.
+- **`resolveReference` detects conflicting selectors instead of
+  silently picking one**. v2.4.0 silently used `reference.id` when both
+  `reference` and `nodeUuid` were provided with mismatching values.
+  Now returns an explicit error so AI clients tiling tool calls catch
+  the mistake immediately. Also surfaces a clear error when
+  `reference` is provided but `reference.id` is missing. (Codex +
+  Claude.) Fix at `source/lib/instance-reference.ts`.
+- **`inspector_get_instance_definition` description narrowed to
+  node-only**. v2.4.0 advertised "node or component" but only ever
+  called `scene/query-node`. Tool description and error message now
+  state node-only; component / asset support deferred to v2.5+ pending
+  a verified Cocos `query-component` channel. (Codex.) Fix at
+  `source/tools/inspector-tools.ts`.
+
+### Worth-considering
+
+- **Inspector deny-list expanded** to suppress prefab-instance / editor
+  metadata fields (`uuid`, `_prefabInstance`, `removedComponents`,
+  `mountedRoot`, `_components`, `__cid__`, `_componentName`, …). The
+  v2.4.0 minimal list leaked these as user-facing properties. (Codex.)
+- **`resolve-node` deep search is now iterative**. The recursive walk
+  in v2.4.0 had no depth cap and could blow the call stack on very
+  deep prefab forests. (Gemini.) Fix at `source/lib/resolve-node.ts`.
+- **Inspector Enum/BitMask emits a hint comment** with enum class name
+  + first 8 values. Previously emitted bare `number` losing all
+  semantic info. (Gemini.) Fix at `source/tools/inspector-tools.ts`.
+- **Inspector TS output is now sanitized**: tooltip / component-type
+  strings have `\n` and `*/` stripped to avoid breaking the surrounding
+  comment context; custom property names that aren't safe TS
+  identifiers are JSON-quoted; custom type names like `My.Foo` are
+  passed through `sanitizeTsName` before emission. (Claude.)
+- **Removed unused `nodeReferenceShape` import** in
+  `source/tools/node-tools.ts`. (Claude.)
+
+### Documentation
+
+- **CHANGELOG honesty**: v2.4.0 claimed "all v2.3.1 tools accept
+  identical arguments". The six tools that adopted InstanceReference
+  + nodeName (`set_node_property`, `set_node_transform`,
+  `add_component`, `set_component_property`,
+  `node_set_node_properties`, `set_component_properties`) actually
+  relaxed their `nodeUuid` / `uuid` field from required to optional.
+  Existing callers passing the field still work; strict-validating
+  clients now get a runtime "provide nodeUuid or nodeName" error
+  instead of a schema-time required-field error. (Claude.) Logged
+  here so consumers running schema diffs see the change explicitly.
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 15 categories / 167 tools (unchanged from v2.4.0)
+
+---
+
 ## v2.4.0 — 2026-05-02
 
 6-step architecture refactor + InstanceReference + TS class definition

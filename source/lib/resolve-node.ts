@@ -81,13 +81,22 @@ export async function resolveOrToolError(
     return { response: { success: false, error: r.error } };
 }
 
-function findNodeByNameDeep(node: any, target: string): any | null {
-    if (!node) return null;
-    if (node.name === target) return node;
-    if (Array.isArray(node.children)) {
-        for (const child of node.children) {
-            const hit = findNodeByNameDeep(child, target);
-            if (hit) return hit;
+// Iterative DFS so very deep scenes (theatre/UI prefab forests) don't
+// blow the JS call stack. v2.4.1 review fix (gemini): the v2.4.0
+// recursion was uncapped.
+function findNodeByNameDeep(root: any, target: string): any | null {
+    if (!root) return null;
+    const stack: any[] = [root];
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node) continue;
+        if (node.name === target) return node;
+        if (Array.isArray(node.children)) {
+            // Push children in reverse so iteration order matches the
+            // recursive walk (first child visited first).
+            for (let i = node.children.length - 1; i >= 0; i--) {
+                stack.push(node.children[i]);
+            }
         }
     }
     return null;

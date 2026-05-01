@@ -76,6 +76,14 @@ export const instanceReferenceSchema = z.object({
  * ToolResponse error on failure. Mirrors `resolveOrToolError` so
  * callers can early-return cleanly.
  *
+ * Conflict detection (v2.4.1 review fix — claude + codex): if two or
+ * more selectors are supplied with conflicting values (e.g. both a
+ * `reference.id` AND a `nodeUuid` that don't match), the helper
+ * returns an explicit error rather than silently picking the higher-
+ * priority field. AI clients that tile multiple tool calls are the
+ * usual source of this mistake; failing loudly avoids hours of
+ * debugging when the wrong node gets mutated.
+ *
  * Note: when `reference.type` is set, callers wanting strict checking
  * can compare against an expected kind themselves; this helper does
  * not enforce it because the Cocos type universe (custom scripts,
@@ -86,8 +94,34 @@ export async function resolveReference(args: {
     nodeUuid?: string;
     nodeName?: string;
 }): Promise<{ uuid: string; reference?: InstanceReference } | { response: ToolResponse }> {
-    if (args.reference?.id) {
-        return { uuid: args.reference.id, reference: args.reference };
+    const refId = args.reference?.id;
+    const nodeUuid = args.nodeUuid;
+    const nodeName = args.nodeName;
+
+    // v2.4.1 review fix: a malformed reference (passed without `id`)
+    // used to fall through to resolveOrToolError with a misleading
+    // 'provide nodeUuid or nodeName' message. Detect it explicitly.
+    if (args.reference && !refId) {
+        return {
+            response: {
+                success: false,
+                error: 'resolveReference: reference.id is required when reference is provided',
+            },
+        };
     }
-    return resolveOrToolError({ nodeUuid: args.nodeUuid, nodeName: args.nodeName });
+
+    // Conflict: refId vs explicit nodeUuid disagree.
+    if (refId && nodeUuid && refId !== nodeUuid) {
+        return {
+            response: {
+                success: false,
+                error: `resolveReference: reference.id (${refId}) conflicts with nodeUuid (${nodeUuid}); pass only one`,
+            },
+        };
+    }
+
+    if (refId) {
+        return { uuid: refId, reference: args.reference };
+    }
+    return resolveOrToolError({ nodeUuid, nodeName });
 }
