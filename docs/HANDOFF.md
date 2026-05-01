@@ -333,20 +333,25 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   apply 不 mark scene dirty 也不 auto-save；需另呼叫 `save_scene`。
 
 **v2.1.2 backlog**（按優先序）：
-- **P1（嚴重）EventHandler 持久化 bug**：`addEventHandler` /
-  `removeEventHandler` 在 `source/scene.ts` 用 `arr.push`/`arr.splice`
-  改 runtime cc.Button.clickEvents，editor 序列化模型不接這個變動，
-  `save_scene` 寫不到 disk。改用 `Editor.Message scene/insert-array-element`
-  / `remove-array-element` 走正規 channel，從 host 端 `component-tools.ts`
-  發出，scene 進程不再需要直接 mutate runtime。
+- ✅ **P1 EventHandler 持久化 bug**（fix landed 2026-05-01）：
+  Cocos 的 scene message API 並沒有 `insert-array-element` channel（只有
+  move / remove），加 entry 的官方路徑是 `set-property` 帶完整新陣列當 dump
+  value，要從 host 端構建 IProperty dump shape 比較重。實證更輕量的
+  「nudge」path：scene-script 完成 `arr.push` / `arr.splice` 後，呼叫
+  `nudgeComponentSerializationModel(component)`（在 `source/scene.ts`
+  新加的 helper）—— 對 `component.enabled` 做一次 no-op `set-property`，
+  觸發 editor 序列化模型從 runtime 重新 pull dump，於是 `save-scene` 看到
+  新陣列、寫進 disk。實證：nudge 前 disk clickEvents 為空；nudge 後 disk
+  正確寫出 2 筆 cc.ClickEvent。`addEventHandler` / `removeEventHandler`
+  改成 async 並在 mutation 後 `await nudgeComponentSerializationModel(...)`。
 - **P2(b) `debug_get_console_logs` 拿掉**：`debug-tools.ts:60-65`
   `setupConsoleCapture()` 是 placeholder（只 debugLog 一句、沒掛 listener），
   `consoleMessages` 永遠空陣列。從 schema/registry 拿掉，描述改指向
   已可用的 `debug_get_project_logs` 與 `debug_search_project_logs`。
 - **P4 #16517 workaround 評估**：實機 disk 上沒 `_componentName` 欄位
-  仍 dispatch 成功，workaround 可能冗餘。**這一項要等 P1 改完**（用正規
-  channel 後 EventHandler 真正持久化）才能再實證一次，確認 workaround
-  是否真的可移除。
+  仍 dispatch 成功（project.log line 40786 已實證），workaround 可能冗餘。
+  P1 修補完後（EventHandler 真正持久化），可再做一次「不設 _componentName
+  的 add → preview 點擊」對照組實證；通過則可考慮移除 workaround。
 
 **v2.1.1 已修的項**（程式碼變更已在 dist 同步）：
 - scene.ts `findNodeByUuidDeep` deep node lookup（commit `41b7d9b`）

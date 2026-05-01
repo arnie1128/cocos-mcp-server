@@ -166,7 +166,7 @@ to that target until token cost is measured.
 10. **No test runner wired up.** `source/test/*.ts` exists but is not
    invoked by any npm script. (`scripts/smoke-mcp-sdk.js` covers the SDK
    server endpoints with a stub registry — manual; runs via `node`.)
-11. **Scene-script `arr.push` / `arr.splice` is NOT persistent through
+11. **Scene-script `arr.push` / `arr.splice` is NOT auto-persistent through
    `save_scene`** (verified 2026-05-01). The editor maintains two state
    layers: (a) the *runtime* cc.Node graph that scene-script mutates via
    `Editor.Message.request('scene', 'execute-scene-script', …)`, and (b)
@@ -174,26 +174,35 @@ to that target until token cost is measured.
    'save-scene')` writes to disk. Scene-script mutations like
    `cc.Button.clickEvents.push(eh)` only update layer (a); layer (b) is
    only updated when changes flow through the editor's "set property"
-   channels (`scene/set-property`, `scene/insert-array-element`,
-   `scene/remove-array-element`, `scene/move-array-element`, …). The
-   `Editor.Message.send('scene', 'snapshot')` call only writes to the
-   undo stack — **it does not promote runtime mutations into the
-   serialization model**. As a result, `addEventHandler` /
-   `removeEventHandler` (in `source/scene.ts`) currently look like they
-   work (dump query reads layer (a) and shows the change), but
-   `save_scene` writes empty arrays to disk. The earlier HANDOFF claim
-   "snapshot 足以持久化 EventHandler" was wrong; corrected in
-   `docs/HANDOFF.md`. Fix tracked as v2.1.2 P1: rewrite both methods to
-   route through `scene/insert-array-element` /
-   `scene/remove-array-element` from the host side
-   (`source/tools/component-tools.ts`) instead of mutating in
-   scene-script.
+   channels (`scene/set-property`, `scene/move-array-element`,
+   `scene/remove-array-element`). The `Editor.Message.send('scene',
+   'snapshot')` call only writes to the undo stack — **it does not
+   promote runtime mutations into the serialization model**.
 
-   Rule of thumb when adding new tools: if a tool changes array contents
-   on a component and the change must persist to disk, use the
-   `scene/insert-array-element` / `scene/remove-array-element` /
-   `scene/move-array-element` channels from the host side. Avoid
-   mutating arrays inside scene-script.
+   The Cocos scene message API has no `insert-array-element` channel
+   (only move / remove); the official way to add an array entry is
+   `set-property` with the entire new array as the dump value. That
+   would require constructing the IProperty dump shape from host side.
+
+   **v2.1.2 fix (commit pending P1)**: `addEventHandler` /
+   `removeEventHandler` in `source/scene.ts` keep the scene-script
+   `arr.push` / `arr.splice` (so the runtime sees the change immediately)
+   and follow it with `nudgeComponentSerializationModel(component)` —
+   a no-op `scene/set-property` on `enabled` that triggers layer (b) to
+   re-pull the component dump from layer (a). Verified empirically: with
+   the nudge, `save-scene` writes the new array entries to disk; without
+   it, save writes empty arrays. The `_componentName` workaround (issue
+   #16517) becomes informational on disk too — the scene file does NOT
+   contain `_componentName`, yet runtime dispatch still finds the
+   callback (verified 2026-05-01 with project.log line 40786:
+   `[PreviewInEditor] [EhTest] onClickFromMcp fired EventTouch {…}`).
+   The workaround is kept defensively pending more builds tested.
+
+   Rule of thumb when adding tools that mutate component runtime state:
+   either (a) use `scene/set-property` from host side with a constructed
+   dump, or (b) mutate from scene-script then call
+   `nudgeComponentSerializationModel` to force model sync. Don't trust
+   `snapshot` alone for persistence.
 
 ## Conventions
 
