@@ -3,38 +3,44 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 收尾）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.1 完工 + v2.1.2 backlog 排定）
 
-接手順序，**照著做**：
+當下版本：**v2.1.1 + 4-way 審後修補**（`823b783`）。Test 1/2/3 全部
+實機驗完，HANDOFF 早先「snapshot 持久化 EventHandler」的宣稱是**錯的**，
+本檔已訂正（見下方 §Test 1 結果）。後續工作見 **v2.1.2 backlog**：
 
-1. **跑剩下三項實機測試**（見本檔末「v2.1.1 後仍未驗的實機項目」）：
-   - runtime onClick dispatch（測 issue #16517 workaround 是否真有需要）
-   - 多 child / 多 component 複雜節點 createPrefab
-   - 連續 apply / link / unlink 的 dirty / undo 行為
-2. **完成 ✅ 後做 code review**：用 `/code-review:code-review` 對 `main..origin/main`
-   或最近 v2.1.1 引入的程式碼跑一輪。Focus 範圍建議：
-   - `source/scene.ts`（新增 7 個 method + helpers，470 → 600 行）
-   - `source/lib/scene-bridge.ts`（新檔，~50 行）
-   - `source/tools/prefab-tools.ts` `updatePrefab` / `createPrefab` 入口分支
-   - `source/tools/component-tools.ts` 新增的三個 EventHandler 工具
-   - `source/tools/tool-manager.ts` `reconcileConfigurationsWithRegistry`
-3. **環境**：MCP server 預設 port 3000；測試場景 `db://assets/test-mcp/p4-test.scene`
-   保留中（含 TestBtn instance 在 (300,150,0)、prefab asset
-   `e57cd688-e760-4fa6-96f6-2aa286c4162b`）；要重做可先清乾淨。
+- **P1（嚴重）**：`addEventHandler` / `removeEventHandler` 改走
+  `Editor.Message scene/insert-array-element` / `remove-array-element` 正規
+  channel；目前的 `arr.push` / `arr.splice` 只動 runtime cc.Button.clickEvents，
+  editor 序列化模型收不到 → `save_scene` 寫出空 clickEvents → preview 拿不到
+  handler。今天用「改 transition 觸發 inspector 路徑同步 → 自動存」繞過後，
+  實機 dispatch 實證 1 次 fired（log line 40786），所以路徑本身正確，問題在持久化。
+- **P2(b)**：`debug_get_console_logs` 是 placeholder（`setupConsoleCapture` 為空
+  shell），永遠回 `[]`。從 tool list 拿掉，描述指向已可用的
+  `debug_get_project_logs`。
+- **P3 已完成**：本檔 + CLAUDE.md 的錯誤宣稱訂正、Test 1 結果寫入。
 
-當下版本：**v2.1.1**（commit `62f6e83`）+ panel 直式微調（commit `0b60ad8`）。
+接手順序：**先做 P1，再做 P2(b)**，每項完成都更 HANDOFF + CLAUDE.md +
+build/smoke + commit + push + sync 349（feedback memory 規定）。
+
+**環境**：MCP server 預設 port 3000；測試場景
+`db://assets/test-mcp/p4-test.scene` 已被改造為含 Canvas/Camera/TestBtn
+（白底 button + EhTest component + clickEvents → onClickFromMcp）。
+TS 元件路徑 `assets/00_dev/test/EhTest.ts`（純測試用，可隨時刪）。
 所有改動已 push 到 origin/main，已同步到
 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`。
 
-## 進度快照（最後更新：2026-05-01；P4 v2.1.1 落地 + 實機驗證 4/7）
+## 進度快照（最後更新：2026-05-01 收尾；P4 全驗 + v2.1.2 backlog 排定）
 
 ```
 P0 ✅ done
 P1 ✅ done
-P4 ✅ done（v2.1.1 包含實機驗證後的修補）
-   ├── T-P4-3 Prefab façade 工具集    ✅ code done + 實機 4/5 通
-   ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機 3/4 通
+P4 ✅ done（v2.1.1 包含實機驗證 + 4-way review 修補 823b783）
+   ├── T-P4-3 Prefab façade 工具集    ✅ code done + 實機 5/5 通（含複雜節點）
+   ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機 4/4 通（含 dispatch fired）
+   │                                  ⚠️ 持久化 bug → v2.1.2 P1
    └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
+v2.1.2 ⏳ backlog（P1 持久化 bug + P2(b) 拿掉 placeholder console_logs）
 P2/P3 ⏳ pending
 ```
 
@@ -48,7 +54,9 @@ P2/P3 ⏳ pending
   instance UUID，回傳 `data.instanceNodeUuid` + `data.prefabAssetUuid`
 - panel 預設大小 → 720×640（後續 `0b60ad8` 改直式 640×720 / min 480×640）
 - 所有 P4 ⚠️ 4 項翻為 ✅（cc.EventHandler 可 require / snapshot 持久化 /
-  façade 解析鏈 / `db://` url 接受）
+  façade 解析鏈 / `db://` url 接受）—— 注意「snapshot 持久化」這條
+  **2026-05-01 收尾 session 證實是錯的**，見 §Phase 2 實機驗證收尾段
+  與下方 v2.1.2 P1 backlog
 
 **v2.1.1 後新引入的程式碼變動**（code review 範圍）：
 - `source/scene.ts`：`getPrefabFacade()` / `findNodeByUuidDeep()` /
@@ -271,14 +279,28 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   `eventArrayProperty=clickEvents`，支援 Toggle / ScrollView 等其他
   EventHandler 屬性。
 - 工具總數 160 → 163；tsc + smoke 通過。
-- ✅ **實機驗證**（v2.1.1 / 2026-05-01）：
+- ✅ **實機驗證**（v2.1.1 / 2026-05-01，2026-05-01 收尾再補）：
   - `cc.EventHandler` 透過 `require('cc')` 在 scene-script 取得。
-  - `Editor.Message.send('scene', 'snapshot')` 足以持久化 add/remove
-    的 EventHandler 陣列（runtime 層面）；scene save 仍是寫檔的必要動作。
+  - ⚠️ **`Editor.Message.send('scene', 'snapshot')` 不持久化 EventHandler
+    到 disk** —— 之前「snapshot 足以持久化」的 HANDOFF 宣稱是錯的。
+    snapshot 只進 undo 層；editor 的「scene 序列化模型」只有透過
+    `scene/set-property` 等正規 channel 才會更新，因此 scene-script 直接
+    `arr.push` 出來的 EventHandler 不在 model 內，`save_scene` 序列化時
+    寫出空 clickEvents（disk 仍空但 dump 顯示有，三層不一致）。
+    今天用「改 Button transition」當 nudge 才意外讓 model 同步 runtime →
+    自動存 → disk 有 clickEvents → preview 載到 → dispatch fired。
+    v2.1.2 P1 要把 `addEventHandler` / `removeEventHandler` 改走
+    `scene/insert-array-element` / `remove-array-element` 正規 channel。
   - deep node lookup 修補後（`findNodeByUuidDeep`），nested 節點下的
     component 都能解出。
-  - issue #16517 `_componentName` workaround 在 add/remove 沒撞到問題；
-    runtime onClick dispatch 還沒實際觸發過，保留 workaround 防禦性。
+  - **runtime onClick dispatch 已實證**：點擊後 `[PreviewInEditor]
+    [EhTest] onClickFromMcp fired EventTouch {…}` 出現在 project.log
+    （line 40786），所以 dispatch 路徑可信。
+    **`_componentName` workaround 看似不必要**：disk 上的
+    `cc.ClickEvent` 只有 `component`/`handler`/`customEventData`，
+    沒有 `_componentName` 欄位（line 603–610），preview 重載仍 dispatch 成功。
+    但 HANDOFF 已決保留為防禦性，這 session 不動，留待下次 inspector-build
+    比對時再評估。
 
 **Phase 3 已落地**（commit `fd9011f`）—— T-P4-2 Panel composable：
 
@@ -294,12 +316,37 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   詳見 v15-feasibility 與 roadmap/05）。
 - tsc + smoke 通過。
 
-**v2.1.1 後仍未驗的實機項目**（單獨拉出，下次回來時排）：
-- runtime 真正觸發 onClick 時 EventHandler.dispatch 是否能找到 callback
-  （測試 issue #16517 workaround 必要性的最後一哩）。
-- 含複雜屬性的節點（多 child / 多 component）走 `cce.Prefab.createPrefab`
-  時是否仍能正確 instance-link（目前只測過單一空 Button）。
-- 連續多個 prefab apply / link / unlink 的 dirty 與 undo 行為。
+**v2.1.1 後仍未驗的實機項目** —— 全部驗完（2026-05-01 收尾 session）：
+- ✅ runtime onClick dispatch 已實證可 fire（見 §Phase 2 實機驗證收尾段）；
+  順便發現 EventHandler 持久化 bug（→ v2.1.2 P1）+ `_componentName`
+  workaround 看似冗餘。
+- ✅ 複雜節點 createPrefab：測試了 ComplexRoot（Sprite+UITransform）下
+  3 child（Header/Body/Footer）+ 1 grandchild（Body/Icon），共 7 個
+  components（UITransform×4、Sprite×4、Label、Button），`prefab_create_prefab`
+  走 `method: scene-facade` 成功，dump 完整、`cc.PrefabInfo` linkage 正確、
+  instance UUID 重新解出（`88Q9mL8dZDBJvU2X4hK+z1`）。façade 路徑對
+  複雜節點 OK。
+- ✅ 連續 apply / link / unlink：modify→apply→apply(no-diff)→unlink→
+  re-link→modify→apply 全 success。發現：`linkPrefab` 回 `undefined`
+  （同 `applyPrefab false` façade 怪癖，新觀察）；`getPrefabData` 在 unlink
+  後仍回完整 dump（façade 從 asset 讀，不受 node `_prefab` 連結變化影響）；
+  apply 不 mark scene dirty 也不 auto-save；需另呼叫 `save_scene`。
+
+**v2.1.2 backlog**（按優先序）：
+- **P1（嚴重）EventHandler 持久化 bug**：`addEventHandler` /
+  `removeEventHandler` 在 `source/scene.ts` 用 `arr.push`/`arr.splice`
+  改 runtime cc.Button.clickEvents，editor 序列化模型不接這個變動，
+  `save_scene` 寫不到 disk。改用 `Editor.Message scene/insert-array-element`
+  / `remove-array-element` 走正規 channel，從 host 端 `component-tools.ts`
+  發出，scene 進程不再需要直接 mutate runtime。
+- **P2(b) `debug_get_console_logs` 拿掉**：`debug-tools.ts:60-65`
+  `setupConsoleCapture()` 是 placeholder（只 debugLog 一句、沒掛 listener），
+  `consoleMessages` 永遠空陣列。從 schema/registry 拿掉，描述改指向
+  已可用的 `debug_get_project_logs` 與 `debug_search_project_logs`。
+- **P4 #16517 workaround 評估**：實機 disk 上沒 `_componentName` 欄位
+  仍 dispatch 成功，workaround 可能冗餘。**這一項要等 P1 改完**（用正規
+  channel 後 EventHandler 真正持久化）才能再實證一次，確認 workaround
+  是否真的可移除。
 
 **v2.1.1 已修的項**（程式碼變更已在 dist 同步）：
 - scene.ts `findNodeByUuidDeep` deep node lookup（commit `41b7d9b`）

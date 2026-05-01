@@ -166,6 +166,34 @@ to that target until token cost is measured.
 10. **No test runner wired up.** `source/test/*.ts` exists but is not
    invoked by any npm script. (`scripts/smoke-mcp-sdk.js` covers the SDK
    server endpoints with a stub registry — manual; runs via `node`.)
+11. **Scene-script `arr.push` / `arr.splice` is NOT persistent through
+   `save_scene`** (verified 2026-05-01). The editor maintains two state
+   layers: (a) the *runtime* cc.Node graph that scene-script mutates via
+   `Editor.Message.request('scene', 'execute-scene-script', …)`, and (b)
+   the *editor serialization model* that `Editor.Message.request('scene',
+   'save-scene')` writes to disk. Scene-script mutations like
+   `cc.Button.clickEvents.push(eh)` only update layer (a); layer (b) is
+   only updated when changes flow through the editor's "set property"
+   channels (`scene/set-property`, `scene/insert-array-element`,
+   `scene/remove-array-element`, `scene/move-array-element`, …). The
+   `Editor.Message.send('scene', 'snapshot')` call only writes to the
+   undo stack — **it does not promote runtime mutations into the
+   serialization model**. As a result, `addEventHandler` /
+   `removeEventHandler` (in `source/scene.ts`) currently look like they
+   work (dump query reads layer (a) and shows the change), but
+   `save_scene` writes empty arrays to disk. The earlier HANDOFF claim
+   "snapshot 足以持久化 EventHandler" was wrong; corrected in
+   `docs/HANDOFF.md`. Fix tracked as v2.1.2 P1: rewrite both methods to
+   route through `scene/insert-array-element` /
+   `scene/remove-array-element` from the host side
+   (`source/tools/component-tools.ts`) instead of mutating in
+   scene-script.
+
+   Rule of thumb when adding new tools: if a tool changes array contents
+   on a component and the change must persist to disk, use the
+   `scene/insert-array-element` / `scene/remove-array-element` /
+   `scene/move-array-element` channels from the host side. Avoid
+   mutating arrays inside scene-script.
 
 ## Conventions
 
