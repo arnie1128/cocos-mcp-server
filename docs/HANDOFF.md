@@ -3,28 +3,73 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 進度快照（最後更新：2026-05-01；P4 規劃就位，準備動工）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 收尾）
+
+接手順序，**照著做**：
+
+1. **跑剩下三項實機測試**（見本檔末「v2.1.1 後仍未驗的實機項目」）：
+   - runtime onClick dispatch（測 issue #16517 workaround 是否真有需要）
+   - 多 child / 多 component 複雜節點 createPrefab
+   - 連續 apply / link / unlink 的 dirty / undo 行為
+2. **完成 ✅ 後做 code review**：用 `/code-review:code-review` 對 `main..origin/main`
+   或最近 v2.1.1 引入的程式碼跑一輪。Focus 範圍建議：
+   - `source/scene.ts`（新增 7 個 method + helpers，470 → 600 行）
+   - `source/lib/scene-bridge.ts`（新檔，~50 行）
+   - `source/tools/prefab-tools.ts` `updatePrefab` / `createPrefab` 入口分支
+   - `source/tools/component-tools.ts` 新增的三個 EventHandler 工具
+   - `source/tools/tool-manager.ts` `reconcileConfigurationsWithRegistry`
+3. **環境**：MCP server 預設 port 3000；測試場景 `db://assets/test-mcp/p4-test.scene`
+   保留中（含 TestBtn instance 在 (300,150,0)、prefab asset
+   `e57cd688-e760-4fa6-96f6-2aa286c4162b`）；要重做可先清乾淨。
+
+當下版本：**v2.1.1**（commit `62f6e83`）+ panel 直式微調（commit `0b60ad8`）。
+所有改動已 push 到 origin/main，已同步到
+`D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`。
+
+## 進度快照（最後更新：2026-05-01；P4 v2.1.1 落地 + 實機驗證 4/7）
 
 ```
 P0 ✅ done
-P1 ✅ done (主架構部分)
-   ├── T-P1-3 Logger 全面化           ✅ done
-   ├── T-P1-2 工具註冊表去重複實例化   ✅ done
-   ├── T-P1-4 zod schema (14 檔全部)  ✅ done
-   ├── T-P1-6 預製體 channel 驗證     ✅ done
-   ├── T-P1-1 換官方 MCP SDK          ✅ done
-   └── T-P1-5 structured content     ✅ done（隨 T-P1-1 一起）
-P4 ✅ done（程式碼層；實機驗證見「未驗實機項」）
-   ├── T-P4-3 Prefab façade 工具集    ✅ code done（⚠️ 未實機驗證）
-   ├── T-P4-1 EventHandler 工具集     ✅ code done（⚠️ 未實機驗證）
-   └── T-P4-2 Panel composable 拆分   ✅ done
+P1 ✅ done
+P4 ✅ done（v2.1.1 包含實機驗證後的修補）
+   ├── T-P4-3 Prefab façade 工具集    ✅ code done + 實機 4/5 通
+   ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機 3/4 通
+   └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
 P2/P3 ⏳ pending
 ```
 
+**v2.1.1 內容**（commit `62f6e83`）：
+- `findNodeByUuidDeep` 解 `cc.Node.getChildByUuid` 只搜直系子節點的 bug
+  （EventHandler 工具實機觸發）
+- `applyPrefab` 不再用 façade boolean 當 success 指標（façade 即使成功
+  寫入 disk 也回 `false`；改成「沒拋例外 = success」，原值降級為
+  `data.facadeReturn` metadata）
+- `createPrefabFromNode` 用 `scene/query-nodes-by-asset-uuid` 解出新
+  instance UUID，回傳 `data.instanceNodeUuid` + `data.prefabAssetUuid`
+- panel 預設大小 → 720×640（後續 `0b60ad8` 改直式 640×720 / min 480×640）
+- 所有 P4 ⚠️ 4 項翻為 ✅（cc.EventHandler 可 require / snapshot 持久化 /
+  façade 解析鏈 / `db://` url 接受）
+
+**v2.1.1 後新引入的程式碼變動**（code review 範圍）：
+- `source/scene.ts`：`getPrefabFacade()` / `findNodeByUuidDeep()` /
+  `resolveComponentContext()` / `serializeEventHandler()` 4 個 helper +
+  7 個對外 method（applyPrefab / linkPrefab / unlinkPrefab /
+  getPrefabData / addEventHandler / removeEventHandler / listEventHandlers）
+- `source/lib/scene-bridge.ts`（新檔）：`runSceneMethod` /
+  `runSceneMethodAsToolResponse` helper
+- `source/tools/prefab-tools.ts`：`updatePrefab` / `createPrefab` 入口
+  分支、3 個新工具（link_prefab / unlink_prefab / get_prefab_data）
+- `source/tools/component-tools.ts`：3 個新工具（add_event_handler /
+  remove_event_handler / list_event_handlers）
+- `source/tools/tool-manager.ts`：`reconcileConfigurationsWithRegistry()`
+  自動補新工具到舊 saved config
+- `source/panels/default/index.ts` 384 → 80 行；新增三個 composables
+
 **累積成果**：
-- 14 tool 檔 / 157 tools 全部走 zod schema（手寫 JSON Schema 從 ~3200 行
-  縮為 ~1100 行）；helper 在 `source/lib/schema.ts` 抹平 zod 4 與手寫風格
-  差異（`additionalProperties:false`、`.default()` 與 `required` 互動）
+- 14 tool 檔 / **163 tools**（v2.1.1 加 6 個：3 prefab façade + 3 EventHandler）
+  全部走 zod schema（手寫 JSON Schema 從 ~3200 行縮為 ~1100 行）；helper 在
+  `source/lib/schema.ts` 抹平 zod 4 與手寫風格差異
+  （`additionalProperties:false`、`.default()` 與 `required` 互動）
 - `MCPServer` 與 `ToolManager` 共用 `createToolRegistry()` 出來的同一份
   ToolExecutor 實例（沒有重複 new）
 - 全域 logger（`source/lib/log.ts`）：debug 受 `enableDebugLog` 設定 gating，
@@ -257,27 +302,54 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
 - 連續多個 prefab apply / link / unlink 的 dirty 與 undo 行為。
 
 **v2.1.1 已修的項**（程式碼變更已在 dist 同步）：
-- scene.ts `findNodeByUuidDeep` deep node lookup（#41b7d9b）
-- `applyPrefab` 不再把 façade boolean 當 success 指標
-- `createPrefabFromNode` 用 `query-nodes-by-asset-uuid` 解出新 instance UUID
-- panel `package.json panels.default.size` 720×640，min 480×400
+- scene.ts `findNodeByUuidDeep` deep node lookup（commit `41b7d9b`）
+- `applyPrefab` 不再把 façade boolean 當 success 指標（在 `62f6e83`）
+- `createPrefabFromNode` 用 `query-nodes-by-asset-uuid` 解出新 instance
+  UUID（在 `62f6e83`）；實機驗證回傳 `instanceNodeUuid: a41l9zaspMz6WsEivzHZP4`
+- panel `package.json panels.default.size`：先 720×640 横式（`62f6e83`），
+  user feedback 後改 640×720 直式 / min 480×640（commit `0b60ad8`）
+
+**Code review 範圍提醒**（next session 跑完測試後做）：
+diff against tag `v2.1.0` (commit `ac1248e`) 即可拿到所有 v2.1.1 改動。
+建議用 `/code-review:code-review` 對 `ac1248e..HEAD` 跑。重點審查：
+- `source/scene.ts`：getPrefabFacade 的 façade 偵測順序、findNodeByUuidDeep
+  的 `_id` vs `uuid` 雙寫、addEventHandler 的 #16517 workaround 是否該保留
+- `source/lib/scene-bridge.ts`：runSceneMethodAsToolResponse 對非 envelope
+  回傳的 wrap-in-success 行為是否合理
+- `source/tools/prefab-tools.ts`：createPrefab 三層 fallback（façade →
+  asset-db → custom JSON）是否會在某條失敗路徑下產生半完成 prefab
+- `source/tools/tool-manager.ts`：reconcileConfigurationsWithRegistry 對
+  「user 之前明確 disable 的工具改名後出現新名稱」的行為（會被誤加為 enabled）
 
 ## 環境快速確認
 
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -3          # 最頂為 P4 Phase 0（doc 規劃）的 commit
+git log --oneline -3          # 最頂為 0b60ad8 fix(panel): switch default size to portrait
 npm run build                 # 預期 tsc 無輸出
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js');
 const r = createToolRegistry();
 let total = 0;
 for (const c of Object.keys(r)) total += r[c].getTools().length;
 console.log('categories:', Object.keys(r).length, 'tools:', total);"
-# 預期：categories: 14 tools: 157（Phase 1 後會 +3 變 160）
+# 預期：categories: 14 tools: 163
 
 grep -rE "lizhiyong|fixCommonJsonIssues" source/   # 應無輸出（P0）
 grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'" source/   # 應無輸出（T-P1-6）
+
+# v2.1.1 同步檢查（應全相等，僅 .git / node_modules / source / docs / scripts 不在）
+diff -rq D:/1_dev/cocos-mcp-server/dist D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/dist
+diff D:/1_dev/cocos-mcp-server/package.json D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/package.json
+
+# MCP server 健康檢查（cocos editor 已開 plugin）
+curl -s http://127.0.0.1:3000/health   # 預期：{"status":"ok","tools":163}
+```
+
+**測試場景**：`db://assets/test-mcp/p4-test.scene`（含 TestBtn instance + TestBtn.prefab）。
+要清就：
+```bash
+curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type: application/json" -d '{"url":"db://assets/test-mcp"}'
 ```
 
 ## 文件入口
@@ -294,6 +366,9 @@ grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'"
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| Panel 直式改動前（v2.1.1 release 點） | `git reset --hard 62f6e83` 然後 `git push --force-with-lease` |
+| v2.1.1 改動前（v2.1.0 release 點） | `git reset --hard ac1248e` 然後 `git push --force-with-lease` |
+| P4 開工前（只留 P1 done） | `git reset --hard afc4753` 然後 `git push --force-with-lease` |
 | T-P1-1 改動前（保留 T-P1-2~6） | `git reset --hard d5b0484` 然後 `git push --force-with-lease` |
 | T-P1-6 改動前（保留 zod 全部） | `git reset --hard 1035407` 然後 `git push --force-with-lease` |
 | T-P1-4 全部改動前（只留 P0 + logger/registry） | `git reset --hard c411a9b` 然後 `git push --force-with-lease` |
