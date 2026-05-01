@@ -6,6 +6,7 @@ import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { nodeReferenceShape, resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
+import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 
 // vec3 used by create_node's initialTransform — original schema had no
 // per-axis description and no required marker, so axes are plain optional numbers.
@@ -92,28 +93,30 @@ export class NodeTools implements ToolExecutor {
                 }), handler: a => this.findNodeByName(a.name) },
             { name: 'get_all_nodes', description: 'List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
                 inputSchema: z.object({}), handler: () => this.getAllNodes() },
-            { name: 'set_node_property', description: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts uuid OR nodeName (uuid wins).',
+            { name: 'set_node_property', description: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
-                    uuid: z.string().optional().describe('Node UUID to modify. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
+                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
                     property: z.string().describe('Node property path, e.g. active, name, layer. Prefer set_node_transform for position/rotation/scale.'),
                     value: z.any().describe('Value to write; must match the Cocos dump shape for the property path.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     return this.setNodeProperty(r.uuid, a.property, a.value);
                 } },
-            { name: 'set_node_transform', description: 'Write position/rotation/scale with 2D/3D normalization; mutates scene. Accepts uuid OR nodeName (uuid wins).',
+            { name: 'set_node_transform', description: 'Write position/rotation/scale with 2D/3D normalization; mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
-                    uuid: z.string().optional().describe('Node UUID whose transform should be changed. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
+                    uuid: z.string().optional().describe('Node UUID whose transform should be changed. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
                     position: transformPositionSchema.optional().describe('Local position. 2D nodes mainly use x/y; 3D nodes use x/y/z.'),
                     rotation: transformRotationSchema.optional().describe('Local euler rotation. 2D nodes mainly use z; 3D nodes use x/y/z.'),
                     scale: transformScaleSchema.optional().describe('Local scale. 2D nodes mainly use x/y and usually keep z=1.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     return this.setNodeTransform({ ...a, uuid: r.uuid });
                 } },
@@ -136,17 +139,18 @@ export class NodeTools implements ToolExecutor {
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
                 }), handler: a => this.detectNodeType(a.uuid) },
-            { name: 'set_node_properties', description: 'Batch-write multiple node properties in a single round-trip. Mutates scene; each entry runs concurrently and returns per-entry success/error so partial failures are visible. Use when changing several properties on the same node at once.',
+            { name: 'set_node_properties', description: 'Batch-write multiple node properties in a single round-trip. Mutates scene; each entry runs concurrently and returns per-entry success/error so partial failures are visible. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
-                    uuid: z.string().optional().describe('Node UUID to modify. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form.'),
+                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
                     properties: z.array(z.object({
                         path: z.string().describe('Property path passed to scene/set-property (e.g. active, name, layer, position).'),
                         value: z.any().describe('Property value matching the Cocos dump shape for the path.'),
                     })).min(1).max(50).describe('Properties to write. Capped at 50 entries per call.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     return batchSetProperties(r.uuid, a.properties);
                 } },

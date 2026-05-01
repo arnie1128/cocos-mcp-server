@@ -4,6 +4,7 @@ import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import { resolveOrToolError } from '../lib/resolve-node';
+import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -120,14 +121,15 @@ export class ComponentTools implements ToolExecutor {
 
     constructor() {
         const defs: ToolDef[] = [
-            { name: 'add_component', description: 'Add a component to a specific node. Mutates scene; verify the component type or script class name first. Accepts nodeUuid OR nodeName (uuid wins).',
+            { name: 'add_component', description: 'Add a component to a specific node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
                 inputSchema: z.object({
-                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
                     componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     return this.addComponent(r.uuid, a.componentType);
                 } },
@@ -145,10 +147,11 @@ export class ComponentTools implements ToolExecutor {
                     nodeUuid: z.string().describe('Node UUID that owns the component.'),
                     componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
                 }), handler: a => this.getComponentInfo(a.nodeUuid, a.componentType) },
-            { name: 'set_component_property', description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Accepts nodeUuid OR nodeName (uuid wins). Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+            { name: 'set_component_property', description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
                 inputSchema: z.object({
-                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
                     componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
                     property: z.string().describe(setComponentPropertyPropertyDescription),
                     propertyType: z.enum([
@@ -161,7 +164,7 @@ export class ComponentTools implements ToolExecutor {
                     preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     return this.setComponentProperty({ ...a, nodeUuid: r.uuid });
                 } },
@@ -222,10 +225,11 @@ export class ComponentTools implements ToolExecutor {
                 handler: a => runSceneMethodAsToolResponse('listEventHandlers', [
                     a.nodeUuid, a.componentType, a.eventArrayProperty,
                 ]) },
-            { name: 'set_component_properties', description: 'Batch-set multiple component properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once.',
+            { name: 'set_component_properties', description: 'Batch-set multiple component properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
                 inputSchema: z.object({
-                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
                     componentType: z.string().describe('Component type/cid shared by all entries.'),
                     properties: z.array(z.object({
                         property: z.string().describe('Property name on the component, e.g. fontSize, color, sizeMode.'),
@@ -240,7 +244,7 @@ export class ComponentTools implements ToolExecutor {
                     })).min(1).max(20).describe('Property entries. Capped at 20 per call.'),
                 }),
                 handler: async a => {
-                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
                     if ('response' in r) return r.response;
                     const results: Array<{ property: string; success: boolean; error?: string }> = [];
                     for (const entry of a.properties) {
