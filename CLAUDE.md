@@ -353,6 +353,59 @@ token cost is measured.
   current path is in `docs/HANDOFF.md` §環境快速確認 — it is per-machine,
   not constant, so don't hard-code it elsewhere).
 
+### Three-way review workflow for large changes
+
+Project-level extension of global §Post-Development Review. Triggers
+**three-way parallel review + patch loop** when a single commit (or
+coordinated batch) meets any of:
+
+- New MCP tool, resource, or capability (touches public protocol surface)
+- Refactor that migrates ≥ 5 tool files / ≥ 200 LOC of `source/`
+- New host-side `eval` / fs write / IPC injection path
+- Anything that requires a **minor** version bump
+
+Skip for: typo fixes, single-line bugs, comment edits, pure docs.
+
+**Procedure** (canonical reference: 2026-05-02 v2.3.0 → v2.3.1 cycle):
+
+1. Land the main commit (with version bump + dist sync) and push to
+   origin/main.
+2. Dispatch three reviewers **in parallel**, each in isolated context
+   so opinions are independent:
+   - Claude — `Agent` tool with `general-purpose` subagent type
+   - Codex — `Agent` tool with `codex:codex-rescue` subagent type
+   - Gemini — `Bash` tool piping `git show <sha>` into `gemini -p "..."`
+   Each reviewer gets: commit SHA, the focus areas (security /
+   correctness / regression / edge cases), and instructions to group
+   findings as 🔴 must-fix / 🟡 worth-considering / 🟢 looks good with
+   file:line + concrete fix.
+3. Consolidate findings. If any 🔴 must-fix or any 🟡 worth-considering
+   that ≥ 2 reviewers raised → fix.
+4. Apply fixes in a separate **patch bump commit** (e.g. `v2.3.1`).
+   Do not amend the main commit — keeping the patch commit isolated
+   makes the review trail auditable and gives a clean rollback anchor.
+5. Re-run all three reviewers against the patch commit. Each must
+   verify (a) every original finding is correctly addressed and (b) no
+   new bugs introduced.
+6. Loop if reviewers find new issues. Each loop iteration = another
+   patch bump (`v2.3.1` → `v2.3.2` → …).
+7. Push only when all three reviewers return 🟢 ship-it on the latest
+   commit.
+8. Update HANDOFF §三方 review 紀錄 with the issue list (consensus
+   findings + which reviewers caught what) so the audit trail is
+   discoverable in the next session.
+
+**Why this workflow exists**: codex / claude / gemini have
+non-overlapping blind spots. v2.3.0 review demonstrated this — codex
+caught the `updateSettings()` flag-not-reapplied gap that gemini
+missed, gemini caught the CRLF/BOM issue that claude initially missed,
+claude caught the missing landmine doc and array-length cap. No
+single reviewer would have produced the consolidated issue list.
+
+**Cost discipline**: don't run this for every commit. Three-way review
+takes ~2-5 minutes per round + cost. For routine changes the global
+§Post-Development Review (single external pass) is enough.
+
 ## Where to look next
 
 `docs/` is structured into four sections:
