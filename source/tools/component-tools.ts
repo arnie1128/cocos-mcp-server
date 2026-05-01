@@ -1,7 +1,7 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
-import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
+import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -317,12 +317,7 @@ export class ComponentTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'addComponentToNode',
-                    args: [nodeUuid, componentType]
-                };
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('addComponentToNode', [nodeUuid, componentType]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
@@ -393,13 +388,7 @@ export class ComponentTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'getNodeInfo',
-                    args: [nodeUuid]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('getNodeInfo', [nodeUuid]).then((result: any) => {
                     if (result.success) {
                         resolve({
                             success: true,
@@ -443,13 +432,7 @@ export class ComponentTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'getNodeInfo',
-                    args: [nodeUuid]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('getNodeInfo', [nodeUuid]).then((result: any) => {
                     if (result.success && result.data.components) {
                         const component = result.data.components.find((comp: any) => comp.type === componentType);
                         if (component) {
@@ -1199,12 +1182,7 @@ export class ComponentTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'attachScript',
-                    args: [nodeUuid, scriptPath]
-                };
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('attachScript', [nodeUuid, scriptPath]).then((result: any) => {
                     resolve(result);
                 }).catch(() => {
                     resolve({ 

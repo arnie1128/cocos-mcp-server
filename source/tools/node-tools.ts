@@ -2,6 +2,7 @@ import { ToolDefinition, ToolResponse, ToolExecutor, NodeInfo } from '../types';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { runSceneMethod } from '../lib/scene-bridge';
 
 // vec3 used by create_node's initialTransform — original schema had no
 // per-axis description and no required marker, so axes are plain optional numbers.
@@ -412,13 +413,7 @@ export class NodeTools implements ToolExecutor {
                 resolve({ success: true, data: nodes });
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'findNodes',
-                    args: [pattern, exactMatch]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('findNodes', [pattern, exactMatch]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Tree search failed: ${err.message}, Scene script failed: ${err2.message}` });
@@ -446,13 +441,7 @@ export class NodeTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'findNodeByName',
-                    args: [name]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('findNodeByName', [name]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
@@ -513,13 +502,7 @@ export class NodeTools implements ToolExecutor {
                 });
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'getAllNodes',
-                    args: []
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('getAllNodes', []).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
@@ -575,13 +558,7 @@ export class NodeTools implements ToolExecutor {
                 });
             }).catch((err: Error) => {
                 // 如果直接设置失败，尝试使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'setNodeProperty',
-                    args: [uuid, property, value]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('setNodeProperty', [uuid, property, value]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });

@@ -1,5 +1,6 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { runSceneMethod } from '../lib/scene-bridge';
 
 const sceneSchemas = {
     get_current_scene: z.object({}),
@@ -93,13 +94,7 @@ export class SceneTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'getCurrentSceneInfo',
-                    args: []
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('getCurrentSceneInfo', []).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
@@ -362,13 +357,7 @@ export class SceneTools implements ToolExecutor {
                 }
             }).catch((err: Error) => {
                 // 备用方案：使用场景脚本
-                const options = {
-                    name: 'cocos-mcp-server',
-                    method: 'getSceneHierarchy',
-                    args: [includeComponents]
-                };
-                
-                Editor.Message.request('scene', 'execute-scene-script', options).then((result: any) => {
+                runSceneMethod('getSceneHierarchy', [includeComponents]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
                     resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
