@@ -247,7 +247,7 @@ v1.4.0 #1 — code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），
 
 ---
 
-## 進度快照（最後更新：2026-05-02 B-1 description sweep / v2.1.7）
+## 進度快照（最後更新：2026-05-02 T-P3-1 Resources / v2.2.0）
 
 ```
 P0 ✅ done
@@ -259,11 +259,12 @@ v2.1.3 ✅ done（scene-bridge migration + prefab fallback 大清掃 + _componen
 v2.1.4 ✅ done（Solo backlog 6 條 + /review 反修 1 條）
 v2.1.5 ✅ done（live-test backlog 5 條全清，每條 user-driven 實機驗證）
 v2.1.6 ✅ done（P2 量測 close 12c20c4 + 死碼清掃 -3286 行 05d865e）
-v2.1.7 ✅ done（本 session：B-1 description sweep 全 14 categories / 160 tools，commit ff62dd7）
-P2 ❌ closed（量測後否決：lossless +30.4% / lossy -63.5% 但丟 validation）
+v2.1.7 ✅ done（B-1 description sweep 全 14 categories / 160 tools，commit ff62dd7）
+v2.2.0 ✅ done（本 session：T-P3-1 Resources，commit 4e5ab45）
+P2 ❌ closed（量測後否決：lossless +30.1% / lossy -62.8% 但丟 validation）
 
 待動工（依優先序，詳見 §待動工 Backlog）：
-B-2 ⏳ P3 protocol extensions（next：T-P3-1 Resources，~3-5 天 / minor bump 2.2.0）
+B-2 ⏳ P3 protocol extensions（next：T-P3-3 Notifications，~3 天 / 動工前先跑 probe-broadcast）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -272,11 +273,11 @@ B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -6          # 最頂為 ff62dd7（docs(tools): rewrite descriptions, bump 2.1.7）
+git log --oneline -6          # 最頂為 4e5ab45（feat(resources): add MCP resources/* capability，bump 2.2.0）
 
 # tsc + smoke + 工具數
 npm run build                 # 預期 tsc 無輸出
-node scripts/smoke-mcp-sdk.js # 預期 ✅ all smoke checks passed
+node scripts/smoke-mcp-sdk.js # 預期 ✅ all smoke checks passed（含 5 條 resources round-trip）
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js');
 const r = createToolRegistry();
 let total = 0;
@@ -284,13 +285,17 @@ for (const c of Object.keys(r)) total += r[c].getTools().length;
 console.log('categories:', Object.keys(r).length, 'tools:', total);"
 # 預期：categories: 14 tools: 160
 
+# Resource registry 健檢（不需 cocos editor）
+node -e "const {createResourceRegistry} = require('./dist/resources/registry.js');
+const r = createResourceRegistry({});
+console.log('static:', r.list().length, 'templates:', r.listTemplates().length);"
+# 預期：static: 6 templates: 2
+
 # P2 量測重跑（任何時候都可重跑、輸出穩定，可拿來做 regression 比對）
 node scripts/measure-tool-tokens.js
-# 預期：router-A +30.4% / router-B -63.5% / decision: CLOSE P2
-# 註：v2.1.7 描述變長，current schema 從 51,983 chars 增至 ~54,700；
-# 兩個收斂形態與 current 的差距同步收斂，但仍遠超 close 線
+# 預期：router-A +30.1% / router-B -62.8% / decision: CLOSE P2
 
-# tools.md 重產（B-1 description sweep 每批改完都要跑）
+# tools.md 重產
 node scripts/generate-tools-doc.js
 # 預期：wrote .../docs/tools.md (14 categories, 160 tools)
 
@@ -299,7 +304,7 @@ grep -rE "lizhiyong|fixCommonJsonIssues" source/   # P0
 grep -rE "'apply-prefab'|'revert-prefab'|'load-asset'|'connect-prefab-instance'" source/   # T-P1-6
 grep -rE "openToolManager|panels/tool-manager" source/ package.json   # v2.1.6 cleanup（dead panel）
 
-# v2.1.6 同步檢查（應全相等）
+# v2.2.0 同步檢查（應全相等）
 diff -rq D:/1_dev/cocos-mcp-server/dist D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/dist
 diff D:/1_dev/cocos-mcp-server/package.json D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/package.json
 
@@ -330,6 +335,7 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.2.0 T-P3-1 Resources 改動前（v2.1.7 release 點） | `git reset --hard ab7191b` 然後 `git push --force-with-lease` |
 | v2.1.7 description sweep 改動前（v2.1.6 release 點） | `git reset --hard 05d865e` 然後 `git push --force-with-lease` |
 | v2.1.6 死碼清掃前（保留 P2 close 的 doc 改動） | `git reset --hard 12c20c4` 然後 `git push --force-with-lease` |
 | v2.1.6 全部改動前（P2 close 也退） | `git reset --hard 18810a0` 然後 `git push --force-with-lease` |
