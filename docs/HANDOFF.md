@@ -3,56 +3,140 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 + 三方 audit + project sweep 完工）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.3 大半完工 + prefab 大規模清理）
 
-當下版本：**v2.1.2 + round-1 audit fix + project /code-review + simplifier**
-（commit `ccb5d04`）。P0/P1/P4/v2.1.1/v2.1.2 全部完工，Test 1/2/3 +
-remove_event_handler + Toggle.checkEvents 全實機驗完，三方
-（codex/gemini/claude）round-1 三項 finds 已修、round-2 兩家「no further
-changes needed」；接著做整專案 /code-review 與 code-simplifier 各一次，
-真實 finds 已修補，simplifier 提案項目作為 v2.1.3 backlog（見下）。
-沒有 in-flight 任務。
+當下版本：**v2.1.3（partial，三大塊已落地）**（origin/main HEAD = `6bb971e`）。
+P0/P1/P4/v2.1.1/v2.1.2/v2.1.2-audit 全部完工。本 session 推進 v2.1.3 backlog
+中三大塊：scene-bridge migration、scene.ts 死 method 清理、prefab legacy
+hand-rolled JSON fallback **整鏈**（stage 1 entry/3 direct method + stage 2
+helper sweep）。沒有 in-flight 任務。
 
-**round-1 audit 修補（`d5c97ef`）**：
-- `nudgeEditorModel` 的 `enabledValue` 讀取改防禦式（nested → flat
-  fallback）；之前只讀 nested 路徑，flat-shape dump 會 fall through
-  變 `true`，disabled 元件可能被誤寫回 enabled。
-- `nudgeEditorModel` 改用 `componentUuid` 做精確 findIndex（fall back 到
-  type 比對）；解多個同型元件的 ambiguity。`add_event_handler` /
-  `remove_event_handler` 在 host case 把 `resp.data?.componentUuid`
-  傳下去（這就是 v2.1.2 那兩個「孤兒欄位」的真正用途）。
-- `ConsoleMessage` interface 從 `source/types/index.ts` 刪掉（死 export
-  ——P2(b) 把 consumer 拿掉後變孤）。
+**`package.json:version` 已 bump 到 `2.1.2`**（之前 dist 內容是 v2.1.2 但
+版本字串還寫 2.1.1，導致 reload 後面板顯示舊版本）。**bump 規則** 已寫入
+`CLAUDE.md` §Conventions：完成程式碼變更後 patch +1，新工具/新公開接口
+minor +1，純 docs 不 bump，session 內多 commit 一次性 bump。
 
-**整專案 review + simplifier 落地**：
-- `e2ffa3d` Landmine #4 收尾：`source/settings.ts` 5 處 `console.error` +
-  `source/panels/tool-manager/index.ts` 26 處 `console.log/error`（之前
-  P4 T-P4-2 只搬遷了 default panel）改走 logger。CLAUDE.md 工具表
-  scene 10 → 8、node 15 → 11 校正（其他類別實機核對都正確）。
-- `ccb5d04` simplifier：拿掉 `tool-manager.ts:initializeDefaultTools`
-  死後援（v1.4.0 殘留的 47 條硬編碼工具列表，wrapped 在不會丟例外的
-  `Object.entries` + forEach 外）。-104 行 source / -209 行 dist；
-  tsc + smoke 全綠，registry 162 tools 不變。
+**memory 重整**：刪掉 `feedback_version_bump.md`（規則改放 CLAUDE.md，
+專案規則不該住 user-private memory）；新增 `feedback_notify_before_live_test.md`
+（要 user 配合實機點擊的任務必須先 ping）。
 
-**v2.1.3 backlog**（simplifier 提案、未 apply；逐項 medium risk，建議
-分檔逐個處理）：
-- **scene-bridge migration**（最大潛在收益）：11 處直接
-  `Editor.Message.request('scene', 'execute-scene-script', ...)` 散落於
-  `component-tools.ts` / `node-tools.ts` / `scene-tools.ts` /
-  `scene-advanced-tools.ts` / `debug-tools.ts`，可逐檔換成
-  `lib/scene-bridge.ts:runSceneMethodAsToolResponse` 1-liner，估減 ~200 行。
-  風險：每 callsite 的 envelope 略有不同，要逐個比對 success/error 構造。
-- **scene.ts 死 method 清理**：`createNewScene` / `removeComponentFromNode` /
-  `setComponentProperty`（scene-script 版，host 已有自己的）等疑似無人
-  呼叫的 scene-script `methods` 條目，~150 行省。風險：因
-  `execute-scene-script` 用 method 名 string 做 dispatch，可能有外部或
-  動態呼叫，需 grep + maintainer 確認。
-- `setComponentProperty`（scene.ts）內 spriteFrame / material 載入梯式
-  dedup（~25 行省）。
-- `MCPServer.getFilteredTools` 二次過濾可能多餘（low-medium risk）。
-- 不要動：`nudgeEditorModel` 的 nested-vs-flat dump 雙路徑（Landmine #11
-  經驗值）；`prefab-tools.ts` legacy custom-JSON fallback（CLAUDE.md
-  line 117 標明保留至 façade 路徑全驗）。
+### 本 session 的 commit chain（已 push）
+
+| SHA | 內容 | 行數 |
+|---|---|---|
+| `d0faebb` | refactor(tools): scene-bridge migration（10/12 callsite） | source -104 |
+| `6fda9a4` | refactor(scene): drop 3 dead scene-script methods | source -126 |
+| `547115b` | docs(CLAUDE.md): bump rule / dual dump shape / queue prefab fallback | docs +37/-7 |
+| `87159bf` | refactor(prefab-tools): remove legacy fallback **stage 1**（entry + 3 direct method） | source -201 |
+| `6bb971e` | refactor(prefab-tools): sweep unreachable helpers **stage 2**（45 method） | source -1734 |
+
+合計 source -2165 行 / dist 同比 / 162 工具不變 / tsc + smoke 全綠。`prefab-tools.ts`
+從 2543 行降到 608 行。
+
+### scene-bridge migration（`d0faebb`）細節
+
+10 個 fallback ladder 內部的 `Editor.Message.request('scene', 'execute-scene-script', options)`
+換成 `runSceneMethod(method, args)` 1-liner（component-tools 4 + node-tools 4 +
+scene-tools 2）。剩 2 處不可換：
+- `debug-tools.ts:executeScript` — name 寫死 `'console'`（不是 cocos-mcp-server）
+- `scene-advanced-tools.ts:executeSceneScript` — name 由 caller 給（公開 dispatch 工具）
+
+### scene.ts 死 method 清理（`6fda9a4`）細節
+
+`createNewScene` / `removeComponentFromNode` / scene-script 版 `setComponentProperty`
+全砍（package.json `panels.scene.methods` 同步刪除）。grep + git log -S 確認無
+caller。後兩者已被 host-side `scene/remove-component` 與 `scene/set-property`
+channel 取代多時。
+
+### prefab fallback 清理（`87159bf` + `6bb971e`）細節
+
+**stage 1**（`87159bf`）：`createPrefab` 入口砍 fallback ladder，只走 façade。
+直接 fallback method 砍：`createPrefabWithAssetDB` / `createPrefabNative` /
+`createPrefabCustom`。保留 façade-only path。
+
+**stage 2**（`6bb971e`）：sweep stage 1 留下的 ~45 個 unreachable helper（TS
+不抓 unused private method）。Live caller graph 從 13 個 entry method 反向
+追蹤，最終只剩 5 個 helper 還活著：
+- `validatePrefabFormat`（被 `validatePrefab` 用）
+- `generateUUID` / `createMetaData` / `readPrefabContent` /
+  `modifyPrefabForDuplication`（全部被 `duplicatePrefab` 用）
+
+砍掉的 helper（45 個）：tryCreateNodeWithPrefab、getNodeData、getNodeWithChildren、
+findNodeInTree、enhanceTreeWithMCPComponents、buildBasicNodeInfo、isValidNodeData、
+extractChildUuid、getChildrenToProcess、createPrefabData、processNodeForPrefab、
+processComponentForPrefab、generateFileId、savePrefabFiles、saveAssetFile、
+createPrefabFromNode（host wrapper、無 caller）、create/Meta/reimport/update-AssetWithAssetDB×4、
+createStandardPrefabContent、createCompleteNodeTree、uuidToCompressedId、
+createComponentObject、processComponentProperty、createEngineStandardNode、
+extractNodeUuid、createMinimalNode、createStandardMetaContent、convertNodeToPrefabInstance、
+getNodeDataForPrefab、createStandardPrefabData、createNodeObject、extractComponentsFromNode、
+createStandardComponentObject、addComponentSpecificProperties、addUITransformProperties、
+addSpriteProperties、addLabelProperties、addButtonProperties、addGenericProperties、
+createVec2Object、createVec3Object、createSizeObject、createColorObject、
+shouldCopyComponentProperty、getComponentPropertyValue、extractValue、
+createStandardMetaData、savePrefabWithMeta。也砍了
+`source/test/prefab-tools-test.ts:testPrefabDataGeneration`（用 bracket-access
+打到死 method，TS 抓到）。test 檔本來就無 npm script 跑。
+
+**回滾錨點**：commit `547115b` 是 stage 1 之前的 SHA（fallback 程式碼還在）；
+commit `87159bf` 是 stage 2 之前的 SHA（stage 1 已砍但 helper 還在）。
+
+### 本 session 兩條決策（fork 平行分析後 user 確認）
+
+1. **`debug_get_console_logs` 不重做**：v2.1.2 移除是對的決策。Cocos 沒公開
+   console listen channel（`creator-types/editor/packages/console/@types/`
+   只有 `pritate.d.ts` IMessageItem 結構，**沒 `message.d.ts`**）；
+   `Editor.Message.__protected__.addBroadcastListener` 是 protected API、
+   未文件化 channel 不穩；包 host `console.*` 成 ring buffer 覆蓋率差又有
+   side-effect 風險。disk 端 `debug_get_project_logs` 已可用且有 PreviewInEditor
+   runtime log（v2.1.1 實機驗過）。**不放進 backlog**。
+
+2. **單一工具 + action router 不全面做**（保留 ADR 0001 決策）：discriminated
+   union schema 必須展開所有 action 的 args，token 節省最多 ~10-15%（不是
+   v1.5.0 宣稱的 -50%）；LLM 在 enum > 30 的 routing 明顯弱於 tool-name
+   routing；fork 已有 zod + structured content + SDK Streamable HTTP，
+   action router 解不到此層之上的問題。**有價值的折衷**：case-by-case
+   CRUD 合併（如 `prefab_link_prefab` + `prefab_unlink_prefab` →
+   `prefab_set_link({mode: 'link'|'unlink'})`），列入 v2.1.4 P2-lite。
+
+### v2.1.4 backlog（合併 v2.1.3 剩餘 + 低優先項 + 新發現）
+
+**Solo（不需 user 配合）**：
+- **setComponentProperty 載入 ladder dedup**（scene.ts，~25 行省）— 從 v2.1.3 留下
+- **`MCPServer.getFilteredTools` 二次過濾可能多餘**（low-medium risk）— 從 v2.1.3 留下
+- **`add_component` cid vs class name 顯示誤判**（顯示 cid 而非 class name 時誤判
+  not-found，但 component 實際有加上）— 低優先項 B、UX 修補
+- **`remove_event_handler` 字串匹配的 trim 容錯**（codex round-1 提過的 nit）— 低優先項 C
+- **P2-lite CRUD 合併**（新加，1-2 天）：`prefab_link_prefab`/`unlink_prefab` 合併、
+  其他同概念配對逐個評估
+- **`duplicatePrefab` 收尾**（stage 2 review 新發現）：目前 method 永遠 resolve
+  「暂时不可用」、但呼叫 `modifyPrefabForDuplication`/`createMetaData` 後丟棄
+  result。要嘛恢復為真實作（要重做整段序列化邏輯，不划算）、要嘛砍 method +
+  那 4 個 helper。建議砍。
+
+**需 user 配合（實機 A/B）**：
+- **`_componentName` workaround 必要性檢核**（cocos-engine #16517）— 低優先項 A：
+  disk 上沒這欄位仍 dispatch fired，可能冗餘。要做乾淨對照組（不設
+  `_componentName` add → save → reload preview → click），驗 dispatch 是否
+  仍 fire。通過則可從 `source/scene.ts:addEventHandler` 拿掉 workaround。
+  **建議：next session 一開始就做這項**，理由：
+  1. 唯一卡 user 時間的任務，先做掉避免拖
+  2. 結果可能影響其他 v2.1.4 工作（若 workaround 砍掉、helper / nudge 邏輯
+     可順手簡化）
+  3. 即使結果是「保留」，也把 unknown 變 known、未來不再被 simplifier 提
+
+**不要動**：
+- `nudgeEditorModel` 的 nested-vs-flat dump 雙路徑（CLAUDE.md Landmine #11
+  尾段已記錄理由）
+
+### 環境 / 同步
+
+- MCP server 預設 port 3000；測試場景 `db://assets/test-mcp/p4-test.scene`
+  含 TestBtn / TestToggle / ComplexRoot（v2.1.2 session 建立，本 session 未
+  再實機）
+- `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/` 已同步到
+  6bb971e。Reload Cocos Creator extension 即可看到 v2.1.2 面板版號 + prefab
+  工具仍 162 個
 
 **v2.1.2 內容**（含修補史）：
 - ✅ **P1 EventHandler 持久化**：scene-script `arr.push` 不動 editor
@@ -93,7 +177,7 @@ TS 測試元件 `D:/1_dev/cocos_cs/cocos_cs_349/assets/00_dev/test/EhTest.ts`
 （純測試用，可隨時刪）。所有 commit 已 push origin/main，dist 已同步至
 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`。
 
-## 進度快照（最後更新：2026-05-01 v2.1.2 完工）
+## 進度快照（最後更新：2026-05-01 v2.1.3 partial 完工）
 
 ```
 P0 ✅ done
@@ -105,8 +189,15 @@ P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
    └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
 v2.1.2 ✅ done（P1 host-side nudge 4d15563 + P2(b) 拿 placeholder + P3 文件訂正）
 v2.1.2-audit ✅ done（round-1 d5c97ef + project sweep e2ffa3d/ccb5d04）
-v2.1.3 ⏳ backlog（simplifier 提案：scene-bridge migration、scene.ts 死 method、
-                   setComponentProperty 載入 ladder dedup；見 entry-point）
+v2.1.3 🟡 partial done（本 session）
+   ├── scene-bridge migration         ✅ d0faebb（10 callsite，-104 行）
+   ├── scene.ts 死 method 清理         ✅ 6fda9a4（3 method，-126 行）
+   ├── prefab fallback removal stage 1 ✅ 87159bf（entry + 3 method，-201 行）
+   ├── prefab fallback removal stage 2 ✅ 6bb971e（45 helper，-1734 行）
+   ├── setComponentProperty ladder dedup     ⏳ → v2.1.4
+   └── MCPServer.getFilteredTools 二次過濾    ⏳ → v2.1.4
+v2.1.4 ⏳ backlog（合併 v2.1.3 剩餘 + 低優先項 + P2-lite CRUD 合併 +
+                   duplicatePrefab 收尾；建議先做 _componentName 對照組）
 P2/P3 ⏳ pending（roadmap 級別，非 v2 patch）
 ```
 
