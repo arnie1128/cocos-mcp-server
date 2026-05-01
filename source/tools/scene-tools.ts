@@ -25,7 +25,9 @@ const sceneSchemas = {
         ),
     }),
     save_scene_as: z.object({
-        path: z.string().describe('Path to save the scene'),
+        path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
+        openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
+        overwrite: z.boolean().default(false).describe('Overwrite the target file if it already exists. Default false; with false, a name collision returns an error.'),
     }),
     close_scene: z.object({}),
     get_scene_hierarchy: z.object({
@@ -77,7 +79,7 @@ export class SceneTools implements ToolExecutor {
             case 'create_scene':
                 return await this.createScene(a.sceneName, a.savePath, a.template);
             case 'save_scene_as':
-                return await this.saveSceneAs(a.path);
+                return await this.saveSceneAs(a);
             case 'close_scene':
                 return await this.closeScene();
             case 'get_scene_hierarchy':
@@ -530,20 +532,83 @@ export class SceneTools implements ToolExecutor {
         return nodeInfo;
     }
 
-    private async saveSceneAs(path: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            // save-as-scene API 不接受路徑參數，會彈出對話框讓用戶選擇
-            (Editor.Message.request as any)('scene', 'save-as-scene').then(() => {
+    // Programmatic save-as. The cocos `scene/save-as-scene` channel only opens
+    // the native file dialog (and blocks until the user dismisses it — root
+    // cause of the >15s timeout reported in HANDOFF), so we do not use it.
+    // Instead: save the current scene to flush edits, resolve its asset url,
+    // then asset-db copy-asset to the target path. Optionally open the copy.
+    private async saveSceneAs(args: { path: string; openAfter?: boolean; overwrite?: boolean }): Promise<ToolResponse> {
+        return new Promise(async (resolve) => {
+            try {
+                await Editor.Message.request('scene', 'save-scene');
+
+                const tree: any = await Editor.Message.request('scene', 'query-node-tree');
+                const sceneUuid: string | undefined = tree?.uuid;
+                if (!sceneUuid) {
+                    resolve({ success: false, error: 'No scene is currently open.' });
+                    return;
+                }
+
+                const sourceUrl = await Editor.Message.request('asset-db', 'query-url', sceneUuid);
+                if (!sourceUrl) {
+                    resolve({
+                        success: false,
+                        error: 'Current scene has no asset path on disk yet. Save it once via the Cocos UI (or use create_scene to write a backing file) before save_scene_as can copy it.',
+                    });
+                    return;
+                }
+
+                const targetPath = args.path.endsWith('.scene') ? args.path : `${args.path}.scene`;
+
+                // Pre-check existence so a collision returns a clean error
+                // instead of letting cocos pop a "file exists, overwrite?" modal
+                // and block on user input. cocos only respects `overwrite: true`
+                // silently; the !overwrite path otherwise opens a dialog.
+                if (!args.overwrite) {
+                    const existing = await Editor.Message.request('asset-db', 'query-uuid', targetPath);
+                    if (existing) {
+                        resolve({
+                            success: false,
+                            error: `Target '${targetPath}' already exists. Pass overwrite: true to replace it.`,
+                            data: { existingUuid: existing },
+                        });
+                        return;
+                    }
+                }
+
+                const copyResult: any = await Editor.Message.request(
+                    'asset-db',
+                    'copy-asset',
+                    sourceUrl,
+                    targetPath,
+                    { overwrite: !!args.overwrite },
+                );
+                if (!copyResult || !copyResult.uuid) {
+                    resolve({
+                        success: false,
+                        error: `asset-db copy-asset returned no result for ${sourceUrl} -> ${targetPath}.`,
+                    });
+                    return;
+                }
+
+                const openAfter = args.openAfter !== false;
+                if (openAfter) {
+                    await Editor.Message.request('scene', 'open-scene', copyResult.uuid);
+                }
+
                 resolve({
                     success: true,
+                    message: `Scene saved as ${copyResult.url}`,
                     data: {
-                        path: path,
-                        message: `Scene save-as dialog opened`
-                    }
+                        sourceUrl,
+                        newUuid: copyResult.uuid,
+                        newUrl: copyResult.url,
+                        opened: openAfter,
+                    },
                 });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
+            } catch (err: any) {
+                resolve({ success: false, error: err?.message ?? String(err) });
+            }
         });
     }
 
