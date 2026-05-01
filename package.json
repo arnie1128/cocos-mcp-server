@@ -56,9 +56,9 @@
             "icon": "./static/icon.png",
             "size": {
                 "min-width": 480,
-                "min-height": 400,
-                "width": 720,
-                "height": 640
+                "min-height": 640,
+                "width": 640,
+                "height": 720
             }
         }
     },
