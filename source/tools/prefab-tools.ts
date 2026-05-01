@@ -311,98 +311,6 @@ export class PrefabTools implements ToolExecutor {
         });
     }
 
-    /**
-     * 使用 asset-db API 创建预制体的新方法
-     * 深度整合引擎的资源管理系统，实现完整的预制体创建流程
-     */
-    private async createPrefabWithAssetDB(nodeUuid: string, savePath: string, prefabName: string, includeChildren: boolean, includeComponents: boolean): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                debugLog('=== 使用 Asset-DB API 创建预制体 ===');
-                debugLog(`节点UUID: ${nodeUuid}`);
-                debugLog(`保存路径: ${savePath}`);
-                debugLog(`预制体名称: ${prefabName}`);
-
-                // 第一步：获取节点数据（包括变换属性）
-                const nodeData = await this.getNodeData(nodeUuid);
-                if (!nodeData) {
-                    resolve({
-                        success: false,
-                        error: '无法获取节点数据'
-                    });
-                    return;
-                }
-
-                debugLog('获取到节点数据，子节点数量:', nodeData.children ? nodeData.children.length : 0);
-
-                // 第二步：先创建资源文件以获取引擎分配的UUID
-                debugLog('创建预制体资源文件...');
-                const tempPrefabContent = JSON.stringify([{"__type__": "cc.Prefab", "_name": prefabName}], null, 2);
-                const createResult = await this.createAssetWithAssetDB(savePath, tempPrefabContent);
-                if (!createResult.success) {
-                    resolve(createResult);
-                    return;
-                }
-
-                // 获取引擎分配的实际UUID
-                const actualPrefabUuid = createResult.data?.uuid;
-                if (!actualPrefabUuid) {
-                    resolve({
-                        success: false,
-                        error: '无法获取引擎分配的预制体UUID'
-                    });
-                    return;
-                }
-                debugLog('引擎分配的UUID:', actualPrefabUuid);
-
-                // 第三步：使用实际UUID重新生成预制体内容
-                const prefabContent = await this.createStandardPrefabContent(nodeData, prefabName, actualPrefabUuid, includeChildren, includeComponents);
-                const prefabContentString = JSON.stringify(prefabContent, null, 2);
-
-                // 第四步：更新预制体文件内容
-                debugLog('更新预制体文件内容...');
-                const updateResult = await this.updateAssetWithAssetDB(savePath, prefabContentString);
-                
-                // 第五步：创建对应的meta文件（使用实际UUID）
-                debugLog('创建预制体meta文件...');
-                const metaContent = this.createStandardMetaContent(prefabName, actualPrefabUuid);
-                const metaResult = await this.createMetaWithAssetDB(savePath, metaContent);
-                
-                // 第六步：重新导入资源以更新引用
-                debugLog('重新导入预制体资源...');
-                const reimportResult = await this.reimportAssetWithAssetDB(savePath);
-
-                // 第七步：尝试将原始节点转换为预制体实例
-                debugLog('尝试将原始节点转换为预制体实例...');
-                const convertResult = await this.convertNodeToPrefabInstance(nodeUuid, actualPrefabUuid, savePath);
-                
-                resolve({
-                    success: true,
-                    data: {
-                        prefabUuid: actualPrefabUuid,
-                        prefabPath: savePath,
-                        nodeUuid: nodeUuid,
-                        prefabName: prefabName,
-                        convertedToPrefabInstance: convertResult.success,
-                        createAssetResult: createResult,
-                        updateResult: updateResult,
-                        metaResult: metaResult,
-                        reimportResult: reimportResult,
-                        convertResult: convertResult,
-                        message: convertResult.success ? '预制体创建并成功转换原始节点' : '预制体创建成功，但节点转换失败'
-                    }
-                });
-
-            } catch (error) {
-                console.error('创建预制体时发生错误:', error);
-                resolve({
-                    success: false,
-                    error: `创建预制体失败: ${error}`
-                });
-            }
-        });
-    }
-
     private async createPrefab(args: any): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
@@ -417,146 +325,37 @@ export class PrefabTools implements ToolExecutor {
                 }
 
                 const prefabName = args.prefabName || 'NewPrefab';
-                const fullPath = pathParam.endsWith('.prefab') ? 
+                const fullPath = pathParam.endsWith('.prefab') ?
                     pathParam : `${pathParam}/${prefabName}.prefab`;
 
-                const includeChildren = args.includeChildren !== false; // 默认为 true
-                const includeComponents = args.includeComponents !== false; // 默认为 true
-
-                // First try the official scene-script facade. cce.Prefab.createPrefab
-                // is the path the editor itself uses; when it works it produces a
-                // 100%-engine-formatted prefab file so we don't need any of the
-                // hand-rolled JSON paths below.
-                debugLog('Trying scene-script cce.Prefab.createPrefab path...');
+                // The official scene-facade path (cce.Prefab.createPrefab via
+                // execute-scene-script). The legacy hand-rolled JSON fallback
+                // (createPrefabWithAssetDB / createPrefabNative / createPrefabCustom,
+                // ~250 source lines) was removed in v2.1.3 — see commit 547115b
+                // for the pre-removal source if a future Cocos Creator build
+                // breaks the facade path. The facade has been the only path
+                // exercised in v2.1.1 / v2.1.2 real-editor testing across
+                // simple and complex (nested + multi-component) prefab forms.
+                debugLog('Calling scene-script cce.Prefab.createPrefab...');
                 const facadeResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [args.nodeUuid, fullPath]);
-                if (facadeResult.success) {
-                    // Make sure asset-db notices the new file regardless of how the
-                    // facade chose to write it.
-                    try {
-                        await Editor.Message.request('asset-db', 'refresh-asset', fullPath);
-                    } catch (refreshErr: any) {
-                        debugLog(`refresh-asset after facade createPrefab failed (non-fatal): ${refreshErr?.message ?? refreshErr}`);
-                    }
-                    resolve({
-                        ...facadeResult,
-                        data: {
-                            ...(facadeResult.data ?? {}),
-                            prefabName,
-                            prefabPath: fullPath,
-                            method: 'scene-facade',
-                        },
-                    });
+                if (!facadeResult.success) {
+                    resolve(facadeResult);
                     return;
                 }
-                debugLog(`Facade path failed: ${facadeResult.error}; falling back to asset-db hand-rolled JSON path.`);
-
-                // Fallback: legacy asset-db method that hand-builds prefab JSON.
-                // Kept for editor builds where cce.Prefab is unavailable.
-                debugLog('使用 asset-db 方法创建预制体（fallback）...');
-                const assetDbResult = await this.createPrefabWithAssetDB(
-                    args.nodeUuid,
-                    fullPath,
-                    prefabName,
-                    includeChildren,
-                    includeComponents
-                );
-
-                if (assetDbResult.success) {
-                    resolve(assetDbResult);
-                    return;
+                try {
+                    await Editor.Message.request('asset-db', 'refresh-asset', fullPath);
+                } catch (refreshErr: any) {
+                    debugLog(`refresh-asset after facade createPrefab failed (non-fatal): ${refreshErr?.message ?? refreshErr}`);
                 }
-
-                // 如果 asset-db 方法失败，尝试使用Cocos Creator的原生预制体创建API
-                debugLog('asset-db 方法失败，尝试原生API...');
-                const nativeResult = await this.createPrefabNative(args.nodeUuid, fullPath);
-                if (nativeResult.success) {
-                    resolve(nativeResult);
-                    return;
-                }
-
-                // 如果原生API失败，使用自定义实现
-                debugLog('原生API失败，使用自定义实现...');
-                const customResult = await this.createPrefabCustom(args.nodeUuid, fullPath, prefabName);
-                resolve(customResult);
-
-            } catch (error) {
                 resolve({
-                    success: false,
-                    error: `创建预制体时发生错误: ${error}`
+                    ...facadeResult,
+                    data: {
+                        ...(facadeResult.data ?? {}),
+                        prefabName,
+                        prefabPath: fullPath,
+                        method: 'scene-facade',
+                    },
                 });
-            }
-        });
-    }
-
-    private async createPrefabNative(nodeUuid: string, prefabPath: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            // 根据官方API文档，不存在直接的预制体创建API
-            // 预制体创建需要手动在编辑器中完成
-            resolve({
-                success: false,
-                error: '原生预制体创建API不存在',
-                instruction: '根据Cocos Creator官方API文档，预制体创建需要手动操作：\n1. 在场景中选择节点\n2. 将节点拖拽到资源管理器中\n3. 或右键节点选择"生成预制体"'
-            });
-        });
-    }
-
-    private async createPrefabCustom(nodeUuid: string, prefabPath: string, prefabName: string): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                // 1. 获取源节点的完整数据
-                const nodeData = await this.getNodeData(nodeUuid);
-                if (!nodeData) {
-                    resolve({
-                        success: false,
-                        error: `无法找到节点: ${nodeUuid}`
-                    });
-                    return;
-                }
-
-                // 2. 生成预制体UUID
-                const prefabUuid = this.generateUUID();
-
-                // 3. 创建预制体数据结构
-                const prefabData = this.createPrefabData(nodeData, prefabName, prefabUuid);
-
-                // 4. 基于官方格式创建预制体数据结构
-                debugLog('=== 开始创建预制体 ===');
-                debugLog('节点名称:', nodeData.name?.value || '未知');
-                debugLog('节点UUID:', nodeData.uuid?.value || '未知');
-                debugLog('预制体保存路径:', prefabPath);
-                debugLog(`开始创建预制体，节点数据:`, nodeData);
-                const prefabJsonData = await this.createStandardPrefabContent(nodeData, prefabName, prefabUuid, true, true);
-
-                // 5. 创建标准meta文件数据
-                const standardMetaData = this.createStandardMetaData(prefabName, prefabUuid);
-
-                // 6. 保存预制体和meta文件
-                const saveResult = await this.savePrefabWithMeta(prefabPath, prefabJsonData, standardMetaData);
-
-                if (saveResult.success) {
-                    // 保存成功后，将原始节点转换为预制体实例
-                    const convertResult = await this.convertNodeToPrefabInstance(nodeUuid, prefabPath, prefabUuid);
-                    
-                    resolve({
-                        success: true,
-                        data: {
-                            prefabUuid: prefabUuid,
-                            prefabPath: prefabPath,
-                            nodeUuid: nodeUuid,
-                            prefabName: prefabName,
-                            convertedToPrefabInstance: convertResult.success,
-                            message: convertResult.success ? 
-                                '自定义预制体创建成功，原始节点已转换为预制体实例' : 
-                                '预制体创建成功，但节点转换失败'
-                        }
-                    });
-                } else {
-                    resolve({
-                        success: false,
-                        error: saveResult.error || '保存预制体文件失败'
-                    });
-                }
-
             } catch (error) {
                 resolve({
                     success: false,
