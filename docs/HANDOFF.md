@@ -3,13 +3,17 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.5 完工 / live-test backlog 清空）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.5 完工 + doc 重整 / P2 待開新 session）
 
-當下版本：**v2.1.5**（origin/main HEAD = `d36221e`，已 push）。
-P0/P1/P4/v2.1.1/v2.1.2/v2.1.2-audit/v2.1.3/v2.1.4 全部完工。本 session 把
-v2.1.4 留下的 5 條 live-test backlog 一次清完，每條都搭配 user 配合 reload
-+ curl-driven 實機驗證。沒有 in-flight 任務、沒有未推 commit、沒有殘留測試
-資產。
+當下版本：**v2.1.5**（origin/main HEAD = doc 重整 commit，已 push）。
+P0/P1/P4/v2.1.1/v2.1.2/v2.1.2-audit/v2.1.3/v2.1.4 全部完工，**v2.1.5 5 條
+live-test backlog 全清**。本 session 在 v2.1.5 之後又做了一輪 **doc 重整**：
+歸檔上游 README/FEATURE_GUIDE、重寫 root README（zh-TW、fork-accurate）、
+寫 `scripts/generate-tools-doc.js` + 自動產 `docs/tools.md`、清掉 dead
+artifact `TestScript.js`。沒有 in-flight 程式碼任務。
+
+**下一步是 P2 工具收斂評估**（ADR 0001 §4 的 conditional gate）—— **新開
+session 處理**，不在本 backlog。動工順序見下方「P2 待辦」。
 
 **`package.json:version` 已 bump 到 `2.1.5`**（patch bump：每條都是新增 opt-in
 旗標 / 重寫 buggy implementation，沒有公共 tool name 增減；工具數仍 160）。
@@ -77,6 +81,62 @@ opt-in `openAfter`. schema 多 `openAfter`（default true）+ `overwrite`
 （default false）。實機 4/4 通：fresh path / collision (no overwrite) → 純
 error 無 dialog / collision (overwrite) → silent 覆寫 / 都在 ~330ms。
 
+### Doc 重整（v2.1.5 後續，本 session 第二段）
+
+緊接 v2.1.5 之後做的 doc 全面盤整，commit chain 待寫入：
+
+- **歸檔上游 doc**：`README.md` / `README.EN.md` / `FEATURE_GUIDE_CN.md` /
+  `FEATURE_GUIDE_EN.md` 從根目錄移到 `docs/archive/upstream-docs/`。
+  原內容是上游 v1.5.0 行銷話術（聲稱 50 工具收斂、token -50% 等等都未實作），
+  保留歷史脈絡用，不再更新。
+- **重寫 root README**：純 zh-TW、fork-accurate；明確聲明本 fork 不對齊
+  v1.5.0 規劃、列實際工具數（160 / 14 categories）+ 安裝 + AI client 配置
+  + 文件導覽。多語暫不規劃（user 指示：日後另開 session 處理，可能採
+  `docs/i18n/` 布局）。
+- **`docs/tools.md` 由 generator 產**：`scripts/generate-tools-doc.js` 跑
+  `createToolRegistry()` → 為每個工具輸出 markdown（name + description +
+  input schema 表）。手寫的 intro / category 描述放 generator 內當 const map。
+  工具增減後 `npm run build && node scripts/generate-tools-doc.js` 重跑就同步。
+- **清 dead artifact**：repo 根目錄的 `TestScript.js` 是上游 dev 殘留 cocos
+  Component（編譯後 .js + sourcemap），無人 reference、cocos 不會從擴充套件
+  根目錄載 component。直接刪除。
+- **`docs/README.md` 索引同步**：加 `tools.md` + `archive/upstream-docs/`
+  條目，加註 generator-managed 的維護規則。
+
+### v1.4.0 / v1.5.0 落差現況（更新自 v2.1.5 + doc 重整）
+
+| 項目 | 狀態 | 何時做 |
+|---|---|---|
+| v1.4.0 Prefab 100% 對齊（fileId / `__id__` 全鏈路） | 🟡 code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），缺 byte-level diff 驗證 | **觸發再做**：有人回報 byte-level 不一致時、或主動配「乾淨 fixture 專案」session 比對 |
+| v1.5.0 #1 工具收斂為 50 個 | ❌ 未做 | **下一個 session 啟動 P2 評估**（先量測 token） |
+| v1.5.0 #2 token -50% | ❌ 未量測 | 同 P2 評估 |
+| v1.5.0 #3 Prefab 完整 API | ✅ done（P4 T-P4-3 + v2.1.4 set_link 合併） | — |
+| v1.5.0 #4 事件綁定 | ✅ done（P4 T-P4-1 + v2.1.2 持久化修補） | — |
+| v1.5.0 #5 介面參數更清晰 | 🟡 v2.1.5 batch 已改 5 個工具的描述、其餘 ~155 個多半還是上游英文短描述 | **不獨立排**：未來改某工具時順便修；或下次重跑 generator 時順手 review |
+| v1.5.0 #6 面板 UI 簡潔 | ✅ done（P4 T-P4-2，縮小範圍只拆 composable） | — |
+| v1.5.0 #7 整體架構效率 | ❌ 跳過（無可測指標，ADR 0001） | — |
+
+### P2 待辦（下次 session 啟動點）
+
+依 ADR 0001 §4：「token 量測撐得起才做收斂；撐不起就直接 close P2」。
+**啟動 P2 必走步驟**：
+
+1. **寫 token 量測 script**（`scripts/measure-tokens.js` 之類）：
+   - mock 一個 MCP client，跑 `tools/list` → 用 anthropic 或 tiktoken 算
+     全 160 工具 schema 文字的 prompt token cost
+   - 對選定的 ~10 個常用工具跑 `tools/call`（含 args + structured response）→
+     算 round-trip token
+   - 對照「假想 P2 後的 50 個 action router」估算合併 schema 的 token
+   - 不需要乾淨 fixture 專案；對 `cocos_cs_349` + `a-test.scene` 跑就行
+2. **比對結果**：差距 ≥30% → 啟動 P2；< 15% → 直接 close P2、補進 ADR 0001
+3. P2 真要動工的話，**分批切**（不要一次重寫 14 個 tool 檔），每批一個
+   category、跑 schema diff 確認等價、再合併
+
+P2 之外的 backlog（roadmap 級別）：
+- **P3 MCP 進階能力**（Resources / Prompts / Notifications）：與 P2 互不相依，
+  順序視當下需求；見 `docs/roadmap/04-protocol-extensions.md`
+- **Prefab byte-level 比對**：上面表格的 v1.4.0 #1，乾淨 fixture 專案 session
+
 ### 觀察 / 提醒
 
 - 上一條 dialog-blocks-IPC 的問題還可能出現在其它 asset-db channel：任何
@@ -93,9 +153,10 @@ error 無 dialog / collision (overwrite) → silent 覆寫 / 都在 ~330ms。
 
 - MCP server 預設 port 3000；測試場景 `db://assets/test-mcp/a-test.scene`
   含 TestBtn (cc.Sprite + cc.Button + script) + Camera + Canvas，是本
-  session 主要驗證場域。
+  session v2.1.5 主要驗證場域。
 - `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/` 已同步到
-  v2.1.5 dist + package.json（每條 commit 後都 cp 過）。
+  v2.1.5 dist + package.json（每條 commit 後都 cp 過）。doc-only 的 commit
+  不需 sync 安裝路徑（cocos 不讀 .md）。
 
 ### 上一個 session（v2.1.4）commit chain（已 push、留作回滾參考）
 

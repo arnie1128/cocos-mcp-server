@@ -9,6 +9,7 @@
 docs/
 ├── README.md                          # 本檔，整體導覽
 ├── HANDOFF.md                         # session 暫停 / 接手指南（隨進度更新）
+├── tools.md                           # 160 個 MCP 工具完整參考（自動產生，勿手改）
 ├── architecture/                      # 系統如何運作（描述現況）
 │   ├── overview.md                    # 整體架構與資料流
 │   └── tool-system.md                 # 工具註冊／分派機制
@@ -24,17 +25,21 @@ docs/
 │   ├── 03-tool-consolidation.md       # P2：工具收斂
 │   ├── 04-protocol-extensions.md      # P3：MCP 進階能力
 │   └── 05-v15-spec-parity.md          # P4：v1.5.0 部分對齊
-└── adr/                               # Architectural Decision Records
-    ├── README.md                      # ADR 總覽
-    └── 0001-skip-v1.5.0-spec.md       # 不追原作者 v1.5.0 spec 的決議
+├── adr/                               # Architectural Decision Records
+│   ├── README.md                      # ADR 總覽
+│   └── 0001-skip-v1.5.0-spec.md       # 不追原作者 v1.5.0 spec 的決議
+└── archive/                           # 歷史紀錄、不再活躍的文件
+    ├── handoff-history.md             # 舊 HANDOFF 段落歷史
+    └── upstream-docs/                 # 上游 v1.4 README / FEATURE_GUIDE 原檔
 ```
 
 ## 閱讀順序建議
 
 | 你是誰 | 從哪開始 |
 |---|---|
-| 第一次接觸這個 fork | `architecture/overview.md` → `analysis/upstream-status.md` |
-| 想知道有哪些坑 | `analysis/code-quality.md` |
+| 第一次接觸這個 fork | repo 根目錄 `README.md` → `architecture/overview.md` → `analysis/upstream-status.md` |
+| 想找某個 MCP 工具的用法 | `tools.md`（本檔工具索引） |
+| 想知道有哪些坑 | `analysis/code-quality.md`、repo 根目錄 `CLAUDE.md` §Landmines |
 | 想開始動工 | `roadmap/README.md` 看優先序，再看對應階段檔 |
 | 想理解某個決定為什麼這樣定 | `adr/` |
 | AI session 要操作專案 | repo 根目錄 `CLAUDE.md` |
@@ -45,4 +50,8 @@ docs/
 - `architecture/` 是**現況描述**，重大重構後同步更新。
 - `analysis/` 是**靜態快照**，加註撰寫日期；不要事後改寫已落地的觀察。
 - `roadmap/` 內各階段完成後在該檔頂端加 `Status: done` 並保留歷史。
+- `tools.md` **由 `scripts/generate-tools-doc.js` 自動產生**，勿手改；
+  工具增減 / schema 變動後跑 `npm run build && node scripts/generate-tools-doc.js`
+  重新產出。手寫的章節介紹（intro、category 描述）放在 generator 內。
+- `archive/` 收已不活躍的文件（舊 HANDOFF 段、上游 README 原檔等），不再更新。
 - 新文件加進來時，更新本檔的目錄樹。
