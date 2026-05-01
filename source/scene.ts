@@ -29,14 +29,17 @@ function getPrefabFacade(): FacadeLookup {
         cce.SceneFacadeManager?.instance,
         cce.SceneFacadeManager as PrefabFacade | undefined,
     ];
+    // Ensure the candidate exposes every facade method we may call;
+    // a partial candidate would crash at the first missing method.
+    const required: Array<keyof PrefabFacade> = ['createPrefab', 'applyPrefab', 'linkPrefab', 'unlinkPrefab', 'getPrefabData'];
     for (const candidate of candidates) {
-        if (candidate && typeof candidate.createPrefab === 'function') {
+        if (candidate && required.every(m => typeof (candidate as any)[m] === 'function')) {
             return { ok: true, value: candidate };
         }
     }
     return {
         ok: false,
-        error: 'No prefab facade found on cce (cce.Prefab / cce.SceneFacadeManager). Cocos editor build may not expose the expected manager.',
+        error: 'No complete prefab facade found on cce (cce.Prefab / cce.SceneFacadeManager). Cocos editor build may not expose the expected manager or only exposes a partial surface.',
     };
 }
 
@@ -441,17 +444,24 @@ export const methods: { [key: string]: (...any: any) => any } = {
                     // prefab instance with a fresh UUID, so the caller-supplied
                     // nodeUuid is no longer valid. Resolve the new UUID by
                     // querying nodes that reference the freshly minted asset.
-                    const assetUuid: string | null = typeof result === 'string'
-                        ? result
-                        : (result && typeof result === 'object' && typeof (result as any).uuid === 'string' ? (result as any).uuid : null);
+                    let assetUuid: string | null = null;
+                    if (typeof result === 'string') {
+                        assetUuid = result;
+                    } else if (result && typeof result === 'object' && typeof (result as any).uuid === 'string') {
+                        assetUuid = (result as any).uuid;
+                    }
                     let instanceNodeUuid: string | null = null;
                     if (assetUuid) {
                         try {
                             const instances: any = await Editor.Message.request('scene', 'query-nodes-by-asset-uuid', assetUuid);
                             if (Array.isArray(instances) && instances.length > 0) {
                                 // Newly-created prefab instance is typically the
-                                // only one; pick the last entry as a stable
-                                // tiebreaker if multiple already exist.
+                                // last entry. Caveat: if the same asset already
+                                // had instances in the scene, "last" picks one
+                                // of them rather than the new one. The editor
+                                // appears to return creation order, but the API
+                                // is undocumented; callers requiring strict
+                                // identification should snapshot before calling.
                                 instanceNodeUuid = instances[instances.length - 1];
                             }
                         } catch {

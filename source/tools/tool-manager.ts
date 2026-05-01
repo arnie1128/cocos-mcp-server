@@ -32,8 +32,9 @@ export class ToolManager {
         const registryKey = (t: { category: string; name: string }) => `${t.category}::${t.name}`;
         const registryIndex = new Map(this.availableTools.map(t => [registryKey(t), t]));
 
-        let mutated = false;
+        let anyMutated = false;
         for (const config of this.settings.configurations) {
+            let configMutated = false;
             const seen = new Set<string>();
             const kept: ToolConfig[] = [];
             for (const tool of config.tools) {
@@ -43,22 +44,23 @@ export class ToolManager {
                     kept.push(tool);
                 } else {
                     debugLog(`[ToolManager] Dropping stale tool from config '${config.name}': ${k}`);
-                    mutated = true;
+                    configMutated = true;
                 }
             }
             for (const [k, tool] of registryIndex) {
                 if (!seen.has(k)) {
                     kept.push({ ...tool });
                     debugLog(`[ToolManager] Adding new tool to config '${config.name}': ${k}`);
-                    mutated = true;
+                    configMutated = true;
                 }
             }
-            if (mutated) {
+            if (configMutated) {
                 config.tools = kept;
                 config.updatedAt = new Date().toISOString();
+                anyMutated = true;
             }
         }
-        if (mutated) {
+        if (anyMutated) {
             this.saveSettings();
             debugLog('[ToolManager] Reconciled saved configurations with current registry');
         }
