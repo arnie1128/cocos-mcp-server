@@ -1084,7 +1084,7 @@ Capture multiple PNGs of the editor window with optional delays between shots. U
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
 | `savePathPrefix` | string |  |  | Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>. |
-| `delaysMs` | array<number> |  | `[0]` | Delay (ms) before each capture. Length determines how many shots taken. Default [0] = single shot. |
+| `delaysMs` | array<number> |  | `[0]` | Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot. |
 | `windowTitle` | string |  |  | Optional substring match on window title. |
 
 ---

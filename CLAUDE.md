@@ -292,6 +292,36 @@ token cost is measured.
    `overwrite` parameter — it's a no-op against the dialog. Always
    explicit-delete-then-write or fail-fast on collision from your code.
 
+13. **`debug_execute_javascript(context='editor')` opt-in has two distinct
+   layers** (added v2.3.0 / hardened v2.3.1). Once `enableEditorContextEval`
+   is opted in, AI-produced code runs through `(0, eval)` in the editor host
+   process — same trust level as Cocos editor itself.
+
+   - **Runtime flag layer** — `setEditorContextEvalEnabled` is a per-process
+     module flag. v2.3.1 wired `updateSettings()` to re-apply it on every
+     settings change, so the panel toggle takes effect immediately. Disable
+     in panel = next eval call rejected. **Reversible at the runtime level.**
+   - **Persisted state layer** — the eval'd code can `require('fs')` and
+     write to `<project>/settings/mcp-server.json` while it's allowed to
+     run. If it sets `enableEditorContextEval: true` there, the persisted
+     value is what `readSettings()` will return on next launch / reload.
+     User's later panel toggle disables runtime eval, but **the on-disk
+     setting may have been edited and persists**. Auditing what the AI
+     wrote requires opening the settings JSON manually. **Not automatically
+     reversible at the persisted layer.**
+
+   Other implications of the opt-in:
+
+   - The eval'd code can `require('@cocos/creator-types')` etc. and call
+     any `Editor.Message` channel — equivalent to having unsigned editor
+     extension privileges.
+
+   Rule of thumb: **only enable when the upstream prompt source is
+   trusted for that whole session** (your own typing, not piped from
+   issues / chat / web). Default `false` in `DEFAULT_SETTINGS`. Don't
+   add tools that programmatically flip this flag — the opt-in is meant
+   to be a deliberate human gesture in the panel UI.
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.

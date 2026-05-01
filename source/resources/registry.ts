@@ -196,8 +196,13 @@ function readDocsSection(absPath: string, sectionHeader: string): string {
     if (!fs.existsSync(absPath)) {
         return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`.`;
     }
-    const content = fs.readFileSync(absPath, 'utf8');
-    const lines = content.split('\n');
+    // Strip optional UTF-8 BOM that some editors add to markdown files.
+    const raw = fs.readFileSync(absPath, 'utf8');
+    const content = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
+    // v2.3.1 review fix: split on CRLF or LF so Windows-saved markdown
+    // doesn't leave \r residue at end of every line and confuse the section
+    // header equality check below.
+    const lines = content.split(/\r?\n/);
     // Match exact header or "## Header (...)" form. Section headers in CLAUDE.md
     // sometimes carry a parenthetical hint after the title, e.g.
     // "## Landmines (read before editing)".

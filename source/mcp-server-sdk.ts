@@ -486,6 +486,13 @@ export class MCPServer {
         try {
             this.settings = settings;
             setDebugLogEnabled(settings.enableDebugLog);
+            // v2.3.1 review fix: panel toggles for enableEditorContextEval must
+            // take effect immediately. Without this re-apply, disabling the
+            // setting after enable would leave the runtime flag ON until the
+            // entire extension reloads — a security-relevant gap because the
+            // editor-context eval would keep accepting AI-generated host-side
+            // code despite the user's panel choice.
+            setEditorContextEvalEnabled(settings.enableEditorContextEval ?? false);
             if (this.httpServer) {
                 await this.stop();
                 await this.start();

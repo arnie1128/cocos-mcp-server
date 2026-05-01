@@ -42,7 +42,7 @@ const debugSchemas = {
     }),
     batch_screenshot: z.object({
         savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
-        delaysMs: z.array(z.number().min(0).max(10000)).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken. Default [0] = single shot.'),
+        delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
         windowTitle: z.string().optional().describe('Optional substring match on window title.'),
     }),
 } as const;
@@ -88,8 +88,22 @@ export class DebugTools implements ToolExecutor {
                 return await this.clearConsole();
             case 'execute_javascript':
                 return await this.executeJavaScript(a.code, a.context ?? 'scene');
-            case 'execute_script':
-                return await this.executeJavaScript(a.script, 'scene');
+            case 'execute_script': {
+                // Compat path: preserve the pre-v2.3.0 response shape
+                // {success, data: {result, message: 'Script executed successfully'}}
+                // so older callers reading data.message keep working.
+                const out = await this.executeJavaScript(a.script, 'scene');
+                if (out.success && out.data && 'result' in out.data) {
+                    return {
+                        success: true,
+                        data: {
+                            result: out.data.result,
+                            message: 'Script executed successfully',
+                        },
+                    };
+                }
+                return out;
+            }
             case 'get_node_tree':
                 return await this.getNodeTree(a.rootUuid, a.maxDepth);
             case 'get_performance_stats':
@@ -530,12 +544,19 @@ export class DebugTools implements ToolExecutor {
             }
             return matches[0];
         }
-        const focused = BW.getFocusedWindow?.();
-        if (focused && !focused.isDestroyed()) return focused;
-        const all = BW.getAllWindows().filter((w: any) => w && !w.isDestroyed());
+        // v2.3.1 review fix: focused window may be a transient preview popup.
+        // Prefer a non-Preview window so default screenshots target the main
+        // editor surface. Caller can still pass titleSubstring='Preview' to
+        // explicitly target the preview when wanted.
+        const all: any[] = BW.getAllWindows().filter((w: any) => w && !w.isDestroyed());
         if (all.length === 0) {
             throw new Error('No live Electron windows; cannot capture screenshot.');
         }
+        const isPreview = (w: any) => /preview/i.test(w.getTitle?.() || '');
+        const nonPreview = all.filter((w: any) => !isPreview(w));
+        const focused = BW.getFocusedWindow?.();
+        if (focused && !focused.isDestroyed() && !isPreview(focused)) return focused;
+        if (nonPreview.length > 0) return nonPreview[0];
         return all[0];
     }
 

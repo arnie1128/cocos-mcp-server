@@ -1,5 +1,51 @@
 # Changelog
 
+## v2.3.1 — 2026-05-02
+
+Three-way review fixes (codex / claude / gemini) on v2.3.0. No API surface
+changes; all fixes are correctness / safety / backward-compat hardening.
+
+### Must-fix
+
+- **`updateSettings()` now re-applies `setEditorContextEvalEnabled`**. Previously
+  the panel toggle for `enableEditorContextEval` only took effect on extension
+  reload — disabling mid-session left host-side eval ON until reload. Both
+  reviewers (codex + claude) flagged this as security-relevant. Fix at
+  `source/mcp-server-sdk.ts:updateSettings`.
+- **`execute_script` response shape preserved**. v2.3.0 changed the alias
+  response from `{data: {result, message}}` to `{data: {context, result}}`.
+  Existing callers reading `data.message` would break. Fixed by wrapping the
+  alias path to restore the legacy shape; new `execute_javascript` keeps
+  `{context, result}` form.
+- **`batch_screenshot.delaysMs` capped at 20 elements**. Previously unbounded
+  array length → potential disk fill / editor freeze on AI mistake. Added
+  `.max(20)` to the zod schema.
+
+### Worth-considering
+
+- **`pickWindow` prefers non-Preview windows by default**. `getFocusedWindow()`
+  could be a transient preview popup; default screenshots now target the main
+  editor surface unless caller passes `windowTitle: 'Preview'` explicitly.
+- **`readDocsSection` handles CRLF + UTF-8 BOM**. Markdown docs saved on
+  Windows had `\r` residue at line ends; section header equality check would
+  silently fail. Now splits on `\r?\n` and strips leading BOM.
+
+### Documentation
+
+- **CLAUDE.md landmine #13** — explicit threat-model entry for
+  `execute_javascript(context='editor')`. Documents that opt-in is a one-way
+  trust commitment per session (AI can persist `enableEditorContextEval=true`
+  to settings file via `require('fs')`, defeating future panel toggles).
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- `node scripts/measure-tool-tokens.js` decision = CLOSE P2 unchanged
+- `node scripts/generate-tools-doc.js` 14 cat / 163 tools unchanged
+
+---
+
 ## v2.3.0 — 2026-05-02
 
 AI workflow 強化：MCP 內最小 Code Mode + AI 視覺驗證閉環 + AI 自助查 docs。
