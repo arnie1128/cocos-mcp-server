@@ -159,41 +159,6 @@ export class PrefabToolsTest {
         console.log('测试4完成\n');
     }
 
-    // 测试预制体数据结构生成
-    testPrefabDataGeneration() {
-        console.log('测试预制体数据结构生成...');
-        
-        const mockNodeData = {
-            name: 'TestNode',
-            position: { x: 0, y: 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            active: true,
-            children: [],
-            components: [
-                {
-                    type: 'cc.UITransform',
-                    enabled: true,
-                    properties: {
-                        _contentSize: { width: 100, height: 100 },
-                        _anchorPoint: { x: 0.5, y: 0.5 }
-                    }
-                }
-            ]
-        };
-
-        const prefabUuid = this.prefabTools['generateUUID']();
-        const prefabData = this.prefabTools['createPrefabData'](mockNodeData, 'TestPrefab', prefabUuid);
-        
-        console.log('生成的预制体数据结构:');
-        console.log(JSON.stringify(prefabData, null, 2));
-        
-        // 验证数据结构
-        const validationResult = this.prefabTools['validatePrefabFormat'](prefabData);
-        console.log('验证结果:', validationResult);
-        
-        console.log('预制体数据结构生成测试完成\n');
-    }
-
     // 测试UUID生成
     testUUIDGeneration() {
         console.log('测试UUID生成...');
@@ -218,6 +183,5 @@ export class PrefabToolsTest {
 if (typeof module !== 'undefined' && module.exports) {
     const test = new PrefabToolsTest();
     test.runAllTests();
-    test.testPrefabDataGeneration();
     test.testUUIDGeneration();
 } 
