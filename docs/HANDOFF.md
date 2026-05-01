@@ -3,45 +3,63 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.1 完工 + v2.1.2 backlog 排定）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 完工）
 
-當下版本：**v2.1.1 + 4-way 審後修補**（`823b783`）。Test 1/2/3 全部
-實機驗完，HANDOFF 早先「snapshot 持久化 EventHandler」的宣稱是**錯的**，
-本檔已訂正（見下方 §Test 1 結果）。後續工作見 **v2.1.2 backlog**：
+當下版本：**v2.1.2**（commit `4d15563`）。P0/P1/P4/v2.1.1/v2.1.2 全部完工，
+Test 1/2/3 + remove_event_handler + Toggle.checkEvents 全實機驗完。沒有
+in-flight 任務。本檔 + CLAUDE.md Landmine #11 同步至 4d15563 狀態。
 
-- **P1（嚴重）**：`addEventHandler` / `removeEventHandler` 改走
-  `Editor.Message scene/insert-array-element` / `remove-array-element` 正規
-  channel；目前的 `arr.push` / `arr.splice` 只動 runtime cc.Button.clickEvents，
-  editor 序列化模型收不到 → `save_scene` 寫出空 clickEvents → preview 拿不到
-  handler。今天用「改 transition 觸發 inspector 路徑同步 → 自動存」繞過後，
-  實機 dispatch 實證 1 次 fired（log line 40786），所以路徑本身正確，問題在持久化。
-- **P2(b)**：`debug_get_console_logs` 是 placeholder（`setupConsoleCapture` 為空
-  shell），永遠回 `[]`。從 tool list 拿掉，描述指向已可用的
-  `debug_get_project_logs`。
-- **P3 已完成**：本檔 + CLAUDE.md 的錯誤宣稱訂正、Test 1 結果寫入。
+**v2.1.2 內容**（含修補史）：
+- ✅ **P1 EventHandler 持久化**：scene-script `arr.push` 不動 editor
+  序列化模型 → `save-scene` 寫不到 disk。修法：host 端在
+  `component-tools.ts:nudgeEditorModel` 對 `set-property` 發
+  `nodeUuid + __comps__.<idx>.enabled` 的 no-op 寫回，觸發 model 重 pull
+  runtime。第一版（commit `92a613e`）試從 scene-script 內 nudge，失敗
+  （scene-process IPC short-circuit）；第二版（commit `4d15563`）改 host-side
+  通過。實機驗證：Button.clickEvents add/remove 都正確持久化（disk 4→6→5）；
+  Toggle.checkEvents 也通（`__comps__.<idx>.enabled` 因 enabled 在
+  cc.Component 基類，跨 component 通用）。
+- ✅ **P2(b)**：拿掉 `debug_get_console_logs`（`setupConsoleCapture` 是
+  placeholder、永遠回空陣列）。tools 163 → 162；debug 類 10 → 9。
+  consumer 改用 `debug_get_project_logs` / `debug_search_project_logs`。
+- ✅ **P3**：HANDOFF / CLAUDE.md 錯誤宣稱訂正，Test 1 runtime dispatch
+  fired 結果寫入。
 
-接手順序：**先做 P1，再做 P2(b)**，每項完成都更 HANDOFF + CLAUDE.md +
-build/smoke + commit + push + sync 349（feedback memory 規定）。
+**剩餘低優先項**（不阻塞，下次想做就做）：
+- v2.1.2 P4：`_componentName` workaround（issue #16517）的必要性 —— disk
+  上沒這欄位仍 dispatch fired，可能冗餘。要做乾淨對照組（不設
+  `_componentName` add → save → reload preview → click）才能真的拿掉。
+- `add_component` verification by class name（顯示 cid 而非 class name 時
+  誤判 not-found）—— 整 session 都遇到過，但 component 實際有加上、後續
+  操作正常。屬 UX 修補，非 P1 等級。
+- `remove_event_handler` 用 `(targetNodeUuid, handler)` 字串匹配（非
+  index）的容錯（codex round-1 提過 trim 等級的 nit）。
 
 **環境**：MCP server 預設 port 3000；測試場景
-`db://assets/test-mcp/p4-test.scene` 已被改造為含 Canvas/Camera/TestBtn
-（白底 button + EhTest component + clickEvents → onClickFromMcp）。
-TS 元件路徑 `assets/00_dev/test/EhTest.ts`（純測試用，可隨時刪）。
-所有改動已 push 到 origin/main，已同步到
+`db://assets/test-mcp/p4-test.scene` 含：
+- TestBtn（cc.UITransform + cc.Button + EhTest + cc.Sprite，5 個 clickEvents
+  指向 EhTest.onClickFromMcp）；位於 Canvas 下，可 preview 點擊
+- TestToggle（cc.UITransform + cc.Sprite + cc.Toggle + EhTest，1 個
+  checkEvents 指向 EhTest.onClickFromMcp[customEventData=toggle-check]）
+- ComplexRoot（multi-child / multi-component prefab instance from
+  Test 2，prefab asset uuid `e70a18bb-fdf2-44b0-b685-3e79838f3a3c`）
+
+TS 測試元件 `D:/1_dev/cocos_cs/cocos_cs_349/assets/00_dev/test/EhTest.ts`
+（純測試用，可隨時刪）。所有 commit 已 push origin/main，dist 已同步至
 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`。
 
-## 進度快照（最後更新：2026-05-01 收尾；P4 全驗 + v2.1.2 backlog 排定）
+## 進度快照（最後更新：2026-05-01 v2.1.2 完工）
 
 ```
 P0 ✅ done
 P1 ✅ done
-P4 ✅ done（v2.1.1 包含實機驗證 + 4-way review 修補 823b783）
+P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
    ├── T-P4-3 Prefab façade 工具集    ✅ code done + 實機 5/5 通（含複雜節點）
-   ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機 4/4 通（含 dispatch fired）
-   │                                  ⚠️ 持久化 bug → v2.1.2 P1
+   ├── T-P4-1 EventHandler 工具集     ✅ code done + 實機通（dispatch fired
+   │                                  + add/remove 持久化 + Toggle.checkEvents）
    └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
-v2.1.2 ✅ done（P1 持久化 bug 修補 + P2(b) 拿掉 placeholder console_logs）
-P2/P3 ⏳ pending
+v2.1.2 ✅ done（P1 host-side nudge 4d15563 + P2(b) 拿 placeholder + P3 文件訂正）
+P2/P3 ⏳ pending（roadmap 級別，非 v2 patch）
 ```
 
 **v2.1.1 內容**（commit `62f6e83`）：
@@ -359,6 +377,14 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   - scene.ts 的 `addEventHandler` / `removeEventHandler` 已改回 sync，
     保留新加的 `componentUuid` / `componentEnabled` 欄位在 `data` 裡（給
     debug / 將來其他 nudge 路徑備用，host-side 目前不用這兩欄、自己 query）。
+  - **後續補測（2026-05-01）**：
+    - `remove_event_handler` 持久化也通：Button.clickEvents disk 6→5，
+      `hello-from-mcp` 從 disk 移除、runtime 同步。
+    - 跨元件 `cc.Toggle.checkEvents` 也通：建 TestToggle 節點 +
+      `add_event_handler` 走 `eventArrayProperty: checkEvents`，disk
+      寫出 `"checkEvents": [...{customEventData: "toggle-check"}...]`。
+      `__comps__.<idx>.enabled` path 因 `enabled` 是 cc.Component 基類
+      欄位，對任何 component 都通用（不限 Button / Toggle）。
 - ✅ **P2(b) `debug_get_console_logs` 拿掉**（fix landed 2026-05-01）：
   原本 `setupConsoleCapture()` 是 placeholder（只 `debugLog` 一句、沒掛
   任何 listener），`consoleMessages` 永遠空陣列；tool 永遠回 `[]` 騙
