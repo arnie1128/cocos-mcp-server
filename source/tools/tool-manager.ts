@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ToolConfig, ToolConfiguration, ToolManagerSettings, ToolDefinition } from '../types';
+import { ToolConfig, ToolConfiguration, ToolManagerSettings } from '../types';
 import { debugLog } from '../lib/log';
 import { ToolRegistry } from './registry';
 import * as fs from 'fs';
@@ -127,124 +127,18 @@ export class ToolManager {
     }
 
     private initializeAvailableTools(registry: ToolRegistry): void {
-        try {
-            this.availableTools = [];
-            for (const [category, toolSet] of Object.entries(registry)) {
-                const toolDefinitions = toolSet.getTools();
-                toolDefinitions.forEach((tool: ToolDefinition) => {
-                    this.availableTools.push({
-                        category: category,
-                        name: tool.name,
-                        enabled: true, // 默认启用
-                        description: tool.description
-                    });
-                });
-            }
-
-            debugLog(`[ToolManager] Initialized ${this.availableTools.length} tools from shared registry`);
-        } catch (error) {
-            console.error('[ToolManager] Failed to read tools from registry:', error);
-            // 後備：使用硬編碼預設工具列表（極少觸發；registry 為空才會走到這）
-            this.initializeDefaultTools();
-        }
-    }
-
-    private initializeDefaultTools(): void {
-        // 默认工具列表作为后备方案
-        const toolCategories = [
-            { category: 'scene', name: '场景工具', tools: [
-                { name: 'getCurrentSceneInfo', description: '获取当前场景信息' },
-                { name: 'getSceneHierarchy', description: '获取场景层级结构' },
-                { name: 'createNewScene', description: '创建新场景' },
-                { name: 'saveScene', description: '保存场景' },
-                { name: 'loadScene', description: '加载场景' }
-            ]},
-            { category: 'node', name: '节点工具', tools: [
-                { name: 'getAllNodes', description: '获取所有节点' },
-                { name: 'findNodeByName', description: '根据名称查找节点' },
-                { name: 'createNode', description: '创建节点' },
-                { name: 'deleteNode', description: '删除节点' },
-                { name: 'setNodeProperty', description: '设置节点属性' },
-                { name: 'getNodeInfo', description: '获取节点信息' }
-            ]},
-            { category: 'component', name: '组件工具', tools: [
-                { name: 'addComponentToNode', description: '添加组件到节点' },
-                { name: 'removeComponentFromNode', description: '从节点移除组件' },
-                { name: 'setComponentProperty', description: '设置组件属性' },
-                { name: 'getComponentInfo', description: '获取组件信息' }
-            ]},
-            { category: 'prefab', name: '预制体工具', tools: [
-                { name: 'createPrefabFromNode', description: '从节点创建预制体' },
-                { name: 'instantiatePrefab', description: '实例化预制体' },
-                { name: 'getPrefabInfo', description: '获取预制体信息' },
-                { name: 'savePrefab', description: '保存预制体' }
-            ]},
-            { category: 'project', name: '项目工具', tools: [
-                { name: 'getProjectInfo', description: '获取项目信息' },
-                { name: 'getAssetList', description: '获取资源列表' },
-                { name: 'createAsset', description: '创建资源' },
-                { name: 'deleteAsset', description: '删除资源' }
-            ]},
-            { category: 'debug', name: '调试工具', tools: [
-                { name: 'getConsoleLogs', description: '获取控制台日志' },
-                { name: 'getPerformanceStats', description: '获取性能统计' },
-                { name: 'validateScene', description: '验证场景' },
-                { name: 'getErrorLogs', description: '获取错误日志' }
-            ]},
-            { category: 'preferences', name: '偏好设置工具', tools: [
-                { name: 'getPreferences', description: '获取偏好设置' },
-                { name: 'setPreferences', description: '设置偏好设置' },
-                { name: 'resetPreferences', description: '重置偏好设置' }
-            ]},
-            { category: 'server', name: '服务器工具', tools: [
-                { name: 'getServerStatus', description: '获取服务器状态' },
-                { name: 'getConnectedClients', description: '获取连接的客户端' },
-                { name: 'getServerLogs', description: '获取服务器日志' }
-            ]},
-            { category: 'broadcast', name: '广播工具', tools: [
-                { name: 'broadcastMessage', description: '广播消息' },
-                { name: 'getBroadcastHistory', description: '获取广播历史' }
-            ]},
-            { category: 'sceneAdvanced', name: '高级场景工具', tools: [
-                { name: 'optimizeScene', description: '优化场景' },
-                { name: 'analyzeScene', description: '分析场景' },
-                { name: 'batchOperation', description: '批量操作' }
-            ]},
-            { category: 'sceneView', name: '场景视图工具', tools: [
-                { name: 'getViewportInfo', description: '获取视口信息' },
-                { name: 'setViewportCamera', description: '设置视口相机' },
-                { name: 'focusOnNode', description: '聚焦到节点' }
-            ]},
-            { category: 'referenceImage', name: '参考图片工具', tools: [
-                { name: 'addReferenceImage', description: '添加参考图片' },
-                { name: 'removeReferenceImage', description: '移除参考图片' },
-                { name: 'getReferenceImages', description: '获取参考图片列表' }
-            ]},
-            { category: 'assetAdvanced', name: '高级资源工具', tools: [
-                { name: 'importAsset', description: '导入资源' },
-                { name: 'exportAsset', description: '导出资源' },
-                { name: 'processAsset', description: '处理资源' }
-            ]},
-            { category: 'validation', name: '验证工具', tools: [
-                { name: 'validateProject', description: '验证项目' },
-                { name: 'validateAssets', description: '验证资源' },
-                { name: 'generateReport', description: '生成报告' }
-            ]}
-        ];
-
         this.availableTools = [];
-        toolCategories.forEach(category => {
-            category.tools.forEach(tool => {
+        for (const [category, toolSet] of Object.entries(registry)) {
+            for (const tool of toolSet.getTools()) {
                 this.availableTools.push({
-                    category: category.category,
+                    category,
                     name: tool.name,
                     enabled: true, // 默认启用
-                    description: tool.description
+                    description: tool.description,
                 });
-            });
-        });
-
-        debugLog(`[ToolManager] Initialized ${this.availableTools.length} default tools`);
+            }
+        }
+        debugLog(`[ToolManager] Initialized ${this.availableTools.length} tools from shared registry`);
     }
 
     public getAvailableTools(): ToolConfig[] {
