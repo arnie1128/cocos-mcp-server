@@ -44,13 +44,25 @@ type ComponentLookup =
     | { ok: true; scene: any; node: any; component: any }
     | { ok: false; error: string };
 
+function findNodeByUuidDeep(root: any, uuid: string): any {
+    if (!root) return null;
+    if (root._id === uuid || root.uuid === uuid) return root;
+    const children = root.children ?? root._children ?? [];
+    for (const child of children) {
+        const hit = findNodeByUuidDeep(child, uuid);
+        if (hit) return hit;
+    }
+    return null;
+}
+
 function resolveComponentContext(nodeUuid: string, componentType: string): ComponentLookup {
     const { director, js } = require('cc');
     const scene = director.getScene();
     if (!scene) {
         return { ok: false, error: 'No active scene' };
     }
-    const node = scene.getChildByUuid(nodeUuid);
+    // scene.getChildByUuid only walks direct children; use depth-first search.
+    const node = findNodeByUuidDeep(scene, nodeUuid);
     if (!node) {
         return { ok: false, error: `Node with UUID ${nodeUuid} not found` };
     }
@@ -533,7 +545,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             if (!ctx.ok) {
                 return { success: false, error: ctx.error };
             }
-            const targetNode = ctx.scene.getChildByUuid(targetUuid);
+            const targetNode = findNodeByUuidDeep(ctx.scene, targetUuid);
             if (!targetNode) {
                 return { success: false, error: `Target node with UUID ${targetUuid} not found` };
             }
