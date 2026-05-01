@@ -5,88 +5,116 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.3.1）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.4.2）
 
-**當下版本**：v2.3.1（origin/main HEAD = `351023b`，已 push、無 in-flight
-任務）。最近兩個 commit 是 v2.3.0 主功能 + v2.3.1 三方 review 反修。
+**當下版本**：v2.4.2（origin/main HEAD = `2b5c1f2`，已 push、無 in-flight
+任務）。v2.4.0 6-step 重構落地 + 兩輪三方 review patch（v2.4.1 / v2.4.2）。
 
 **最近 commit**（最新到舊）：
 
 | SHA | 內容 |
 |---|---|
-| `351023b` | fix(v2.3.1): three-way review fixes — re-apply editor-eval flag on settings update + 5 issues |
-| `188ba52` | feat: v2.3.0 — execute_javascript [primary] + screenshots + docs markdown resources |
-| `16655bb` | docs: split bloated HANDOFF — extract version plan + per-repo notes |
-| `4e89abc` | docs(handoff): swap RomaRogov reference to cocos-code-mode, finalize v2.3-v2.7 plan |
+| `2b5c1f2` | fix(v2.4.2): second-round review fixes on v2.4.1 (2 must-fix + 4 polish) |
+| `c39e1aa` | fix(v2.4.1): three-way review fixes on v2.4.0 (9 issues) |
+| `0231b10` | release: v2.4.0 (6-step refactor + InstanceReference + TS definitions) |
+| `0df2dde` | feat(v2.4.0 step 6): add inspector_get_instance_definition + common types |
+| `91dec60` | feat(v2.4.0 step 5): add @mcpTool decorator (no reflect-metadata) |
+| `0b62050` | feat(v2.4.0 step 4): add InstanceReference {id,type} mode (opt-in) |
+| `4747f8f` | feat(v2.4.0 step 3): add lib/batch-set + plural set_*_properties tools |
+| `5105db5` | feat(v2.4.0 step 2): add lib/resolve-node helper for nodeUuid|nodeName |
+| `1c8b347` | refactor(v2.4.0 step 1): collapse tool 3-layer to declarative array |
 
-**v2.3.1 vs v2.3.0**：v2.3.1 是反修 patch，無新功能，6 個 review 共識
-issue 全清——詳見 CHANGELOG v2.3.1 區塊與下方 §三方 review 紀錄。下一個
-session 直接動工 v2.4.0。
+**v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
+行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
+通過。下一個 session 可以動工 v2.4.1 (asset interpreters，被 v2.4.0 佔用版號
+所以實際是 v2.4.3+) 或 v2.5.0 (file-editor + Notifications)。
 
-### v2.3.0 + v2.3.1 改動摘要
+### v2.4.0 改動摘要
 
 | 區 | 內容 |
 |---|---|
-| 新增 tool（3）| `debug_execute_javascript` `[primary]` / `debug_screenshot` / `debug_batch_screenshot` |
-| 改既有 tool | `debug_execute_script` 改 `[compat]` alias 到 execute_javascript scene context（v2.3.1 wrapper 還原 legacy 回應形狀 `{data:{result, message}}`）|
-| Tool 描述 | 所有 non-primary tool 在 tools/list 自動補 `[specialist]` prefix（mcp-server-sdk setupTools 加 1 行、不改 source）|
-| 新增 resource（3）| `cocos://docs/landmines` / `cocos://docs/tools` / `cocos://docs/handoff`（全 `text/markdown`）|
-| 新增檔 | `source/lib/runtime-flags.ts`（gate `enableEditorContextEval`）|
-| Settings | 新增 `enableEditorContextEval: false` 默認；v2.3.1 wire `updateSettings()` 即時 re-apply runtime flag |
-| 安全強化 | CLAUDE.md landmine #13 — editor-eval 兩層 opt-in（runtime flag 可逆 / persisted state 不自動可逆）|
-| 反 DoS | `batch_screenshot.delaysMs` schema cap `.max(20)`（v2.3.1）|
-| 多視窗友好 | `pickWindow` 預設過濾 Preview-titled 視窗（v2.3.1）|
-| Windows 友好 | `readDocsSection` 處理 CRLF + UTF-8 BOM（v2.3.1）|
-| Smoke | 14 條 check（+ docs/handoff round-trip + [specialist] prefix）|
-| Tool 數 | 14 categories / **163 tools**（+3） |
+| 新增檔（5 lib + 1 tool category）| `source/lib/define-tools.ts` / `resolve-node.ts` / `batch-set.ts` / `instance-reference.ts` / `decorators.ts`；`source/tools/inspector-tools.ts`（新 `inspector` category）|
+| 新增 tool（4）| `node_set_node_properties` / `component_set_component_properties` / `inspector_get_instance_definition` / `inspector_get_common_types_definition` |
+| Step 1 重構 | 14 個 tool 檔從三層（schemas/meta/switch）→ 單一 `ToolDef[]` 宣告陣列。新 helper `defineTools(defs)` + `defineTool({...})` |
+| Step 2 helper | `resolveOrToolError({nodeUuid, nodeName})` — opt-in 4 個 high-traffic 寫類 tool |
+| Step 3 helper | `batchSetProperties(uuid, [{path,value}])` — v2.4.1 改為 sequential await |
+| Step 4 模式 | `InstanceReference {id, type?}` + `resolveReference({reference, nodeUuid, nodeName})` — 同 6 tool opt-in |
+| Step 5 decorator | `@mcpTool({...})` + `defineToolsFromDecorators(this)` — 無 `reflect-metadata` |
+| Step 6 inspector | 從 cocos `query-node` dump 動態生成 TS 類別宣告（含 cc.Vec2/3/4/Color/Rect/Size/Quat/Mat3/4 + InstanceReference<T>）|
+| Tool 數 | 15 categories / **167 tools**（+1 cat / +4 tool） |
+| Backward compat | 所有 v2.3.1 tool 可同樣 args 呼叫；6 個 opt-in tool 的 `nodeUuid`/`uuid` 從 required → optional（CHANGELOG v2.4.1 明列）|
 
 ### 三方 review 紀錄
 
-v2.3.0 commit `188ba52` 收 codex / claude / gemini 三方 review，找到 6
-issues：
+走「主 commit + 三方 review + 反修 patch」流程。三輪 review，兩輪反修。
+
+#### Round 1 — v2.4.0 commit `0231b10`
 
 | # | Severity | 內容 | Reviewers |
 |---|---|---|---|
-| 1 | 🔴 must-fix | `updateSettings()` 沒 re-apply `setEditorContextEvalEnabled` | Claude + Codex |
-| 2 | 🟡 worth | `execute_script` 回應形狀變了（backward-compat） | 三方一致 |
-| 3 | 🟡 worth | `batch_screenshot.delaysMs` 無 array length cap | Claude |
-| 4 | 🟡 worth | `pickWindow` 預設可能選到 Preview 視窗 | Codex + Gemini |
-| 5 | 🟡 worth | `readDocsSection` 沒 CRLF / BOM 處理 | Gemini |
-| 6 | 🟡 worth | 缺 editor-eval 威脅模型的 landmine | Claude |
+| 1 | 🔴 must-fix | `batch-set` Promise.allSettled 並發 → 改 sequential，duplicate paths reject，overlap warn | Gemini + Codex + Claude |
+| 2 | 🔴 must-fix | `resolveReference` 靜默用 reference.id 蓋掉衝突的 nodeUuid → 顯式 error；malformed reference 也報錯 | Codex + Claude |
+| 3 | 🔴 must-fix | inspector 描述「node or component」但只查 node → narrow 到 node-only | Codex |
+| 4 | 🟡 worth | inspector deny-list 太薄（uuid/_prefabInstance/etc 漏網）→ expand | Codex |
+| 5 | 🟡 worth | `findNodeByNameDeep` 遞迴可能 stack overflow → iterative DFS | Gemini |
+| 6 | 🟡 worth | inspector Enum/BitMask 寫死 `number` → emit hint comment | Gemini |
+| 7 | 🟡 worth | inspector \\n / `*/` 注入；custom type name 沒 sanitize → 修 | Claude |
+| 8 | 🟡 worth | `nodeReferenceShape` import 沒用 → 移除 | Claude |
+| 9 | 🟡 worth | CHANGELOG 沒誠實說 nodeUuid required → optional → 補 note | Claude |
 
-v2.3.1 commit `351023b` 全部反修。第二輪 review 三方 🟢 ship it。
-完整 review 流程記錄在對話紀錄 2026-05-02。
+v2.4.1 commit `c39e1aa` 全部反修。
 
-### 下一個動工（**新 session 開**）
+#### Round 2 — v2.4.1 commit `c39e1aa`
 
-**v2.4.0 6-step 重構**（含 InstanceReference + TS 定義生成 + `@mcpTool`
-decorator，~4 天）。細拆見
-[`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0](roadmap/06-version-plan-v23-v27.md)。
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `sanitizeTsName` 沒擋 digit-leading / empty result → 加 `_` 前綴 / `_Unknown` fallback | Codex |
+| 2 | 🔴 must-fix | `reference.type` 蓋掉 `dump.__type__` 拿來做 class name → dump 為主，mismatch 出 warning | Codex |
+| 3 | 🟡 worth | `resolveReference` 沒對稱檢查 refId vs nodeName → 加上 | Claude |
+| 4 | 🟡 worth | `enumCommentHint` 漏 userData fallback；first-value name fallback 誤導 → 修 | Codex + Claude |
+| 5 | 🟡 worth | `COMPONENT_INTERNAL_KEYS` dead code → 移除 | Claude + Codex + Gemini |
+| 6 | 🟡 worth | `node_set_node_properties` description 還說 concurrent → 改 sequential | Codex |
+| 7 | 🟡 worth | inspector file JSDoc 還說 node-or-component → narrow | Codex |
 
-**v2.4.0 動工前讀**：
+> Gemini round-2 的兩個 🔴 是 false positive（gemini 只讀 diff 沒看完整檔案，把
+> 已存在的 `sanitizeTsName(className)` 認成缺失）。
+
+v2.4.2 commit `2b5c1f2` 全部反修。
+
+#### Round 3 — v2.4.2 commit `2b5c1f2`
+
+三方 🟢 ship-it 一致通過。Codex 留一個非阻擋 🟡：`dump.__type__ === ""` 時
+`??` fallback 不 fall through 到 `dump.type`（v2.4.1 改 truthy → nullish 的副
+作用）。實機若沒看到空字串 `__type__` 就不必處理，下次有 symptom 再補。
+
+### 下一個動工
+
+**選項 A（推薦）**：**v2.4.3 = asset interpreters**（原計畫的 v2.4.1 內容，
+版號被 review patch 佔用所以順延）。細拆見
+[`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.1](roadmap/06-version-plan-v23-v27.md)。
+
+**選項 B**：實機 live-test v2.4.0 新 tool（`set_node_properties` /
+`set_component_properties` / `inspector_get_instance_definition`）+ Claude
+Code 整合驗證 InstanceReference round-trip。Live-test 前需 ping user
+（feedback memory: notify-before-live-test）。
+
+**選項 C**：v2.5.0 file-editor + Notifications + Prompts（5 天）。
+
+**動工前讀**：
 
 1. 本 §NEXT SESSION ENTRY POINT
-2. [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0](roadmap/06-version-plan-v23-v27.md)
-   — 6 step 細拆 + 同梱項
-3. [`docs/research/repos/cocos-code-mode.md`](research/repos/cocos-code-mode.md)
-   — InstanceReference / TS 定義生成 prior art
-4. [`docs/research/repos/cocos-creator-mcp.md`](research/repos/cocos-creator-mcp.md)
-   — `resolveNode()` / batch property 模式
-5. CLAUDE.md §Conventions + §Landmines（特別 #13 editor-eval 注意事項）
+2. CHANGELOG.md v2.4.0 / v2.4.1 / v2.4.2 區塊
+3. CLAUDE.md §Landmines（無新增 landmine — v2.4.x 都是 lib helper 抽出 + 新工具，
+   未踩既有 IPC quirks）
+4. 對應選項的 docs/roadmap/06 段落
 
-**v2.4.0 風險點**：
+**回滾錨點**：
+- v2.4.2 改動前（v2.4.1 release 點）→ `git reset --hard c39e1aa`
+- v2.4.1 改動前（v2.4.0 release 點）→ `git reset --hard 0231b10`
+- v2.4.0 改動前（v2.3.1 release 點）→ `git reset --hard 351023b`
 
-- 重構 surface 大（160 tool 全 migration）—— 建議每個 step 一個 commit、
-  smoke / measure 每步重跑
-- InstanceReference 模式改變所有 input schema 形狀，可能觸發 client 端
-  argument validation 錯誤，要實機驗 Claude Code → tools/call 通暢
-- `@mcpTool` decorator 採 cocos-code-mode 風格（不用 `reflect-metadata`），
-  確保 tsconfig `experimentalDecorators` 不衝突 cocos editor build 流程
-- 動工前留 v2.3.1 release commit `351023b` 為 rollback anchor
-
-**動工建議**：v2.4.0 是純架構重構，不增 tool 不改 user-facing 行為。
-落地後可以也走 v2.3.0 同樣的「主 commit + 三方 review + 反修 patch」
-流程，確保大規模改動不破 backward-compat。
+**動工建議**：v2.4.x 三 commit 已穩定，下個版本直接動工不需先驗證
+v2.4.x；新功能落地後同樣走主 commit + 三方 review + 反修流程。
 
 ---
 
@@ -102,8 +130,10 @@ decorator，~4 天）。細拆見
 |---|---|---|---|
 | **v2.3.0** | execute_javascript + screenshot + docs markdown | 2 天 | ✅ done |
 | **v2.3.1** | 三方 review patch（6 issues 全清） | 0.5 天 | ✅ done |
-| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ⏳ next（新 session）|
-| **v2.4.1** | Asset interpreters（asset meta 編輯能力） | 2-3 天 | ⏳ |
+| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ✅ done |
+| **v2.4.1** | 三方 review patch round 1（9 issues 全清） | 0.5 天 | ✅ done |
+| **v2.4.2** | 三方 review patch round 2（2 must-fix + 4 polish） | 0.3 天 | ✅ done |
+| **v2.4.3** | Asset interpreters（asset meta 編輯能力，原 v2.4.1 計畫） | 2-3 天 | ⏳ next |
 | **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
@@ -150,10 +180,13 @@ v2.1.7 ✅ done（B-1 description sweep 全 14 categories / 160 tools）
 v2.2.0 ✅ done（T-P3-1 Resources）
 v2.3.0 ✅ done（execute_javascript + screenshot + docs markdown，163 tools）
 v2.3.1 ✅ done（三方 review patch — 6 issues 全清，commit 351023b）
+v2.4.0 ✅ done（6-step 重構 + InstanceReference + TS 定義生成 + @mcpTool，167 tools）
+v2.4.1 ✅ done（三方 review patch round 1 — 9 issues 全清，commit c39e1aa）
+v2.4.2 ✅ done（三方 review patch round 2 — 2 must-fix + 4 polish，commit 2b5c1f2）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ 擴充功能（next v2.4.0 重構，新 session 開；細拆見 docs/roadmap/06）
+B-2 ⏳ 擴充功能（next v2.4.3 asset interpreters；細拆見 docs/roadmap/06 §v2.4.1）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -251,6 +284,9 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.4.2 review patch round 2 改動前（v2.4.1 release 點） | `git reset --hard c39e1aa` 然後 `git push --force-with-lease` |
+| v2.4.1 review patch round 1 改動前（v2.4.0 release 點） | `git reset --hard 0231b10` 然後 `git push --force-with-lease` |
+| v2.4.0 全部改動前（v2.3.1 release 點） | `git reset --hard 351023b` 然後 `git push --force-with-lease` |
 | v2.3.1 review fixes 改動前（v2.3.0 release 點） | `git reset --hard 188ba52` 然後 `git push --force-with-lease` |
 | v2.3.0 改動前（v2.2.0 release 點） | `git reset --hard 16655bb` 然後 `git push --force-with-lease` |
 | v2.2.0 T-P3-1 Resources 改動前（v2.1.7 release 點） | `git reset --hard ab7191b` 然後 `git push --force-with-lease` |
