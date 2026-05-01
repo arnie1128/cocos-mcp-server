@@ -1,5 +1,95 @@
 # Changelog
 
+## v2.4.0 — 2026-05-02
+
+6-step architecture refactor + InstanceReference + TS class definition
+generator. **No user-facing tool removed**; all v2.3.1 tools keep their
+original schemas and behaviour. Net change: +4 tools, +3 lib helpers,
++1 decorator, +1 inspector category. See
+`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0 for the spec.
+
+### Step 1 — declarative ToolDef array
+
+Collapsed the per-file three-layer pattern (`*Schemas` map +
+`*ToolMeta` map + `class { execute() switch }`) into a single
+declarative `ToolDef[]` per category. Adds `source/lib/define-tools.ts`
+with `defineTools(defs)` and the per-tool `defineTool({...})` helper.
+Migrated all 14 existing tool files; tool count and behaviour
+unchanged. New tools are now a single object literal.
+
+### Step 2 — `lib/resolve-node.ts` (nodeUuid | nodeName)
+
+Tools opt-in to accepting `nodeName` as a fallback when `nodeUuid` is
+omitted. `resolveOrToolError()` returns a `ToolResponse` so handlers
+early-return cleanly. Applied to four high-traffic mutators
+(set_node_property / set_node_transform / add_component /
+set_component_property).
+
+### Step 3 — `lib/batch-set.ts` + plural property tools
+
+`batchSetProperties(uuid, [{path, value}])` runs `scene/set-property`
+concurrently; partial failures reported per entry. New tools:
+
+- `node_set_node_properties` — true single-round-trip multi-property
+  write on a node (supports `__comps__.<idx>.<prop>` paths too).
+- `component_set_component_properties` — multi-property write on the
+  same component, sequential through `set_component_property` to
+  share index resolution and sprite preserveContentSize handling.
+
+### Step 4 — InstanceReference `{id, type}` (opt-in)
+
+Adds `source/lib/instance-reference.ts` with `instanceReferenceSchema`
+and `resolveReference()`. The same six tools now accept three input
+forms in precedence order: `reference={id,type}` → `nodeUuid` →
+`nodeName`. Existing 159 tools keep their bare-UUID schemas; wider
+migration deferred to v2.5+ patches.
+
+### Step 5 — `@mcpTool` decorator
+
+Adds `source/lib/decorators.ts`. Stage-2 method decorator captures
+metadata via `descriptor.value` (no reflect-metadata polyfill).
+`defineToolsFromDecorators(this)` wires decorated methods into a
+`defineTools`-compatible executor. tsconfig already had
+`experimentalDecorators: true`.
+
+### Step 6 — `inspector_get_instance_definition`
+
+New `inspector` tool category (uses the @mcpTool decorator):
+
+- `inspector_get_instance_definition`: walk `scene/query-node` dump
+  for an InstanceReference and emit a TypeScript class declaration.
+  AI reads this BEFORE writing properties — fixes the "AI guesses
+  property names" failure mode. Recognises primitives, cc value types
+  (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4), arrays, and reference
+  types (wrapped in `InstanceReference<T>`).
+- `inspector_get_common_types_definition`: hardcoded TS for cc value
+  types so the instance definition's references resolve.
+
+Implementation is a basic walk per spec; enum/struct hoisting and
+per-attribute decorators (min/max/unit) deferred to later patches.
+
+### Tool count
+
+15 categories / 167 tools (was 14 / 163). +4 new tools:
+`node_set_node_properties`, `component_set_component_properties`,
+`inspector_get_instance_definition`,
+`inspector_get_common_types_definition`.
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count check: 15 categories / 167 tools
+
+### Backward compatibility
+
+All v2.3.1 tools accept the same arguments as before. New optional
+`reference`/`nodeName` fields on the four migrated tools coexist with
+the existing `uuid`/`nodeUuid` field. Existing AI clients with cached
+schemas keep working.
+
+---
+
 ## v2.3.1 — 2026-05-02
 
 Three-way review fixes (codex / claude / gemini) on v2.3.0. No API surface
