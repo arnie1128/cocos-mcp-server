@@ -437,9 +437,36 @@ export const methods: { [key: string]: (...any: any) => any } = {
             for (const candidate of tries) {
                 try {
                     const result = await prefabMgr.value.createPrefab(nodeUuid, candidate);
+                    // cce.Prefab.createPrefab repurposes the source node into a
+                    // prefab instance with a fresh UUID, so the caller-supplied
+                    // nodeUuid is no longer valid. Resolve the new UUID by
+                    // querying nodes that reference the freshly minted asset.
+                    const assetUuid: string | null = typeof result === 'string'
+                        ? result
+                        : (result && typeof result === 'object' && typeof (result as any).uuid === 'string' ? (result as any).uuid : null);
+                    let instanceNodeUuid: string | null = null;
+                    if (assetUuid) {
+                        try {
+                            const instances: any = await Editor.Message.request('scene', 'query-nodes-by-asset-uuid', assetUuid);
+                            if (Array.isArray(instances) && instances.length > 0) {
+                                // Newly-created prefab instance is typically the
+                                // only one; pick the last entry as a stable
+                                // tiebreaker if multiple already exist.
+                                instanceNodeUuid = instances[instances.length - 1];
+                            }
+                        } catch {
+                            // Non-fatal: the asset was created either way.
+                        }
+                    }
                     return {
                         success: true,
-                        data: { url: candidate, sourceNodeUuid: nodeUuid, raw: result },
+                        data: {
+                            url: candidate,
+                            sourceNodeUuid: nodeUuid,
+                            prefabAssetUuid: assetUuid,
+                            instanceNodeUuid,
+                            raw: result,
+                        },
                     };
                 } catch (err: any) {
                     errors.push(`${candidate}: ${err?.message ?? err}`);
@@ -464,8 +491,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
             return { success: false, error: prefabMgr.error };
         }
         try {
-            const result = await prefabMgr.value.applyPrefab(nodeUuid);
-            return { success: true, data: { applied: result, nodeUuid } };
+            // Note: facadeReturn from cce.SceneFacade.applyPrefab is observed
+            // to be `false` even when the apply genuinely writes to disk
+            // (verified during P4 v2.1.0 real-editor testing). Treat
+            // "no exception thrown" as success and surface the raw return
+            // value as metadata only.
+            const facadeReturn = await prefabMgr.value.applyPrefab(nodeUuid);
+            return { success: true, data: { facadeReturn, nodeUuid } };
         } catch (error: any) {
             return { success: false, error: error?.message ?? String(error) };
         }

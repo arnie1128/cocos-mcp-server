@@ -1,5 +1,60 @@
 # Changelog
 
+## v2.1.1 — 2026-05-01
+
+Real-editor verification of v2.1.0 P4 work surfaced four issues; this
+patch addresses them and applies a UX improvement to the panel.
+
+### Bug fixes
+
+- **scene-script deep node lookup** (commit `41b7d9b`): `cc.Node.getChildByUuid`
+  is shallow, so `resolveComponentContext` could not find a Button created
+  under Canvas. Added `findNodeByUuidDeep` (depth-first walk over
+  `_children`/`children`, matches both `_id` and `uuid`) and routed all
+  EventHandler tools and addEventHandler's targetNode lookup through it.
+- **`update_prefab` no longer treats `applyPrefab` return as success
+  signal**: the facade returns `false` even on successful disk writes
+  (verified by reading the prefab file before/after apply); now the tool
+  reports `success: true` whenever no exception is thrown and surfaces
+  the raw return as `data.facadeReturn` metadata only.
+- **`create_prefab` returns the new instance node UUID**: `cce.Prefab.createPrefab`
+  repurposes the source node into a prefab instance with a fresh UUID, so
+  the caller-supplied `nodeUuid` is no longer valid afterwards. The scene
+  facade response now includes `prefabAssetUuid` (resolved from the call
+  return) and `instanceNodeUuid` (looked up via
+  `scene/query-nodes-by-asset-uuid`), so subsequent tool calls can
+  target the instance without a separate scan.
+
+### UX
+
+- **Panel default size bumped** to 720×640 (was 600×500), `min-width`
+  480 (was 400), `min-height` 400 (was 300). With 163 tools, the tool
+  manager tab needs more vertical room and the long property
+  descriptions need wider rows to avoid heavy line-wrapping. Server tab
+  layout still fits comfortably at the new minimum.
+
+### Verified end-to-end on Cocos Creator 3.8.x
+
+The unverified items left in v2.1.0 are now confirmed against a live
+editor:
+
+- `cc.EventHandler` is reachable via `require('cc')` in scene-script
+  context; `Editor.Message.send('scene', 'snapshot')` is sufficient
+  to persist add/remove (no `save-scene` required for the runtime
+  array, though a save is still needed to write the scene file).
+- `cce.Prefab.createPrefab(uuid, url)` accepts the `db://...` form (the
+  alternate verbatim path is no longer needed but is kept as fallback).
+- `applyPrefab` writes to disk on its own; no `asset-db: refresh-asset`
+  follow-up is required for the apply path. (The `create_prefab` flow
+  still issues a refresh as a safety net.)
+- The facade resolves on `cce.SceneFacadeManager` in this build (one of
+  the three candidates probed by `getPrefabFacade()`).
+- The cocos-engine#16517 `_componentName` workaround did not surface as
+  a problem during the live add/remove test, but is kept defensively
+  since a runtime onClick dispatch was not exercised.
+
+---
+
 ## v2.1.0 — 2026-05-01
 
 P4 partial parity with the announced upstream v1.5.0 spec, scoped to the

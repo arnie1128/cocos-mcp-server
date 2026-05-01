@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -55,10 +55,10 @@
             "main": "dist/panels/default",
             "icon": "./static/icon.png",
             "size": {
-                "min-width": 400,
-                "min-height": 300,
-                "width": 600,
-                "height": 500
+                "min-width": 480,
+                "min-height": 400,
+                "width": 720,
+                "height": 640
             }
         }
     },

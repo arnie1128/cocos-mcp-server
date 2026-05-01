@@ -146,7 +146,24 @@ to that target until token cost is measured.
    Behavior change: callers must initialize before issuing other JSON-RPC
    methods on `/mcp` (per Streamable HTTP spec). The REST short-circuit
    `POST /api/{category}/{tool}` is unchanged for ad-hoc curl testing.
-7. **No test runner wired up.** `source/test/*.ts` exists but is not
+7. **`cce.SceneFacade.applyPrefab` returns `false` even on success**
+   (verified in v2.1.1 against Cocos Creator 3.8.x). Treating its return
+   as a success/failure signal is wrong; `update_prefab` now uses
+   "no exception thrown" as success and surfaces the raw value as
+   `data.facadeReturn` only. Same defensiveness should apply if you wrap
+   any other facade methods whose return type is annotated as
+   `Promise<boolean>` in `scene-facade-interface.d.ts`.
+8. **`cce.Prefab.createPrefab` repurposes the source node** (verified in
+   v2.1.1). The original node's UUID is invalidated; the new prefab
+   instance gets a fresh UUID. `source/scene.ts:createPrefabFromNode`
+   resolves it via `scene/query-nodes-by-asset-uuid` and returns it as
+   `data.instanceNodeUuid`. Don't reuse the caller's `nodeUuid` after
+   this call.
+9. **`cc.Node.getChildByUuid` is shallow** — only direct children. Use
+   `findNodeByUuidDeep` from `source/scene.ts` (depth-first walk,
+   matches both `_id` and `uuid`) when looking up arbitrary scene
+   nodes from scene-script context.
+10. **No test runner wired up.** `source/test/*.ts` exists but is not
    invoked by any npm script. (`scripts/smoke-mcp-sdk.js` covers the SDK
    server endpoints with a stub registry — manual; runs via `node`.)
 

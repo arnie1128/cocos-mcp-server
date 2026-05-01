@@ -199,14 +199,19 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
    （tools count 157 → 160）。
 5. ✅ CLAUDE.md Landmines 加註：`updatePrefab` 已走 façade。
 
-**Phase 1 ⚠️ 未驗實機項**（等 Cocos Creator 上手測）：
-- `cce.Prefab.createPrefab(uuid, url)` url 雙寫：先試 `db://...`，失敗
-  試呼叫端原樣字串。實機驗哪個成功。
-- `applyPrefab` 是否自動觸發 asset-db re-import；目前 `update_prefab` 的
-  父呼叫端不額外 refresh，但 `create_prefab` 走 façade 路徑時有 refresh
-  補保險。
-- façade 偵測順序：`cce.Prefab` → `cce.SceneFacadeManager.instance` →
-  `cce.SceneFacadeManager`。實機若三者都不通，要回 scene.ts 補正確路徑。
+**Phase 1 實機驗證結果**（v2.1.1 / 2026-05-01）：
+- ✅ `cce.Prefab.createPrefab(uuid, url)` 接 `db://...` form。雙寫 try
+  仍保留作 fallback。
+- ✅ `applyPrefab` 直接寫入 disk，不需 `asset-db: refresh-asset`。
+  `update_prefab` 不另外 refresh；`create_prefab` 仍 refresh 補保險。
+- ✅ façade 從 `cce.SceneFacadeManager` 解出（三個 candidate 之一，
+  `getPrefabFacade()` 偵測順序保留）。
+- ⚠️ **`applyPrefab` 回傳 boolean 不可信**：實測即使成功寫入 disk
+  也回 `false`。v2.1.1 改為「沒拋例外 = success」，raw 回傳值
+  以 `data.facadeReturn` 暴露作 metadata。
+- ⚠️ **`createPrefab` 副作用**：原 source node 被重命名為 prefab name +
+  換新 UUID。v2.1.1 用 `scene/query-nodes-by-asset-uuid` 解出
+  `instanceNodeUuid` 一併回傳。
 
 **Phase 2 已落地**（commit `951c051`）—— T-P4-1 EventHandler 工具：
 
@@ -221,12 +226,14 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   `eventArrayProperty=clickEvents`，支援 Toggle / ScrollView 等其他
   EventHandler 屬性。
 - 工具總數 160 → 163；tsc + smoke 通過。
-- ⚠️ 未實機驗證項：
-  - 3.8.x 上 push 後是否需要 `Editor.Message.request('scene', 'save-scene')`
-    才能持久化（目前只 send `snapshot`，按 cocos 內部約定理應已記錄 dirty
-    + undo）。
-  - `cc.EventHandler` 在 scene-script 進程是否可直接 `require('cc')` 取到。
-  - issue #16517 workaround `_componentName` 的實際必要性。
+- ✅ **實機驗證**（v2.1.1 / 2026-05-01）：
+  - `cc.EventHandler` 透過 `require('cc')` 在 scene-script 取得。
+  - `Editor.Message.send('scene', 'snapshot')` 足以持久化 add/remove
+    的 EventHandler 陣列（runtime 層面）；scene save 仍是寫檔的必要動作。
+  - deep node lookup 修補後（`findNodeByUuidDeep`），nested 節點下的
+    component 都能解出。
+  - issue #16517 `_componentName` workaround 在 add/remove 沒撞到問題；
+    runtime onClick dispatch 還沒實際觸發過，保留 workaround 防禦性。
 
 **Phase 3 已落地**（commit `fd9011f`）—— T-P4-2 Panel composable：
 
@@ -242,11 +249,18 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   詳見 v15-feasibility 與 roadmap/05）。
 - tsc + smoke 通過。
 
-**未驗的實機項目**（每個 Phase 完成後再排）：
-- `cce.Prefab.createPrefab` url 參數格式（`db://` vs 絕對路徑）
-- `applyPrefab` 是否觸發 asset-db re-import
-- EventHandler dump 的精確 `type` 欄位值
-- 3.8.1 `component` 欄位寫不進去的 issue #16517 影響
+**v2.1.1 後仍未驗的實機項目**（單獨拉出，下次回來時排）：
+- runtime 真正觸發 onClick 時 EventHandler.dispatch 是否能找到 callback
+  （測試 issue #16517 workaround 必要性的最後一哩）。
+- 含複雜屬性的節點（多 child / 多 component）走 `cce.Prefab.createPrefab`
+  時是否仍能正確 instance-link（目前只測過單一空 Button）。
+- 連續多個 prefab apply / link / unlink 的 dirty 與 undo 行為。
+
+**v2.1.1 已修的項**（程式碼變更已在 dist 同步）：
+- scene.ts `findNodeByUuidDeep` deep node lookup（#41b7d9b）
+- `applyPrefab` 不再把 façade boolean 當 success 指標
+- `createPrefabFromNode` 用 `query-nodes-by-asset-uuid` 解出新 instance UUID
+- panel `package.json panels.default.size` 720×640，min 480×400
 
 ## 環境快速確認
 
