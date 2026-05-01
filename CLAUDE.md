@@ -46,7 +46,7 @@ source/
 │   ├── scene-view-tools.ts        #  20 tools
 │   ├── node-tools.ts              #  11 tools
 │   ├── component-tools.ts         #  10 tools  (P4 T-P4-1 added add/remove/list_event_handler)
-│   ├── prefab-tools.ts            #  13 tools  (P4 T-P4-3 added link/unlink/get_prefab_data)
+│   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
 │   ├── project-tools.ts           #  24 tools
 │   ├── debug-tools.ts             #   9 tools  (v2.1.2 dropped placeholder get_console_logs)
 │   ├── preferences-tools.ts       #   7 tools
@@ -74,10 +74,12 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 162 (v2.1.1 added 6 prefab/EventHandler tools;
-v2.1.2 dropped 1 placeholder `get_console_logs`). Original author's v1.5.0
-plan was to collapse to ~50 action-router tools. We are not committing to
-that target until token cost is measured.
+Total tool count today: 160 (v2.1.1 added 6 prefab/EventHandler tools;
+v2.1.2 dropped 1 placeholder `get_console_logs`; v2.1.4 dropped
+`duplicate_prefab` and merged `link_prefab` + `unlink_prefab` →
+`set_link`, net -2). Original author's v1.5.0 plan was to collapse to
+~50 action-router tools. We are not committing to that target until
+token cost is measured.
 
 ## Landmines (read before editing)
 
