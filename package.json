@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.1.5",
+    "version": "2.1.6",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -74,11 +74,6 @@
             "open-panel": {
                 "methods": [
                     "openPanel"
-                ]
-            },
-            "open-tool-manager": {
-                "methods": [
-                    "openToolManager"
                 ]
             },
             "start-server": {
