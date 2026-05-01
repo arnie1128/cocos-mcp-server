@@ -86,28 +86,42 @@ read-only state，避免每個 query 都走 `tools/call`。
 
 ### B-2：擴充功能（active backlog，動工順序如下）
 
-關注點是「清理架構 + 持續優化 + 穩定維護」。T-P3-1 落地後（v2.2.0），
-backlog 重排——根據 5 個 reference repo 盤點（見 §跨專案盤點筆記），
-最高 ROI 不是 T-P3-3 Notifications，而是借鏡 FunplayAI / harady 的
-AI workflow 強化：
+關注點是「清理架構 + 持續優化 + 穩定維護 + 多 client 廣度」。
+v2.2.0 ship MCP resources 後 backlog 完整重排——盤點 6 個 reference
+repo（含 cocos-code-mode；見 §跨專案盤點筆記）後決議：
 
-| 動工順序 | 項目 | 來源 / 動機 | 估時 | bump |
-|---|---|---|---|---|
-| **第 1（v2.3.0）** | T-V23-1 `execute_javascript` 統一 sandbox | FunplayAI 架構翻轉：1 個 [primary] 寬 tool + 既有 160 narrow tool 標 [specialist]，AI 複合操作不再打 5-10 個 call | 1-2 天 | minor 2.3.0 |
-| **第 2（v2.3.0 同梱）** | T-V23-2 `debug_screenshot` + `debug_batch_screenshot` | harady / FunplayAI：AI 視覺驗證閉環，自己看自己改的結果 | 0.5 天 | 同上 |
-| **第 3（v2.3.0 同梱）** | T-V23-3 docs as markdown resources | 借鏡 cocos-cli `text/markdown` 文件型 resource。`cocos://docs/landmines`（CLAUDE.md §Landmines）+ `cocos://docs/tools`（tools.md）；AI 卡關時自助查 | 0.5 天 | 同上 |
-| 第 4（v2.4.0） | T-V24-1 `debug_wait_compile` + TS diagnostics 系列 | harady `debug_wait_compile` + FunplayAI `run_script_diagnostics` / `get_script_diagnostic_context`，AI 工作流避免讀過時錯誤 | 1.5 天 | minor 2.4.0 |
-| 第 5（v2.4.0 同梱） | T-V24-2 Animation tool 系列 | FunplayAI / Spaydo：`list_animations` / `play_animation` / `stop_animation` / `set_clip` | 1 天 | 同上 |
-| 第 6（v2.5.0） | T-P3-3 Notifications | 我們 first mover；前置 probe-broadcast script | 3 天 | minor 2.5.0 |
-| 第 7（v2.5.0 同梱） | T-P3-2 Prompts capability | FunplayAI 4 個 project-context-aware prompt template | 1 天 | 同上 |
-| 第 8（自成 milestone） | T-V26-1 `debug_game_command` + GameDebugClient injection | harady：注 client 進 preview，AI 自動 runtime 測試大門。需要評估 cocos preview process 的 IPC 介面 | 3-5 天 | minor 2.6.0 |
-| 路標保留 | T-P3-4 stdio transport | cocos editor 內跑 stdio 不自然，跳過 | — | — |
-| 路標保留 | RomaRogov asset interpreters 系列 | 18 種 asset 專屬 reader（prefab/animation/particle/effect 結構化解析），有需求再做 | — | — |
+- 不換 protocol（不轉 UTCP-only）——失 Claude Code/Desktop 等 MCP-native client
+- 抄 cocos-code-mode 的 idea（InstanceReference、TS 定義生成、decorator）
+  不抄它的 protocol stack
+- 80% 的 Code Mode 效益用 `execute_javascript`（MCP 內最小 Code Mode）達成
 
-**重排理由**：原本 T-P3-3 Notifications 排第二，但盤點後發現對 AI
-workflow 的立即價值低於 `execute_javascript` + `debug_screenshot`。
-Notifications 的價值要等 client 端真的 cache resources 才浮現，
-而現在 client 多半 cold-read。先把 AI workflow 強化做厚。
+| 版本 | 內容 | 估時 | 風險 |
+|---|---|---|---|
+| **v2.3.0** | `execute_javascript` 統一 sandbox + screenshot 系列 + docs markdown resources | 2 天 | sandbox prompt-injection（已設計 opt-in）|
+| **v2.4.0** | 重構 6 步：(1) 三層 → declarative array (2) `resolveNode()` helper (3) `batchSet()` helper (4) **InstanceReference `{id,type}` 模式**（cocos-code-mode）(5) `@mcpTool` decorator（cocos-code-mode `@utcpTool` 風格、不用 reflect-metadata）(6) **`inspectorGetInstanceDefinition` 等效 tool**（cocos-code-mode killer feature：動態 TS 類別定義給 AI） | 4 天 | 重構 surface 大、smoke / live-test 必須全綠才推 |
+| **v2.5.0** | file-editor（多 client 支援，含 path-safety guard + asset-db refresh hook）+ T-P3-3 Notifications + T-P3-2 Prompts | 5 天 | Notifications debounce 策略要靠 probe-broadcast 實機數據 |
+| **v2.6.0** | Gemini-compat schema patch（zod inline 不用 `$ref`）+ harady `debug_game_command` + GameDebugClient injection | 4-5 天 | preview process IPC 接口要先評估可行性 |
+| **v2.7.0** | spillover buffer——前 4 版動工中發現的延伸需求 | — | — |
+
+**為什麼不換 UTCP-only**：cocos-code-mode 走 UTCP，技術可行但生態
+損失大（Claude Code/Desktop/Cline/Continue 全部 MCP native，UTCP 沒
+client 直接支援，要架 UTCP Code Mode runtime + MCP-bridge 多一層）。
+重寫成本 5-7 天 ≈ 我們 v2.3+v2.4+v2.5 加起來的時間。換來「重新從頭、
+生態縮小」不划算。詳細推理見對話紀錄 2026-05-02 §UTCP vs MCP。
+
+**為什麼 Notifications 排到 v2.5.0**：
+v2.3.0 / v2.4.0 對 AI workflow 立即價值更高（execute_javascript 解
+複合操作 token 暴增、refactor + InstanceReference 解 AI 屬性猜錯問題）。
+Notifications 的價值要等 client 端真的 cache resources 才浮現，今天
+Claude Code 對 resource cache 行為仍模糊，先把基底打厚再做訂閱層。
+
+**何時做動工前 probe-broadcast**：v2.5.0 開動的第一天，先寫
+`scripts/probe-broadcast.js` 量實機事件密度，再設計 debounce 策略。
+
+**路標保留（不在 v2.7 前的計畫內）**：
+- T-P3-4 stdio transport（cocos editor 內跑 stdio 不自然，跳過）
+- cocos-code-mode `assetGetPreview` 等 asset 預覽生成（觀察 user 是否真要）
+- cocos-code-mode 14 個 asset importers（FBX/GLTF 等專屬）— v2.6 後考慮
 
 #### T-P3-1 Resources（細拆，已落地 v2.2.0）
 
@@ -261,6 +275,45 @@ cocos://docs/handoff      text/markdown   from docs/HANDOFF.md
 讀檔時動態載入（不在 build time bake-in），保證 user 改 CLAUDE.md
 後馬上反映。AI 卡關時可自助查 landmine 紀錄。
 
+#### v2.4.0 重構（6 步，~4 天）
+
+**目標**：把 cocos-code-mode 的關鍵 idea（InstanceReference + TS 定義
+生成）移植進 MCP 路徑，同時清掉三層 ceremony。**不增加 tool 數**，但
+AI 準確率 + 新增 tool 摩擦力都會大幅改善。
+
+| 步驟 | 內容 | 估時 | 來源 / 動機 |
+|---|---|---|---|
+| 1 | 單檔三層分離（schemas + meta + execute switch）→ 單一 declarative array `[{name, description, inputSchema, handler}, ...]` | 0.5 天 | FunplayAI / Spaydo 寫法，新 tool 摩擦降 50% |
+| 2 | 抽 `lib/resolve-node.ts`，所有寫類 tool 接受 `nodeUuid \| nodeName` 二選一 | 0.5 天 | harady AI-friendly fallback |
+| 3 | 抽 `lib/batch-set.ts`，property 批量寫入單一 round-trip | 0.5 天 | harady batch mode |
+| 4 | **InstanceReference `{id, type}` 模式** — 所有 tool 的 nodeUuid/componentUuid/assetUuid 改用 InstanceReference 物件，type 跟著傳。AI 不再在 context 裡丟失「這 UUID 是什麼東西」的資訊 | 1 天 | cocos-code-mode killer pattern |
+| 5 | `@mcpTool` decorator（cocos-code-mode `@utcpTool` 風格，descriptor 直接捕獲、**不用 `reflect-metadata`**） | 0.5 天 | cocos-code-mode；比 cocos-cli `@tool` 簡 |
+| 6 | **`inspectorGetInstanceDefinition` 等效 tool**——從 cocos `query-node` dump 動態生成 TS 類別定義回給 AI。AI 改 `cc.Camera.fov` 前先讀定義，避免猜屬性名 | 1 天 | cocos-code-mode killer feature |
+
+**驗證**：
+
+- [ ] 全部 160 tool migration 完、tsc clean
+- [ ] smoke 12 條 + 新 InstanceReference round-trip + 新 TS 定義生成 check 全綠
+- [ ] live-test 跑一輪、原有 user-facing 行為對等
+- [ ] measure script 跑出 token 量化（預期 inputSchema 可能略增，
+      但 InstanceReference 對 AI context 的可讀性提升能抵銷）
+
+**風險**：重構 surface 大、回滾錨點留好（`git reset --hard <v2.3.0
+release commit>`）。建議分多個 commit 推、每個步驟一個 commit，方便
+按步回滾。
+
+#### v2.5.0：file-editor + Notifications + Prompts
+
+**file-editor 4 個 tool（多 client 支援）**：
+
+- `insert_text` / `delete_lines` / `replace_text` / `query_text`
+  （Spaydo 模式）
+- 必加 `path-safety` guard：解析路徑後檢查 `.startsWith(projectPath)`
+- 改完 `.ts` 後自動 trigger `Editor.Message.request('asset-db', 'refresh', url)`
+  （Spaydo 沒做這個，是我們的補強）
+- 對 Claude Code 用戶這 4 個 tool 重複，可在 description 標
+  `[claude-code-redundant] Use Edit/Write tool from your IDE if available.`
+
 #### T-P3-3 Notifications（v2.5.0，動工前先 probe）
 
 **前置**：v2.3.0 + v2.4.0 落地，給 Notifications 預留實機 prove 的時間。
@@ -289,6 +342,35 @@ prompt 帶 project context（projectName / projectPath）baked in，
 4 個建議 template：`fix_script_errors` / `create_playable_prototype`
 / `scene_validation` / `auto_wire_scene`。
 
+#### v2.6.0：Gemini-compat schema + debug_game_command
+
+**Gemini-compat schema patch（0.5-1 天）**：
+
+當 user 開始接 Gemini client（gemini-cli / Vertex AI / Cline 用 Gemini
+backend）會撞 zod 預設轉 JSON Schema 用 `$ref` 的問題——Gemini parser
+不接受 `$ref`。Patch 寫法見 cocos-cli `mcp.middleware.ts:218`：手動
+覆蓋 `tools/list` handler，把 zod 轉成 inline JSON Schema 7（不產
+`$ref`）。我們現在多個 tool 共用 `vec3Schema` / `prefabPositionSchema`
+/ `transformPositionSchema`，跑 Gemini 都會炸。
+
+**debug_game_command + GameDebugClient injection（3-4 天）**：
+
+harady 的 killer feature。在 cocos preview process 裡注一個
+`GameDebugClient`，AI 透過 `debug_game_command(type='click', args={node:'PlayBtn'})`
+能：
+
+- 在 game runtime 截圖
+- 在 game runtime 點擊節點 / 模擬輸入
+- dump game state（GameDb）
+- 取得 runtime 節點訊息（UITransform sizes, Widget, Layout, position）
+
+需要先評估的：
+
+1. cocos preview process 的 IPC 介面（`Editor.Message.broadcast` 能不能
+   到 preview？或要透過 WebSocket 自接？）
+2. inject 點 — preview 啟動時插一段 setup script
+3. Reload extension 時 client 要不要 re-inject
+
 ### B-3：Prefab byte-level 比對（觸發再做）
 
 v1.4.0 #1 — code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），
@@ -297,22 +379,23 @@ v1.4.0 #1 — code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），
 
 ---
 
-## 🔍 跨專案盤點筆記（2026-05-02）
+## 🔍 跨專案盤點筆記（2026-05-02 / 二輪含 cocos-code-mode）
 
 5 個 reference repo clone 在 `D:/1_dev/cocos-mcp-references/`：
 cocos-cli / funplay-cocos-mcp / cocos-creator-mcp（harady）/
-cocos-mcp-extension（Spaydo）/ RomaRogov-cocos-mcp。
+cocos-mcp-extension（Spaydo）/ **cocos-code-mode**（Roman Rogov 繼任專案，
+換掉初代 RomaRogov-cocos-mcp）。
 
 ### Tool 數量 / LOC 對照
 
-| repo | tools | LOC | resources | prompts | notifications | SDK | 同架構 |
-|---|---:|---:|:---:|:---:|:---:|:---:|:---:|
-| **ours v2.2.0** | **160** | 10,912 | ✅ 6+2 | ❌ | ❌ | ✅ | — |
-| harady | 161 | 7,037 | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Spaydo | 139 | 7,136 | ❌ | ❌ | ❌ | ✅ | ✅ |
-| FunplayAI | 67 | 3,315 | ✅ 8+3 | ✅ 4 | ❌ | ❌（手刻 JSON-RPC） | ✅ |
-| RomaRogov | 16 macro | 9,194 | ❌ | ❌ | ❌ | ✅ | ✅ |
-| cocos-cli | ~1+hooks | — | ✅ docs only | ❌ | ❌ | ✅ | ❌（CLI）|
+| repo | tools | LOC | protocol | resources | prompts | notifications | 同架構 |
+|---|---:|---:|---|:---:|:---:|:---:|:---:|
+| **ours v2.2.0** | **160** | 10,912 | MCP（SDK） | ✅ 6+2 | ❌ | ❌ | — |
+| harady | 161 | 7,037 | MCP（SDK） | ❌ | ❌ | ❌ | ✅ |
+| Spaydo | 139 | 7,136 | MCP（SDK） | ❌ | ❌ | ❌ | ✅ |
+| FunplayAI | 67 | 3,315 | MCP（手刻 JSON-RPC） | ✅ 8+3 | ✅ 4 | ❌ | ✅ |
+| **cocos-code-mode** | **24 macro** | **5,569** | **UTCP**（`@utcp/sdk`） | ❌（不需要——Code Mode 模式）| ❌ | ❌ | ✅ |
+| cocos-cli | ~1+hooks | — | MCP（`fastmcp`） | ✅ docs only | ❌ | ❌ | ❌（CLI）|
 
 ### 我方獨有功能（盤點結論：全保留，無冗餘）
 
@@ -327,22 +410,40 @@ cocos-mcp-extension（Spaydo）/ RomaRogov-cocos-mcp。
 
 ### 對方有、我們缺（已排進 B-2 backlog）
 
-最高 ROI 三件已排 v2.3.0：
+**v2.3.0**（架構強化）：
 
-- 來自 FunplayAI：`execute_javascript` 統一 sandbox（架構翻轉）
-- 來自 harady：`debug_screenshot` / `debug_batch_screenshot`（AI 視覺驗證）
-- 來自 cocos-cli：`text/markdown` docs resources（landmines / tools / handoff
-  外露給 AI 自助查）
+- FunplayAI `execute_javascript` 統一 sandbox — MCP 內最小 Code Mode
+- harady `debug_screenshot` / `debug_batch_screenshot` — AI 視覺驗證
+- cocos-cli 風格 `text/markdown` docs resources — landmines / tools / handoff
 
-中 ROI 排 v2.4.0：TS diagnostics（FunplayAI）+ animation tools（FunplayAI/
-Spaydo）。
+**v2.4.0**（重構 + cocos-code-mode 移植）：
 
-不採納：
+- cocos-code-mode `InstanceReference {id, type}` 模式 — type 跟 UUID 一起傳
+- cocos-code-mode `inspectorGetInstanceDefinition` — **動態生成 TS 類別
+  定義回給 AI**，AI 改屬性前先讀，不用猜屬性名
+- cocos-code-mode `@utcpTool` 風格 decorator（descriptor 直接捕獲、
+  不需 reflect-metadata）
+- harady `resolveNode()` nodeUuid/nodeName fallback、batch property write
 
-- Spaydo `file-editor-tools` / FunplayAI `read/write_file` —— Claude Code
-  已有 Edit/Write，重複造會混淆
-- RomaRogov `generate-image-asset` —— domain orthogonal，該放通用
-  image-gen MCP server 不放 in-editor
+**v2.5.0**（廣度 + 訂閱）：
+
+- Spaydo `file-editor-tools`（`insert_text` / `delete_lines` / `replace_text`
+  / `query_text`） — **加上 Spaydo 沒做的 asset-db refresh hook**
+- T-P3-3 Notifications（first mover，沒 prior art）
+- FunplayAI `prompts/*` capability 4 個 template
+
+**v2.6.0**：
+
+- cocos-cli Gemini-compat schema patch（zod → inline JSON Schema 7、不用 `$ref`）
+- harady `debug_game_command` + GameDebugClient injection（preview process IPC）
+
+**不採納**：
+
+- RomaRogov（初代）`generate-image-asset` — domain orthogonal，
+  該放通用 image-gen MCP server，不放 in-editor
+- cocos-code-mode UTCP-only protocol switch — 失 Claude Code/Desktop 等
+  MCP-native client，重寫成本 5-7 天，換來生態縮小不划算
+  （詳細推理見對話紀錄 2026-05-02 §UTCP vs MCP）
 
 ### MIME 政策定案
 
@@ -364,11 +465,43 @@ in-editor extension，主場景是 live scene/node/component 操作。**沒有
 
 值得借鏡的兩個技術點：
 
-- decorator-driven tool registration（`@Tool` 從裝飾器收 toolRegistry，
-  比每個 category 手寫 `getTools()` 集中）—— 長期重構考慮
-- Gemini-compat schema patch（手動覆蓋 `tools/list` 把 zod 轉成
-  Gemini 接受的 JSON Schema 7、不用 `$ref`）—— 接 Gemini client 時
-  會撞同樣的牆，可抄
+- decorator-driven tool registration — 排 v2.4.0 step 5
+- Gemini-compat schema patch — 排 v2.6.0 接 Gemini client 時做
+
+### 與 cocos-code-mode 的關係
+
+**同源不同協議**。Roman Rogov 的繼任專案，主推 UTCP（Universal Tool
+Calling Protocol）+ Code Mode 執行模型。同樣是 in-editor extension、
+同樣 call `Editor.Message`、scene 操作能力等價我們，但：
+
+| 維度 | 我們（MCP） | cocos-code-mode（UTCP） |
+|---|---|---|
+| 協議 | MCP（JSON-RPC over Streamable HTTP/SSE）| UTCP（純 REST） |
+| 互動模型 | LLM 一次一個 tool call | LLM 寫 JS、runtime 在 sandbox 跑（多 call 在 server 端 chain）|
+| 主流 client 支援 | ✅ Claude Code/Desktop/Cline/Continue | ❌ 需另起 UTCP Code Mode runtime + bridge |
+| Tool 數 | 160 narrow | 24 macro |
+| TS 定義生成 | ❌（待 v2.4.0 step 6） | ✅（killer feature） |
+| InstanceReference | ❌（待 v2.4.0 step 4） | ✅（協議內建模式） |
+| Asset importer 系統 | ❌ | ✅ 14+ 專屬 importer |
+
+**為什麼不換 protocol（UTCP-only refactor）**：
+
+1. Claude Code 是主力 client，MCP-native，沒原生 UTCP 支援
+2. UTCP 規格仍迭代，動量 < MCP
+3. 80% 的 Code Mode 效益可在 MCP 內取得（execute_javascript，per
+   Anthropic「Code Execution with MCP」paper）
+4. 重寫成本 5-7 天 ≈ v2.3 + v2.4 + v2.5 加總時間，兌價不划算
+
+**抄它什麼**（v2.4.0 重構同梱）：
+
+- InstanceReference `{id, type}` 模式（step 4）
+- `@mcpTool` decorator（step 5、抄 `@utcpTool` 寫法、descriptor 直接
+  捕獲、不需 reflect-metadata）
+- `inspectorGetInstanceDefinition` 等效 tool（step 6、動態 TS 類別
+  定義給 AI）
+
+長期觀察：UTCP 若哪天被 Claude Code/Desktop native 支援，重新評估
+dual-protocol。今天 MCP 仍是唯一的廣度選擇。
 
 ### FunplayAI LOC 為何 3,315？
 
