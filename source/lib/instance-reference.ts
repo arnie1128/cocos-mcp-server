@@ -120,6 +120,20 @@ export async function resolveReference(args: {
         };
     }
 
+    // v2.4.2 review fix (claude): symmetric check for refId vs
+    // nodeName. v2.4.1 caught refId/nodeUuid mismatch but silently
+    // ignored a nodeName supplied alongside reference. Same class of
+    // mistake — flag it explicitly so the AI sees both selectors are
+    // redundant rather than partially honoured.
+    if (refId && nodeName) {
+        return {
+            response: {
+                success: false,
+                error: `resolveReference: reference.id (${refId}) supplied alongside nodeName (${nodeName}); pass only one`,
+            },
+        };
+    }
+
     if (refId) {
         return { uuid: refId, reference: args.reference };
     }

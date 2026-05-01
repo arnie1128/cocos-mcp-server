@@ -1,5 +1,58 @@
 # Changelog
 
+## v2.4.2 — 2026-05-02
+
+Second-round three-way review fixes on v2.4.1. Two 🔴 from Codex + four
+🟡 consensus polish items. No new tools, no API removals.
+
+### Must-fix
+
+- **`sanitizeTsName` guards digit-leading and empty results**. v2.4.1
+  stripped non-identifier characters but produced invalid TS like
+  `class 2dSprite` (digit-leading) or `class ` (empty after strip on
+  UUID-shaped `__type__`). Now prefixes `_` for digit-leading and
+  returns `_Unknown` for empty. (Codex.) Fix at
+  `source/tools/inspector-tools.ts:sanitizeTsName`.
+- **`reference.type` no longer overrides the dump's `__type__`**.
+  v2.4.1 used `reference.type || dump.__type__` for the class name,
+  so a caller passing `{id: nodeUuid, type: 'cc.Sprite'}` got a node
+  dump rendered as `class Sprite`. Now the dump's `__type__` is
+  authoritative; `reference.type` is diagnostic only — a mismatch
+  surfaces as a `warning` in the response. (Codex.) Fix at
+  `source/tools/inspector-tools.ts:getInstanceDefinition`.
+
+### Worth-considering
+
+- **`resolveReference` detects `refId` vs `nodeName` conflict
+  symmetrically**. v2.4.1 caught `refId` vs `nodeUuid` but silently
+  ignored a `nodeName` supplied alongside `reference`. (Claude.) Fix
+  at `source/lib/instance-reference.ts`.
+- **`enumCommentHint` reads `userData.enumList` / `userData.bitmaskList`
+  fallback paths**. Cocos sometimes nests enum data under `userData`,
+  sometimes at the top level — v2.4.1 only checked top level. Also
+  removed the misleading `userData.enumList[0].name` fallback (that
+  reads the *first enum value's* name, not the class name). (Claude
+  + Codex.) Fix at `source/tools/inspector-tools.ts:enumCommentHint`.
+- **`COMPONENT_INTERNAL_KEYS` removed (was dead code)**. The
+  `isComponent` flag in `renderTsClass` is hardcoded `false` since
+  v2.4.1's node-only narrowing; the deny-list went unused. Restore
+  from git history when v2.5+ reintroduces component support. (Claude
+  + Codex + Gemini consensus.)
+- **`node_set_node_properties` description corrected**. v2.4.1 said
+  "concurrent" / "single round-trip" but the implementation became
+  serial-await. Description now matches reality. (Codex.) Fix at
+  `source/tools/node-tools.ts`.
+- **File-level JSDoc on `inspector-tools.ts` updated** — said "node or
+  component reference" but the implementation is node-only. (Codex.)
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 15 categories / 167 tools (unchanged)
+
+---
+
 ## v2.4.1 — 2026-05-02
 
 Three-way review fixes (claude / codex / gemini) on v2.4.0. No new tools,

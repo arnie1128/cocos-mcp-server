@@ -139,7 +139,7 @@ export class NodeTools implements ToolExecutor {
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
                 }), handler: a => this.detectNodeType(a.uuid) },
-            { name: 'set_node_properties', description: 'Batch-write multiple node properties in a single round-trip. Mutates scene; each entry runs concurrently and returns per-entry success/error so partial failures are visible. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+            { name: 'set_node_properties', description: 'Batch-write multiple node properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form.'),
                     uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),

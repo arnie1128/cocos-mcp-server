@@ -3,10 +3,12 @@
  * cocos `scene/query-node` dumps.
  *
  * Two MCP tools:
- *   - inspector_get_instance_definition  — for a node or component
- *     reference, walk the cocos dump and emit a TypeScript class
- *     declaration AI can read before changing properties. Avoids the
- *     "AI guesses property name" failure mode.
+ *   - inspector_get_instance_definition  — for a **node** reference
+ *     (component / asset references are deferred to v2.5+ pending a
+ *     verified Cocos query-component channel), walk the cocos dump
+ *     and emit a TypeScript class declaration AI can read before
+ *     changing properties. Avoids the "AI guesses property name"
+ *     failure mode.
  *   - inspector_get_common_types_definition — return hardcoded
  *     definitions for cocos value types (Vec2/3/4, Color, Rect, etc.)
  *     that the instance definition references but doesn't inline.
@@ -48,18 +50,18 @@ class Mat4 { m00: number; m01: number; m02: number; m03: number;
 // v2.4.1 review fix (codex): expanded from the v2.4.0 minimal list to
 // cover prefab-instance/serialization metadata and editor-only fields
 // that AI shouldn't try to mutate.
+//
+// v2.4.2 review fix (codex+claude+gemini): COMPONENT_INTERNAL_KEYS was
+// kept in v2.4.1 in anticipation of a v2.5+ component-shaped path, but
+// renderTsClass currently only ever runs for nodes. Removed for now;
+// when component support comes back, restore from git history rather
+// than carry dead code that drifts out of sync with cocos editor.
 const NODE_DUMP_INTERNAL_KEYS = new Set([
     '__type__', '__comps__', '__prefab__', '__editorExtras__',
     '_objFlags', '_id', 'uuid',
     'children', 'parent',
     '_prefabInstance', '_prefab', 'mountedRoot', 'mountedChildren',
     'removedComponents', '_components',
-]);
-
-const COMPONENT_INTERNAL_KEYS = new Set([
-    '__type__', '__scriptAsset', '__prefab__', '__editorExtras__',
-    '_objFlags', '_id', 'uuid',
-    'node', '__cid__', '_componentName',
 ]);
 
 export class InspectorTools implements ToolExecutor {
@@ -101,21 +103,30 @@ export class InspectorTools implements ToolExecutor {
             if (!dump) {
                 return { success: false, error: `inspector: query-node returned no dump for ${reference.id}. If this is a component or asset UUID, v2.4.1 does not support it; pass the host node UUID instead.` };
             }
-            const className = (reference.type
-                || dump.__type__
-                || dump.type
-                || 'CocosInstance').replace(/^cc\./, '');
-            // v2.4.1: query-node returns a node dump regardless of what
-            // reference.type claims; trust the dump shape rather than
-            // the caller-supplied type tag.
+            // v2.4.2 review fix (codex): trust the dump's __type__, not
+            // the caller-supplied reference.type. A caller passing
+            // {id: nodeUuid, type: 'cc.Sprite'} otherwise got a node
+            // dump rendered as `class Sprite`, mislabelling the
+            // declaration entirely. reference.type is now diagnostic
+            // only — surfaced in the response data so callers can see
+            // a mismatch but never used as the class name.
+            const dumpType = String(dump.__type__ ?? dump.type ?? 'CocosInstance');
+            const className = dumpType.replace(/^cc\./, '');
+            const referenceTypeMismatch = reference.type
+                && reference.type !== dumpType
+                && reference.type.replace(/^cc\./, '') !== className;
             const ts = renderTsClass(className, dump, /* isComponent */ false);
-            return {
+            const response: ToolResponse = {
                 success: true,
                 data: {
                     reference: { id: reference.id, type: dump.__type__ ?? reference.type },
                     definition: ts,
                 },
             };
+            if (referenceTypeMismatch) {
+                response.warning = `inspector: reference.type (${reference.type}) does not match dump __type__ (${dumpType}); class label uses the dump value`;
+            }
+            return response;
         } catch (err: any) {
             return { success: false, error: `inspector: query-node failed: ${err?.message ?? String(err)}` };
         }
@@ -129,13 +140,14 @@ export class InspectorTools implements ToolExecutor {
  * require a separate get_instance_definition call by component
  * UUID).
  */
-function renderTsClass(className: string, dump: any, isComponent: boolean): string {
+function renderTsClass(className: string, dump: any, _isComponent: boolean): string {
+    // v2.4.2: _isComponent kept for forward-compat signature stability;
+    // currently always false. v2.5+ will reintroduce a component branch.
     const lines: string[] = [];
     lines.push(`class ${sanitizeTsName(className)} {`);
 
-    const internalKeys = isComponent ? COMPONENT_INTERNAL_KEYS : NODE_DUMP_INTERNAL_KEYS;
     for (const propName of Object.keys(dump)) {
-        if (internalKeys.has(propName)) continue;
+        if (NODE_DUMP_INTERNAL_KEYS.has(propName)) continue;
         const propEntry = dump[propName];
         if (propEntry === undefined || propEntry === null) continue;
         // Cocos dump entries are typically `{type, value, visible?, readonly?, ...}`.
@@ -156,7 +168,7 @@ function renderTsClass(className: string, dump: any, isComponent: boolean): stri
         lines.push(`    ${readonly}${safePropName}: ${tsType};`);
     }
 
-    if (!isComponent && Array.isArray(dump.__comps__) && dump.__comps__.length > 0) {
+    if (Array.isArray(dump.__comps__) && dump.__comps__.length > 0) {
         lines.push('');
         lines.push('    // Components on this node (inspect each separately via get_instance_definition with the host node UUID first; component-specific dump access is v2.5+):');
         for (const comp of dump.__comps__) {
@@ -195,11 +207,19 @@ function enumCommentHint(entry: any): string | null {
     if (!entry || typeof entry !== 'object') return null;
     const t: string = entry.type ?? '';
     if (t !== 'Enum' && t !== 'BitMask') return null;
+    // v2.4.2 review fix (claude): the v2.4.1 fallback included
+    // `userData.enumList[0].name` which is the *first enum value's*
+    // name, not the enum class name — produced misleading comments.
+    // Drop that path; only use explicit enumName fields.
     const enumName: string | undefined = entry?.userData?.enumName
-        ?? entry?.userData?.enumList?.[0]?.name
         ?? entry?.enumName;
+    // v2.4.2 review fix (codex): cocos sometimes nests enumList /
+    // bitmaskList under userData, sometimes at the top level. Check
+    // both before giving up.
     const list = Array.isArray(entry.enumList) ? entry.enumList
         : Array.isArray(entry.bitmaskList) ? entry.bitmaskList
+        : Array.isArray(entry?.userData?.enumList) ? entry.userData.enumList
+        : Array.isArray(entry?.userData?.bitmaskList) ? entry.userData.bitmaskList
         : null;
     const sample = list && list.length > 0
         ? list.slice(0, 8).map((it: any) => {
@@ -265,6 +285,14 @@ function resolveTsType(entry: any): string {
     return isArray ? `Array<${ts}>` : ts;
 }
 
+// v2.4.2 review fix (codex): the v2.4.1 implementation only stripped
+// non-identifier characters but didn't guard against a digit-leading
+// result (`class 2dSprite`) or an empty result (after stripping all
+// chars in a UUID-shaped __type__). Both produce invalid TS. Prefix
+// digit-leading and empty cases with `_` / `_Unknown`.
 function sanitizeTsName(name: string): string {
-    return name.replace(/[^a-zA-Z0-9_]/g, '_');
+    const cleaned = String(name ?? '').replace(/[^a-zA-Z0-9_]/g, '_');
+    if (cleaned.length === 0) return '_Unknown';
+    if (/^[0-9]/.test(cleaned)) return `_${cleaned}`;
+    return cleaned;
 }
