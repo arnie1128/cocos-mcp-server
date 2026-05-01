@@ -3,143 +3,157 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 P2 close + 死碼清掃 / v2.1.6）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 B-1 description sweep / v2.1.7）
 
-當下版本：**v2.1.6**（origin/main HEAD = 死碼清掃 commit，已 push）。
-本 session 兩件事，無 in-flight 任務、無未推 commit：
+當下版本：**v2.1.7**（origin/main HEAD = `ff62dd7`，已 push）。
+本 session 一個動作：**B-1 description sweep 全清**，無 in-flight 任務、無未推 commit。
 
 | SHA | 內容 | 行數 |
 |---|---|---|
-| `12c20c4` | docs(p2): close P2 tool-consolidation after token measurement | +494 -37 |
-| `05d865e` | chore: prune dead code, bump 2.1.6 | +1 -3286 |
+| `ff62dd7` | docs(tools): rewrite descriptions, bump 2.1.7 | +1118 -1096 |
 
-### 1. P2 量測 + close（commit `12c20c4`）
+### B-1 description sweep（commit `ff62dd7`）
 
-寫 `scripts/measure-tool-tokens.js` 量現況 vs 假想形態：
+由 codex 一次包辦 14 個 category / 全 160 個 tool 的 description 改寫。
+策略偏離 HANDOFF 原計畫（每 1-3 個 category 一輪 patch bump）改成
+**單一 patch bump**，省雜訊也乾淨。
 
-| 形態 | chars | tokens (≈chars/3.5) | vs current |
-|---|---:|---:|---:|
-| current 160 flat tools | 51,983 | 14,852 | — |
-| router-A lossless oneOf | 71,278 | 20,365 | **+37.1%（更大）** |
-| router-B lossy enum-only | 17,143 | 4,898 | -67.0%（丟 validation） |
+語言：HANDOFF 原 §B-1 寫「中文」是錯的——v2.1.5 五個 reference tool
+（`set_component_property` / `create_node` / `create_scene` /
+`save_scene_as` / `preserveContentSize`）實際全是英文，codex 跟著
+reference 走英文，正確。
 
-按 ≥30% start / <15% close 門檻，lossless 是 **負 37%**，遠低於 close
-線。lossy 形態雖 -67% 但代價是丟掉 per-action arg validation（對 Cocos
-Creator UUID / dump path / propertyType 等容易打錯的領域不划算）。
-上游 v1.5.0「-50% tokens」被量測證實只在 lossy 形態成立，是行銷數字。
+風格全對齊 v2.1.5 reference：
 
-落檔：`docs/adr/0001-skip-v1.5.0-spec.md`（補註）、
-`docs/roadmap/03-tool-consolidation.md`（❌ CLOSED）、
-`docs/roadmap/README.md` 對照表 sync。`scripts/measure-tool-tokens.js`
-**保留**（ADR 補註直接引用、且可隨時重跑做 regression 比對）。
+- 都標 side effect（`Mutates scene` / `No mutation` / `Editor state side effect`）
+- 標相似 tool 差異（如 `get_components` 提示「use before remove_component
+  or set_component_property」）
+- 保留領域知識（`update_prefab.prefabPath` 注「apply uses nodeUuid linked
+  prefab data」對應 landmine #3；`add_event_handler` 注「nudge the editor
+  model for persistence」對應 landmine #11）
+- v2.1.5 已改的 5 個 rich descriptions **未被覆寫**
 
-### 2. 死碼清掃 + bump 2.1.6（commit `05d865e`）
+驗證：
 
-專案結構盤點完，砍 1300+ 行 dead path：
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` 綠
+- `node scripts/measure-tool-tokens.js` decision 仍 = CLOSE P2
+  （router-A 從 +37.1% 收斂到 +30.4%——current schema 隨描述變大
+  所以 gap 縮但仍遠超 close 線；ADR 補註裡的數字可隨手 sync 但不影響
+  結論）
+- `node scripts/generate-tools-doc.js` 重生 docs/tools.md，工具數
+  **160 / 14 categories** 不變
+- dist + package.json 已 sync 到 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`
 
-- `source/test/*.ts` (4 檔, 699 行) — 從沒被任何 npm script 跑過；
-  其中 `mcp-tool-tester.ts` 還用 WebSocket（P1 換 SDK 後不適用）
-- `source/panels/tool-manager/index.ts` + `static/template/default/tool-manager.html`
-  (584 行) — 整支 panel 在 `package.json:panels` 沒註冊、對應的
-  `openToolManager()` handler 也不存在於 `main.ts`（declaration ↔ runtime
-  對不齊的 latent bug）。Tool 管理已搬去 default panel 內的
-  `composables/use-tool-config.ts`（P4 T-P4-2）
-- `dist/{test,examples,panels/tool-manager}/*` — 對應 source 的 orphan
-  compiled output；`dist/examples/prefab-instantiation-example.js` 連對應
-  source 都沒有，純粹是上游時代殘留
-- `image/iamge2.png` + `image/image-20250717174157957.png` —
-  上游殘留截圖、文件無人引用，連檔名 `iamge2` 都是上游 typo
-- `package.json:contributions.messages.open-tool-manager` — 上述 dead
-  panel 對應的 message 註冊
-
-驗證：tsc clean / smoke 綠 / measure script 重跑數字不變 / generator
-重產 tools.md 不變 / 工具數仍 **160 / 14 categories**。dist + package.json
-已同步到 `D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/`。
-
-### Cocos Creator plugin 格式對齊
-
-對齊 `@types/schema/package/index.json`（cocos 3.8 plugin 規範），
-全合規：
-
-| 欄位 | 狀態 |
-|---|---|
-| `package_version: 2`、`name`（小寫合法）、`editor`、`main`、`panels`、`contributions` | ✅ |
-| `i18n/<locale>.js`（en / zh） | ✅ |
-| `static/icon.png`（panel icon） | ✅ |
-| `dist/` 為 commit artifact、`source/` 為原始碼 | ✅ |
-| `$schema` reference | ✅ |
-
-唯一不合規的就是上面砍掉的 dead panel 鏈，已修。
+落差表 v1.5.0 #5「介面參數更清晰」從 🟡（5/160）✅ closed at v2.1.7。
 
 ---
 
 ## 📋 待動工 Backlog（依優先序）
 
-### B-1：description 精簡 + tools.md 重生（獨立任務）
+### B-1：description 精簡 + tools.md 重生 ✅ done at v2.1.7
 
-**現況**：v2.1.5 batch 只把 5 個 tool 改成精準的中文長 description
-（`set_component_property` / `create_node` / `create_scene` /
-`save_scene_as` / `preserveContentSize`）。其餘 ~155 個多半是上游英文
-短描述（例如 `scene_get_current_scene → "Get current scene information"`、
-`sceneAdvanced_reset_node_property → "Reset node property to default value"`），
-無法從 description 看出 side effect / preflight 檢查 / 相似 tool 之間
-差別，AI 用法準確率受影響。
+`commit ff62dd7`（codex 一次完成 14 個 category / 160 個 tool）。
+細節見上方 §NEXT SESSION ENTRY POINT。
 
-**目標**：把全部 description 改成「使用者一看就懂 tool 的 side effect
-與差異」。**不改 schema、不改 tool 行為**，純 metadata 改寫。
-
-**範圍**：14 個 category、~155 個 tool 需要 review。每 tool 約 2-5 分鐘
-review + 改寫，整體粗估 8-12 小時，分批做。
-
-**步驟**：
-
-1. 一次專注一個 category（建議從 tool 數最少的 `validation` /
-   `broadcast` / `server` 開始，練手感）
-2. Read 對應 `source/tools/<category>-tools.ts`，把 zod `.describe()`
-   文字改成精準描述（中文 + 必要時帶 bullet 格式，跟 v2.1.5 五個修過
-   的 tool 風格對齊）
-3. 改完跑 `npm run build && node scripts/generate-tools-doc.js` 重生
-   `docs/tools.md`
-4. tsc clean → commit `docs(tools/<category>): rewrite descriptions`
-5. 每 1-3 個 category 完成 patch bump（2.1.6 → 2.1.7 → …），sync 到
-   `cocos_cs_349/extensions/cocos-mcp-server/`
-6. 全部完成跑一次 `node scripts/measure-tool-tokens.js`，預期 schema
-   略增（因為 description 變長），但這是合理代價
-
-**完工標準**：
-
-- [ ] 14 個 category 全部 review 完
-- [ ] tools.md 重生且 spot-check 確認 description 訊息密度提升
-- [ ] tsc clean、smoke 綠、measure script 跑得起來
-- [ ] cocos-mcp-server 安裝路徑同步
-
-**版本策略**：純 description 改寫沒對外行為變化，每批 patch bump 即可，
-不需 minor。
-
-### B-2：P3 排序計畫（roadmap 級別）
+### B-2：P3 protocol extensions（active backlog，下一個動工目標）
 
 關注點是「清理架構 + 持續優化 + 穩定維護」，P3 三個 sub-task 排序：
 
 | Sub-task | 動工順序 | 主要價值 | 預估工時 |
 |---|---|---|---|
-| **T-P3-1 Resources** | **先做** | read-only state 與 mutation tool 分離；新增工具方向明確；client 可選擇性載入大資源（hierarchy / asset list） | ~3-5 天 |
-| **T-P3-3 Notifications** | 第二做 | 解 stale UUID retry 循環、長期可靠性債；需實機驗 cocos broadcast 行為 | ~3 天 |
+| **T-P3-1 Resources** | **第一個動工** | read-only state 與 mutation tool 分離；client 可選擇性載入大資源；架構清理 | ~3-5 天 |
+| **T-P3-3 Notifications** | 第二個動工 | 解 stale UUID retry 循環；需實機驗 cocos broadcast 行為 | ~3 天 |
 | T-P3-2 Prompts | 有空再做 | UX feature（Claude Desktop slash command），無架構價值 | ~2 天 |
 | T-P3-4 stdio | **跳過** | cocos editor 內跑 stdio 不自然；roadmap 自己標可選 | — |
 
-**T-P3-1 範圍粗估**（動工時再細拆）：
+#### T-P3-1 Resources（細拆）
 
-- 設計 4-5 個 URI：`cocos://scene/current`、`cocos://scene/hierarchy`、
-  `cocos://prefabs`、`cocos://project/info`、`cocos://assets/{path}`
-- 註冊 `resources/list` + `resources/read` SDK handler（`@modelcontextprotocol/sdk`
-  已內建支援）
-- 把對應的 read-only tool 標 deprecated（保留 alias 不破現有 client）
-- 量 schema 變化：把 ~10 個 read-only tool 從 `tools/list` 搬到
-  `resources/list` 約省 ~3-5%，但這不是主要目標——架構清理才是
+**目標**：把 read-only state 從 `tools/list` 抽出來、走 `resources/*`
+協議。Client（Claude Desktop / Claude Code）可選擇性載入大資源；新增
+read-only API 時方向明確（不再走 tool）。
 
-**T-P3-3 風險點**：cocos editor `Editor.Message.addBroadcastListener`
-的事件密度、debounce 策略、stateful session 對應。需先寫一支
-`scripts/probe-broadcast.js` 觀察 cocos 推什麼事件，再設計 mapping。
+**選哪些做 resource**：候選是「沒副作用 + 一次回大塊狀態」的 tool。
+
+| URI | 對應 tool | 為什麼 |
+|---|---|---|
+| `cocos://scene/current` | `scene_get_current_scene` | 場景元資料；最常用 |
+| `cocos://scene/hierarchy` | `scene_get_scene_hierarchy` | 完整 node tree；資料量大、值得 client cache |
+| `cocos://scene/list` | `scene_get_scene_list` | 全專案場景清單 |
+| `cocos://prefabs` | `prefab_get_prefab_list` | 全專案 prefab 清單 |
+| `cocos://project/info` | `project_get_project_info` | 專案元資料 |
+| `cocos://assets{?folder}` | `project_list_assets`（如有） | 參數化 query；用 ResourceTemplate |
+
+**不選**的 read-only tool：細粒度的 `get_node_info` / `get_components`
+/ `get_component_info` 維持 tool（每次拿一個 UUID 不適合走 resource
+URI 列舉）。
+
+**實作步驟**：
+
+1. 在 `source/mcp-server-sdk.ts` `buildSdkServer()` 內：
+   - 加 capability `resources: { listChanged: true, subscribe: false }`
+     （subscribe 留給 T-P3-3）
+   - `setRequestHandler(ListResourcesRequestSchema, …)` 回傳上表靜態
+     資源清單
+   - `setRequestHandler(ListResourceTemplatesRequestSchema, …)` 處理
+     參數化 URI（如 `cocos://assets{?folder}`）
+   - `setRequestHandler(ReadResourceRequestSchema, …)` 依 URI 分派到
+     對應 ToolExecutor，把回傳轉成 `contents: [{ uri, mimeType, text }]`
+2. 加一個 `source/resources/registry.ts` 做 URI → handler 對應，避免
+   把 routing 邏輯塞進 server 主檔（鏡像 `tools/registry.ts` 的形狀）
+3. 對應的 read-only tool **保留**，description 補一行
+   「Also exposed as resource `cocos://...`. Prefer the resource for
+   full-state reads.」——不破壞舊 client，也讓新 client 知道優先順序
+4. 擴 `scripts/smoke-mcp-sdk.js`：加 `resources/list` + `resources/read`
+   的 round-trip check
+5. 補 `scripts/measure-tool-tokens.js`：把 resources schema 列入量測，
+   確認 `tools/list` 不會變大；resources 額外 overhead 量化
+
+**驗證**：
+
+- [ ] tsc clean、smoke 綠
+- [ ] 用 MCP Inspector 或 Claude Desktop 連線，能 list / read 上述 URI
+- [ ] `tools/list` 大小不退化（新增 deprecated 提示是 +字數，OK 但要
+      確認沒 +30% 級別）
+- [ ] 文件更新：`docs/architecture/overview.md` 加 Resources 區塊；
+      `docs/roadmap/04-protocol-extensions.md` 標 T-P3-1 ✅
+- [ ] dist + package.json 同步到 cocos_cs 安裝路徑
+
+**版本策略**：minor bump（2.1.7 → 2.2.0），因為 capability 擴張屬
+public surface 增加。
+
+**風險**：
+
+- Cocos `Editor.Message` 在 resource read handler 裡呼叫的時機與在 tool
+  handler 裡一致，不會有 context 差異——已驗證 SDK transport 在
+  request handler 內可正常 await `Editor.Message.request(...)`。
+- 如果某個 client 不支援 resources capability，server 端 capability
+  negotiation 會自動忽略——舊 client 不受影響。
+
+#### T-P3-3 Notifications（粗拆，動工前再細）
+
+**前置**：T-P3-1 已落地（resources 才有東西可推 `list_changed`）。
+
+**做法骨架**：
+
+1. 先寫 `scripts/probe-broadcast.js`：以 stub `Editor.Message` 偵聽
+   `scene:change-node` / `scene:close` / `asset-db:asset-add` 等事件，
+   記錄事件密度（拖節點 / 改屬性 / 存場景時各推幾下）
+2. 設計 debounce / 合併規則：同一 URI 1 秒內最多一次 `notifications/
+   resources/updated`
+3. server capability 補 `resources: { subscribe: true, listChanged: true }`
+4. 在 `source/main.ts` `load()` 註冊 broadcast listener，`unload()`
+   解除——避免 reload extension 時 leak
+5. 透過 sdkServer.notification(...) 推送到所有活躍 session
+
+**動工前必做**：probe-broadcast 那支 script 跑出實機數據，否則
+debounce 策略只能猜。
+
+#### T-P3-2 Prompts（最低優先）
+
+純 UX feature。等 T-P3-1 + T-P3-3 落地、且 user 有實際需求再做。
+roadmap 04 章已有候選清單（create-ui-button / duplicate-prefab /
+setup-2d-scene）。
 
 ### B-3：Prefab byte-level 比對（觸發再做）
 
@@ -162,13 +176,13 @@ v1.4.0 #1 — code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），
 | v1.5.0 #2 token -50% | ❌ **closed**（量測證實是 lossy-only 行銷數字） | 不再做；後續若要降 prompt 走 P3 Resources/Prompts |
 | v1.5.0 #3 Prefab 完整 API | ✅ done（P4 T-P4-3 + v2.1.4 set_link 合併） | — |
 | v1.5.0 #4 事件綁定 | ✅ done（P4 T-P4-1 + v2.1.2 持久化修補） | — |
-| v1.5.0 #5 介面參數更清晰 | 🟡 v2.1.5 batch 已改 5 個工具，其餘 ~155 個還是上游英文短描述 | **B-1 active backlog**：見上方 §B-1 description 精簡 |
+| v1.5.0 #5 介面參數更清晰 | ✅ done at v2.1.7（B-1 commit `ff62dd7`，14 個 category / 160 個 tool 全部改寫） | — |
 | v1.5.0 #6 面板 UI 簡潔 | ✅ done（P4 T-P4-2，縮小範圍只拆 composable） | — |
 | v1.5.0 #7 整體架構效率 | ❌ 跳過（無可測指標，ADR 0001） | — |
 
 ---
 
-## 進度快照（最後更新：2026-05-01 P2 close + cleanup / v2.1.6）
+## 進度快照（最後更新：2026-05-02 B-1 description sweep / v2.1.7）
 
 ```
 P0 ✅ done
@@ -179,14 +193,12 @@ v2.1.2-audit ✅ done（round-1 d5c97ef + project sweep e2ffa3d/ccb5d04）
 v2.1.3 ✅ done（scene-bridge migration + prefab fallback 大清掃 + _componentName 修補）
 v2.1.4 ✅ done（Solo backlog 6 條 + /review 反修 1 條）
 v2.1.5 ✅ done（live-test backlog 5 條全清，每條 user-driven 實機驗證）
-v2.1.6 ✅ done（本 session：P2 量測 close + 死碼清掃 -3286 行）
-   ├── P2 量測 + close                                          ✅ 12c20c4
-   └── chore cleanup（test/panel/image/dist orphans）           ✅ 05d865e
-P2 ❌ closed（量測後否決：lossless +37% / lossy -67% 但丟 validation）
+v2.1.6 ✅ done（P2 量測 close 12c20c4 + 死碼清掃 -3286 行 05d865e）
+v2.1.7 ✅ done（本 session：B-1 description sweep 全 14 categories / 160 tools，commit ff62dd7）
+P2 ❌ closed（量測後否決：lossless +30.4% / lossy -63.5% 但丟 validation）
 
 待動工（依優先序，詳見 §待動工 Backlog）：
-B-1 ⏳ description 精簡 + tools.md 重生（~155 個 tool review，分批做）
-B-2 ⏳ P3 Resources/Notifications/Prompts（架構清理；T-P3-1 先做）
+B-2 ⏳ P3 protocol extensions（next：T-P3-1 Resources，~3-5 天 / minor bump 2.2.0）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -195,7 +207,7 @@ B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -6          # 最頂為 05d865e（chore cleanup + bump 2.1.6）
+git log --oneline -6          # 最頂為 ff62dd7（docs(tools): rewrite descriptions, bump 2.1.7）
 
 # tsc + smoke + 工具數
 npm run build                 # 預期 tsc 無輸出
@@ -209,7 +221,9 @@ console.log('categories:', Object.keys(r).length, 'tools:', total);"
 
 # P2 量測重跑（任何時候都可重跑、輸出穩定，可拿來做 regression 比對）
 node scripts/measure-tool-tokens.js
-# 預期：current 51,983 chars / router-A +37.1% / router-B -67% / decision: CLOSE P2
+# 預期：router-A +30.4% / router-B -63.5% / decision: CLOSE P2
+# 註：v2.1.7 描述變長，current schema 從 51,983 chars 增至 ~54,700；
+# 兩個收斂形態與 current 的差距同步收斂，但仍遠超 close 線
 
 # tools.md 重產（B-1 description sweep 每批改完都要跑）
 node scripts/generate-tools-doc.js
@@ -251,6 +265,7 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.1.7 description sweep 改動前（v2.1.6 release 點） | `git reset --hard 05d865e` 然後 `git push --force-with-lease` |
 | v2.1.6 死碼清掃前（保留 P2 close 的 doc 改動） | `git reset --hard 12c20c4` 然後 `git push --force-with-lease` |
 | v2.1.6 全部改動前（P2 close 也退） | `git reset --hard 18810a0` 然後 `git push --force-with-lease` |
 | v2.1.5 改動前（v2.1.4 release 點） | `git reset --hard 6cc295f` 然後 `git push --force-with-lease` |
