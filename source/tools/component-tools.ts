@@ -90,6 +90,10 @@ const setComponentPropertyValueDescription =
     '     succeed at the IPC layer but the reference never connects.\n' +
     '• spriteFrame: "spriteframe-uuid" (sprite frame asset)\n' +
     '  How to get: Check asset database or use asset browser\n' +
+    '  ⚠️ Default cc.Sprite.sizeMode is TRIMMED (1), so assigning spriteFrame\n' +
+    '     auto-resizes cc.UITransform.contentSize to the texture native size.\n' +
+    '     Pass preserveContentSize: true to keep the node\'s current contentSize\n' +
+    '     (the server pre-sets sizeMode to CUSTOM (0) before the assign).\n' +
     '• prefab: "prefab-uuid" (prefab asset)\n' +
     '  How to get: Check asset database or use asset browser\n' +
     '• asset: "asset-uuid" (generic asset reference)\n' +
@@ -137,6 +141,7 @@ const componentSchemas = {
             'nodeArray', 'colorArray', 'numberArray', 'stringArray',
         ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
         value: z.any().describe(setComponentPropertyValueDescription),
+        preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
     }),
     attach_script: z.object({
         nodeUuid: z.string().describe('Node UUID'),
@@ -812,16 +817,35 @@ export class ComponentTools implements ToolExecutor {
                 let propertyPath = `__comps__.${rawComponentIndex}.${property}`;
                 
                 // 特殊處理資源類屬性
-                if (propertyType === 'asset' || propertyType === 'spriteFrame' || propertyType === 'prefab' || 
+                if (propertyType === 'asset' || propertyType === 'spriteFrame' || propertyType === 'prefab' ||
                     (propertyInfo.type === 'asset' && propertyType === 'string')) {
-                    
+
                     debugLog(`[ComponentTools] Setting asset reference:`, {
                         value: processedValue,
                         property: property,
                         propertyType: propertyType,
                         path: propertyPath
                     });
-                    
+
+                    // Workflow opt-in: when assigning cc.Sprite.spriteFrame and the
+                    // caller wants the node's existing UITransform contentSize kept,
+                    // pre-set sizeMode to CUSTOM (0). cocos' default TRIMMED would
+                    // otherwise auto-resize contentSize to the texture's native
+                    // dimensions on assign — usually unwanted when laying out UI
+                    // procedurally with a chosen size.
+                    if (args.preserveContentSize && componentType === 'cc.Sprite' && property === 'spriteFrame') {
+                        try {
+                            await Editor.Message.request('scene', 'set-property', {
+                                uuid: nodeUuid,
+                                path: `__comps__.${rawComponentIndex}.sizeMode`,
+                                dump: { value: 0 },
+                            });
+                            debugLog('[ComponentTools] preserveContentSize: forced cc.Sprite.sizeMode=CUSTOM(0) before spriteFrame assign');
+                        } catch (preErr) {
+                            console.warn('[ComponentTools] preserveContentSize pre-set failed (non-fatal):', preErr);
+                        }
+                    }
+
                     // Determine asset type based on property name
                     let assetType = 'cc.SpriteFrame'; // default
                     if (property.toLowerCase().includes('texture')) {
@@ -835,11 +859,11 @@ export class ComponentTools implements ToolExecutor {
                     } else if (propertyType === 'prefab') {
                         assetType = 'cc.Prefab';
                     }
-                    
+
                     await Editor.Message.request('scene', 'set-property', {
                         uuid: nodeUuid,
                         path: propertyPath,
-                        dump: { 
+                        dump: {
                             value: processedValue,
                             type: assetType
                         }
