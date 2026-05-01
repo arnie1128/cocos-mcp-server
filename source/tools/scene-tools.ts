@@ -1,6 +1,10 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
 import { runSceneMethod } from '../lib/scene-bridge';
+import { ComponentTools } from './component-tools';
+import { debugLog } from '../lib/log';
+
+const LAYER_UI_2D = 33554432;
 
 const sceneSchemas = {
     get_current_scene: z.object({}),
@@ -12,6 +16,13 @@ const sceneSchemas = {
     create_scene: z.object({
         sceneName: z.string().describe('Name of the new scene'),
         savePath: z.string().describe('Path to save the scene (e.g., db://assets/scenes/NewScene.scene)'),
+        template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
+            'Built-in scaffolding for the new scene. ' +
+            '"empty" (default): bare scene root only — current behavior. ' +
+            '"2d-ui": Camera (cc.Camera, ortho projection) + Canvas (cc.UITransform + cc.Canvas with cameraComponent linked, layer UI_2D) so UI nodes render immediately under the UI camera. ' +
+            '"3d-basic": Camera (perspective) + DirectionalLight at scene root. ' +
+            '⚠️ Side effect: when template is not "empty" the editor opens the newly created scene to populate it. Save your current scene first if it has unsaved changes.'
+        ),
     }),
     save_scene_as: z.object({
         path: z.string().describe('Path to save the scene'),
@@ -64,7 +75,7 @@ export class SceneTools implements ToolExecutor {
             case 'save_scene':
                 return await this.saveScene();
             case 'create_scene':
-                return await this.createScene(a.sceneName, a.savePath);
+                return await this.createScene(a.sceneName, a.savePath, a.template);
             case 'save_scene_as':
                 return await this.saveSceneAs(a.path);
             case 'close_scene':
@@ -149,7 +160,9 @@ export class SceneTools implements ToolExecutor {
         });
     }
 
-    private async createScene(sceneName: string, savePath: string): Promise<ToolResponse> {
+    private componentTools = new ComponentTools();
+
+    private async createScene(sceneName: string, savePath: string, template: 'empty' | '2d-ui' | '3d-basic' = 'empty'): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 確保路徑以.scene結尾
             const fullPath = savePath.endsWith('.scene') ? savePath : `${savePath}/${sceneName}.scene`;
@@ -310,36 +323,162 @@ export class SceneTools implements ToolExecutor {
                 }
             ], null, 2);
             
-            Editor.Message.request('asset-db', 'create-asset', fullPath, sceneContent).then((result: any) => {
-                // Verify scene creation by checking if it exists
-                this.getSceneList().then((sceneList) => {
-                    const createdScene = sceneList.data?.find((scene: any) => scene.uuid === result.uuid);
+            Editor.Message.request('asset-db', 'create-asset', fullPath, sceneContent).then(async (result: any) => {
+                if (template === 'empty') {
+                    // Existing path: verify and return.
+                    try {
+                        const sceneList = await this.getSceneList();
+                        const createdScene = sceneList.data?.find((scene: any) => scene.uuid === result.uuid);
+                        resolve({
+                            success: true,
+                            data: {
+                                uuid: result.uuid,
+                                url: result.url,
+                                name: sceneName,
+                                template,
+                                message: `Scene '${sceneName}' created successfully`,
+                                sceneVerified: !!createdScene,
+                            },
+                            verificationData: createdScene,
+                        });
+                    } catch {
+                        resolve({
+                            success: true,
+                            data: {
+                                uuid: result.uuid,
+                                url: result.url,
+                                name: sceneName,
+                                template,
+                                message: `Scene '${sceneName}' created successfully (verification failed)`,
+                            },
+                        });
+                    }
+                    return;
+                }
+
+                // Template path: open the newly-created scene asset and bake the
+                // standard nodes/components on top of the empty scaffolding we
+                // just wrote. Done host-side via Editor.Message so behavior
+                // matches what the Inspector would build for "New 2D / 3D".
+                try {
+                    await Editor.Message.request('scene', 'open-scene', result.uuid);
+                    await new Promise((r) => setTimeout(r, 600));
+
+                    const tree: any = await Editor.Message.request('scene', 'query-node-tree');
+                    const sceneRootUuid: string | undefined = tree?.uuid;
+                    if (!sceneRootUuid) {
+                        throw new Error('Could not resolve scene root UUID after open-scene');
+                    }
+
+                    const templateData =
+                        template === '2d-ui' ? await this.buildTemplate2DUI(sceneRootUuid)
+                        : await this.buildTemplate3DBasic(sceneRootUuid);
+
+                    await Editor.Message.request('scene', 'save-scene');
+
                     resolve({
                         success: true,
                         data: {
                             uuid: result.uuid,
                             url: result.url,
                             name: sceneName,
-                            message: `Scene '${sceneName}' created successfully`,
-                            sceneVerified: !!createdScene
+                            template,
+                            templateNodes: templateData,
+                            message: `Scene '${sceneName}' created with template '${template}'. Editor switched to the new scene.`,
                         },
-                        verificationData: createdScene
                     });
-                }).catch(() => {
+                } catch (templateErr: any) {
                     resolve({
-                        success: true,
-                        data: {
-                            uuid: result.uuid,
-                            url: result.url,
-                            name: sceneName,
-                            message: `Scene '${sceneName}' created successfully (verification failed)`
-                        }
+                        success: false,
+                        error: `Scene asset created at ${result.url} but template build failed: ${templateErr?.message ?? templateErr}`,
+                        data: { uuid: result.uuid, url: result.url, template },
                     });
-                });
+                }
             }).catch((err: Error) => {
                 resolve({ success: false, error: err.message });
             });
         });
+    }
+
+    // Build "New 2D" scaffolding inside the currently-open scene: Camera
+    // (cc.Camera, ortho) + Canvas (cc.UITransform + cc.Canvas with
+    // cameraComponent linked, layer UI_2D).
+    private async buildTemplate2DUI(sceneRootUuid: string): Promise<{ cameraUuid: string; canvasUuid: string }> {
+        const cameraUuid = await this.createNodeWithComponents('Camera', sceneRootUuid, ['cc.Camera']);
+        await this.delay(150);
+        const cameraIdx = await this.findComponentIndex(cameraUuid, 'cc.Camera');
+        if (cameraIdx >= 0) {
+            // 0 = ORTHO, 1 = PERSPECTIVE
+            await Editor.Message.request('scene', 'set-property', {
+                uuid: cameraUuid,
+                path: `__comps__.${cameraIdx}.projection`,
+                dump: { value: 0 },
+            });
+        }
+
+        // cc.Canvas requires cc.UITransform; cocos auto-adds it when adding cc.Canvas.
+        const canvasUuid = await this.createNodeWithComponents('Canvas', sceneRootUuid, ['cc.Canvas']);
+        await this.delay(150);
+
+        // Canvas itself sits on UI_2D so it (and its descendants by inheritance via
+        // create_node auto-detection) are visible to the UI camera.
+        await Editor.Message.request('scene', 'set-property', {
+            uuid: canvasUuid,
+            path: 'layer',
+            dump: { value: LAYER_UI_2D },
+        });
+
+        // Wire Canvas.cameraComponent → Camera node. Reuses the verified
+        // propertyType: 'component' code path so we do not have to re-resolve
+        // the component scene __id__ here.
+        await this.componentTools.execute('set_component_property', {
+            nodeUuid: canvasUuid,
+            componentType: 'cc.Canvas',
+            property: 'cameraComponent',
+            propertyType: 'component',
+            value: cameraUuid,
+        });
+
+        return { cameraUuid, canvasUuid };
+    }
+
+    // Build "New 3D" scaffolding: Camera (perspective) + DirectionalLight.
+    private async buildTemplate3DBasic(sceneRootUuid: string): Promise<{ cameraUuid: string; lightUuid: string }> {
+        const cameraUuid = await this.createNodeWithComponents('Main Camera', sceneRootUuid, ['cc.Camera']);
+        const lightUuid = await this.createNodeWithComponents('Main Light', sceneRootUuid, ['cc.DirectionalLight']);
+        await this.delay(150);
+        return { cameraUuid, lightUuid };
+    }
+
+    private async createNodeWithComponents(name: string, parent: string, components: string[]): Promise<string> {
+        const result = await Editor.Message.request('scene', 'create-node', { name, parent });
+        const uuid = Array.isArray(result) ? result[0] : result;
+        if (typeof uuid !== 'string' || !uuid) {
+            throw new Error(`create-node returned no UUID for ${name}`);
+        }
+        // create-node has no `components` field on the typed CreateNodeOptions,
+        // so wire components via the dedicated create-component channel. Each
+        // call needs a small breath for the editor to settle the dump.
+        for (const component of components) {
+            await this.delay(80);
+            await Editor.Message.request('scene', 'create-component', { uuid, component });
+        }
+        return uuid;
+    }
+
+    private async findComponentIndex(nodeUuid: string, componentType: string): Promise<number> {
+        const data: any = await Editor.Message.request('scene', 'query-node', nodeUuid);
+        const comps = Array.isArray(data?.__comps__) ? data.__comps__ : [];
+        for (let i = 0; i < comps.length; i++) {
+            const t = comps[i]?.__type__ ?? comps[i]?.type ?? comps[i]?.cid;
+            if (t === componentType) return i;
+        }
+        debugLog(`[SceneTools] component '${componentType}' not found on node ${nodeUuid}`);
+        return -1;
+    }
+
+    private delay(ms: number): Promise<void> {
+        return new Promise((r) => setTimeout(r, ms));
     }
 
     private async getSceneHierarchy(includeComponents: boolean = false): Promise<ToolResponse> {
