@@ -12,6 +12,21 @@ const vec3Schema = z.object({
     z: z.number().optional(),
 });
 
+// Standard cc.Layers bit values. Custom user-defined layers go through the
+// numeric branch of the create_node `layer` arg, so this list only enumerates
+// the engine-shipped presets.
+const LAYER_PRESETS = {
+    DEFAULT: 1073741824,        // 1 << 30
+    UI_2D: 33554432,            // 1 << 25
+    SCENE_GIZMO: 16777216,      // 1 << 24
+    UI_3D: 8388608,             // 1 << 23
+    EDITOR: 4194304,            // 1 << 22
+    GIZMOS: 2097152,            // 1 << 21
+    IGNORE_RAYCAST: 1048576,    // 1 << 20
+    PROFILER: 268435456,        // 1 << 28
+} as const;
+type LayerPreset = keyof typeof LAYER_PRESETS;
+
 // set_node_transform has axis-specific descriptions per channel; rebuild each
 // inline so the per-axis text matches the original hand-written schema exactly.
 const transformPositionSchema = z.object({
@@ -43,6 +58,10 @@ const nodeSchemas = {
         components: z.array(z.string()).optional().describe('Array of component type names to add to the new node (e.g., ["cc.Sprite", "cc.Button"])'),
         unlinkPrefab: z.boolean().default(false).describe('If true and creating from prefab, unlink from prefab to create a regular node'),
         keepWorldTransform: z.boolean().default(false).describe('Whether to keep world transform when creating the node'),
+        layer: z.union([
+            z.enum(['DEFAULT', 'UI_2D', 'UI_3D', 'SCENE_GIZMO', 'EDITOR', 'GIZMOS', 'IGNORE_RAYCAST', 'PROFILER']),
+            z.number().int().nonnegative(),
+        ]).optional().describe('Node layer (cc.Layers). Accepts preset name (e.g. "UI_2D") or raw bitmask number. If omitted: auto-detected — UI_2D when any ancestor has cc.Canvas (so UI camera renders the new node), otherwise leaves the create-node default (DEFAULT). Required for UI nodes under Canvas; without it the node is invisible to the UI camera.'),
         initialTransform: z.object({
             position: vec3Schema.optional(),
             rotation: vec3Schema.optional(),
@@ -294,6 +313,50 @@ export class NodeTools implements ToolExecutor {
                     }
                 }
 
+                // 設定 layer（user-provided 或 auto-detect Canvas ancestor）
+                let resolvedLayer: number | null = null;
+                let layerSource: 'explicit' | 'auto-canvas' | 'default' = 'default';
+                if (uuid) {
+                    if (args.layer !== undefined && args.layer !== null) {
+                        if (typeof args.layer === 'number') {
+                            resolvedLayer = args.layer;
+                            layerSource = 'explicit';
+                        } else if (typeof args.layer === 'string') {
+                            const preset = (LAYER_PRESETS as any)[args.layer] as number | undefined;
+                            if (typeof preset !== 'number') {
+                                resolve({
+                                    success: false,
+                                    error: `Unknown layer preset '${args.layer}'. Allowed: ${Object.keys(LAYER_PRESETS).join(', ')}, or pass a raw number.`,
+                                });
+                                return;
+                            }
+                            resolvedLayer = preset;
+                            layerSource = 'explicit';
+                        }
+                    } else if (targetParentUuid) {
+                        // Auto-detect: if any ancestor has cc.Canvas, default to UI_2D so
+                        // the UI camera actually renders the new node.
+                        const hasCanvasAncestor = await this.ancestorHasComponent(targetParentUuid, 'cc.Canvas');
+                        if (hasCanvasAncestor) {
+                            resolvedLayer = LAYER_PRESETS.UI_2D;
+                            layerSource = 'auto-canvas';
+                        }
+                    }
+
+                    if (resolvedLayer !== null) {
+                        try {
+                            await Editor.Message.request('scene', 'set-property', {
+                                uuid,
+                                path: 'layer',
+                                dump: { value: resolvedLayer },
+                            });
+                            debugLog(`Applied layer ${resolvedLayer} (${layerSource}) to ${uuid}`);
+                        } catch (err) {
+                            console.warn('Failed to set layer:', err);
+                        }
+                    }
+                }
+
                 // 獲取創建後的節點信息進行驗證
                 let verificationData: any = null;
                 try {
@@ -328,6 +391,8 @@ export class NodeTools implements ToolExecutor {
                         nodeType: args.nodeType || 'Node',
                         fromAsset: !!finalAssetUuid,
                         assetUuid: finalAssetUuid,
+                        layer: resolvedLayer,
+                        layerSource,
                         message: successMessage
                     },
                     verificationData: verificationData
@@ -340,6 +405,33 @@ export class NodeTools implements ToolExecutor {
                 });
             }
         });
+    }
+
+    // Walk up from `startUuid` (inclusive) checking for a component whose
+    // __type__ matches `componentType`. Returns true if found anywhere in the
+    // chain up to (but not including) the scene root. Bounded to 64 steps as
+    // a safety stop in case of a malformed parent graph.
+    private async ancestorHasComponent(startUuid: string, componentType: string): Promise<boolean> {
+        let cursor: string | null = startUuid;
+        for (let hops = 0; hops < 64 && cursor; hops++) {
+            try {
+                const data: any = await Editor.Message.request('scene', 'query-node', cursor);
+                if (!data) return false;
+                if (Array.isArray(data.__comps__)) {
+                    for (const comp of data.__comps__) {
+                        if (comp && (comp.__type__ === componentType || comp.type === componentType || comp.cid === componentType)) {
+                            return true;
+                        }
+                    }
+                }
+                const parentUuid = data.parent?.value?.uuid ?? null;
+                if (!parentUuid || parentUuid === cursor) return false;
+                cursor = parentUuid;
+            } catch {
+                return false;
+            }
+        }
+        return false;
     }
 
     private async getNodeInfo(uuid: string): Promise<ToolResponse> {
