@@ -84,16 +84,36 @@ read-only state，避免每個 query 都走 `tools/call`。
 `commit ff62dd7`（codex 一次完成 14 個 category / 160 個 tool）。
 細節見上方 §NEXT SESSION ENTRY POINT。
 
-### B-2：P3 protocol extensions（active backlog，下一個動工目標）
+### B-2：擴充功能（active backlog，動工順序如下）
 
-關注點是「清理架構 + 持續優化 + 穩定維護」，P3 三個 sub-task 排序：
+關注點是「清理架構 + 持續優化 + 穩定維護」。T-P3-1 落地後（v2.2.0），
+backlog 重排——根據 5 個 reference repo 盤點（見 §跨專案盤點筆記），
+最高 ROI 不是 T-P3-3 Notifications，而是借鏡 FunplayAI / harady 的
+AI workflow 強化：
 
-| Sub-task | 動工順序 | 主要價值 | 預估工時 |
-|---|---|---|---|
-| **T-P3-1 Resources** | **第一個動工** | read-only state 與 mutation tool 分離；client 可選擇性載入大資源；架構清理 | ~3-5 天 |
-| **T-P3-3 Notifications** | 第二個動工 | 解 stale UUID retry 循環；需實機驗 cocos broadcast 行為 | ~3 天 |
-| T-P3-2 Prompts | 有空再做 | UX feature（Claude Desktop slash command），無架構價值 | ~2 天 |
-| T-P3-4 stdio | **跳過** | cocos editor 內跑 stdio 不自然；roadmap 自己標可選 | — |
+| 動工順序 | 項目 | 來源 / 動機 | 估時 | bump |
+|---|---|---|---|---|
+| **第 1（v2.3.0）** | T-V23-1 `execute_javascript` 統一 sandbox | FunplayAI 架構翻轉：1 個 [primary] 寬 tool + 既有 160 narrow tool 標 [specialist]，AI 複合操作不再打 5-10 個 call | 1-2 天 | minor 2.3.0 |
+| **第 2（v2.3.0 同梱）** | T-V23-2 `debug_screenshot` + `debug_batch_screenshot` | harady / FunplayAI：AI 視覺驗證閉環，自己看自己改的結果 | 0.5 天 | 同上 |
+| **第 3（v2.3.0 同梱）** | T-V23-3 docs as markdown resources | 借鏡 cocos-cli `text/markdown` 文件型 resource。`cocos://docs/landmines`（CLAUDE.md §Landmines）+ `cocos://docs/tools`（tools.md）；AI 卡關時自助查 | 0.5 天 | 同上 |
+| 第 4（v2.4.0） | T-V24-1 `debug_wait_compile` + TS diagnostics 系列 | harady `debug_wait_compile` + FunplayAI `run_script_diagnostics` / `get_script_diagnostic_context`，AI 工作流避免讀過時錯誤 | 1.5 天 | minor 2.4.0 |
+| 第 5（v2.4.0 同梱） | T-V24-2 Animation tool 系列 | FunplayAI / Spaydo：`list_animations` / `play_animation` / `stop_animation` / `set_clip` | 1 天 | 同上 |
+| 第 6（v2.5.0） | T-P3-3 Notifications | 我們 first mover；前置 probe-broadcast script | 3 天 | minor 2.5.0 |
+| 第 7（v2.5.0 同梱） | T-P3-2 Prompts capability | FunplayAI 4 個 project-context-aware prompt template | 1 天 | 同上 |
+| 第 8（自成 milestone） | T-V26-1 `debug_game_command` + GameDebugClient injection | harady：注 client 進 preview，AI 自動 runtime 測試大門。需要評估 cocos preview process 的 IPC 介面 | 3-5 天 | minor 2.6.0 |
+| 路標保留 | T-P3-4 stdio transport | cocos editor 內跑 stdio 不自然，跳過 | — | — |
+| 路標保留 | RomaRogov asset interpreters 系列 | 18 種 asset 專屬 reader（prefab/animation/particle/effect 結構化解析），有需求再做 | — | — |
+
+**重排理由**：原本 T-P3-3 Notifications 排第二，但盤點後發現對 AI
+workflow 的立即價值低於 `execute_javascript` + `debug_screenshot`。
+Notifications 的價值要等 client 端真的 cache resources 才浮現，
+而現在 client 多半 cold-read。先把 AI workflow 強化做厚。
+
+#### T-P3-1 Resources（細拆，已落地 v2.2.0）
+
+**狀態**：✅ done at v2.2.0（commit 4e5ab45）。完整改動見
+`docs/roadmap/04-protocol-extensions.md` T-P3-1 區塊。本節保留作
+「實作步驟」歷史紀錄，下次動工 T-V23-1 時看這個結構即可，不需重學。
 
 #### T-P3-1 Resources（細拆）
 
@@ -195,9 +215,55 @@ public surface 增加。
 - 如果某個 client 不支援 resources capability，server 端 capability
   negotiation 會自動忽略——舊 client 不受影響。
 
-#### T-P3-3 Notifications（粗拆，動工前再細）
+#### T-V23-1 `execute_javascript` 統一 sandbox（next active backlog）
 
-**前置**：T-P3-1 已落地（resources 才有東西可推 `list_changed`）。
+**動機**：FunplayAI 架構翻轉的核心。AI 做「讀 → 改 → 驗」複合操作時，
+今天得打 3-5 個窄 tool（`get_node_info` → `set_component_property` →
+`get_components`），每個 round-trip 都吃 token。一個寬 sandbox tool
+讓 AI 在單一 turn 完成。
+
+**做法**：
+
+1. 升級既有 `debug_execute_script` → `execute_javascript`，加 `context:
+   'scene'|'editor'` 參數
+   - `context='scene'`：走既有的 `Editor.Message.request('scene',
+     'execute-scene-script', ...)` 路徑（已 ship）
+   - `context='editor'`：走 host-side eval（new；需 sandbox guard）
+2. 既有 160 個 narrow tool **保留**，description 補一行
+   `[specialist] Use when narrow primitive is clearly better than
+    execute_javascript; otherwise prefer execute_javascript.`
+3. `execute_javascript` description 標 `[primary] Default first tool ...`
+4. 加單元測試：scene context / editor context 各跑一個 expression、
+   一個多步腳本、一個故意錯誤；驗 sandbox 不會 leak 到 cocos process
+
+**風險**：editor context eval 有沙箱風險。我們 server 只 listen
+`127.0.0.1`，但 user 自己的 prompt 會被 AI 解讀執行——這是 prompt
+injection 場景。建議：editor context **預設關閉**，`settings.ts` 加
+`enableEditorContextEval: false` opt-in，panel UI 也加開關。
+
+#### T-V23-2 screenshot 系列（next active backlog）
+
+`debug_screenshot`：Electron `webContents.capturePage()` → PNG。
+`debug_batch_screenshot`：多個 panel 一次抓。FunplayAI 還有
+`capture_game_screenshot` / `capture_preview_screenshot` 兩個
+preview-side 的，可放第二批。
+
+#### T-V23-3 docs markdown resources
+
+新增 3 個 markdown resource：
+
+```
+cocos://docs/landmines    text/markdown   from CLAUDE.md §Landmines
+cocos://docs/tools        text/markdown   from docs/tools.md
+cocos://docs/handoff      text/markdown   from docs/HANDOFF.md
+```
+
+讀檔時動態載入（不在 build time bake-in），保證 user 改 CLAUDE.md
+後馬上反映。AI 卡關時可自助查 landmine 紀錄。
+
+#### T-P3-3 Notifications（v2.5.0，動工前先 probe）
+
+**前置**：v2.3.0 + v2.4.0 落地，給 Notifications 預留實機 prove 的時間。
 
 **做法骨架**：
 
@@ -212,19 +278,115 @@ public surface 增加。
 5. 透過 sdkServer.notification(...) 推送到所有活躍 session
 
 **動工前必做**：probe-broadcast 那支 script 跑出實機數據，否則
-debounce 策略只能猜。
+debounce 策略只能猜。9 個 reference repo **沒有任何一家**實作
+Notifications/subscribe，我們是 first mover，沒有 anchor 可抄。
 
-#### T-P3-2 Prompts（最低優先）
+#### T-P3-2 Prompts（v2.5.0 同梱）
 
-純 UX feature。等 T-P3-1 + T-P3-3 落地、且 user 有實際需求再做。
-roadmap 04 章已有候選清單（create-ui-button / duplicate-prefab /
-setup-2d-scene）。
+抄 FunplayAI `lib/prompts.js` 4 個 template 的 pattern：每個
+prompt 帶 project context（projectName / projectPath）baked in，
+內文引導 AI 優先用 `execute_javascript` 再走 specialist。
+4 個建議 template：`fix_script_errors` / `create_playable_prototype`
+/ `scene_validation` / `auto_wire_scene`。
 
 ### B-3：Prefab byte-level 比對（觸發再做）
 
 v1.4.0 #1 — code path 全 façade（v2.1.3 砍 ~1700 行手刻 JSON），
 但缺 byte-level diff 驗證。等有人回報不一致或主動配「乾淨 fixture
 專案」session 比對時再做。
+
+---
+
+## 🔍 跨專案盤點筆記（2026-05-02）
+
+5 個 reference repo clone 在 `D:/1_dev/cocos-mcp-references/`：
+cocos-cli / funplay-cocos-mcp / cocos-creator-mcp（harady）/
+cocos-mcp-extension（Spaydo）/ RomaRogov-cocos-mcp。
+
+### Tool 數量 / LOC 對照
+
+| repo | tools | LOC | resources | prompts | notifications | SDK | 同架構 |
+|---|---:|---:|:---:|:---:|:---:|:---:|:---:|
+| **ours v2.2.0** | **160** | 10,912 | ✅ 6+2 | ❌ | ❌ | ✅ | — |
+| harady | 161 | 7,037 | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Spaydo | 139 | 7,136 | ❌ | ❌ | ❌ | ✅ | ✅ |
+| FunplayAI | 67 | 3,315 | ✅ 8+3 | ✅ 4 | ❌ | ❌（手刻 JSON-RPC） | ✅ |
+| RomaRogov | 16 macro | 9,194 | ❌ | ❌ | ❌ | ✅ | ✅ |
+| cocos-cli | ~1+hooks | — | ✅ docs only | ❌ | ❌ | ✅ | ❌（CLI）|
+
+### 我方獨有功能（盤點結論：全保留，無冗餘）
+
+- Reference image 系統（12 tools） — 設計稿疊圖工作流
+- Broadcast log 系統（5 tools） — cocos editor IPC 偵聽，T-P3-3 基礎
+- `validate_*` 三件組（半 metadata，可考慮 v2.3 折成 prompt template）
+- `begin/end/cancel_undo_recording` — 顯式 undo group
+- Landmine 補丁系列（v2.1.5 五個 rich tool）：
+  `set_component_property.preserveContentSize`、`create_node.layer` auto
+  UI_2D、`create_scene.template`、`save_scene_as` 對話框預檢、
+  `nudgeEditorModel`（內部，藏於 add/remove_event_handler）
+
+### 對方有、我們缺（已排進 B-2 backlog）
+
+最高 ROI 三件已排 v2.3.0：
+
+- 來自 FunplayAI：`execute_javascript` 統一 sandbox（架構翻轉）
+- 來自 harady：`debug_screenshot` / `debug_batch_screenshot`（AI 視覺驗證）
+- 來自 cocos-cli：`text/markdown` docs resources（landmines / tools / handoff
+  外露給 AI 自助查）
+
+中 ROI 排 v2.4.0：TS diagnostics（FunplayAI）+ animation tools（FunplayAI/
+Spaydo）。
+
+不採納：
+
+- Spaydo `file-editor-tools` / FunplayAI `read/write_file` —— Claude Code
+  已有 Edit/Write，重複造會混淆
+- RomaRogov `generate-image-asset` —— domain orthogonal，該放通用
+  image-gen MCP server 不放 in-editor
+
+### MIME 政策定案
+
+`MIME 反映內容類型`（與 cocos-cli 官方做法一致），不一刀切：
+
+- 結構化資料 → `application/json`（我們現在 6 個 resource、cocos-cli
+  asset query template 都用這個）
+- 文件型 / narrative → `text/markdown`（cocos-cli docs resources、
+  我們 v2.3.0 即將加的 docs 系列）
+- 自然語言摘要 → `text/plain`（FunplayAI 走這路；我們暫無此類）
+
+### 與官方 cocos-cli 的關係
+
+**互補不替代**。cocos-cli 跑在 editor 外（standalone CLI 進程），
+主能力是 build / create / import / wizard，MCP 暴露的 tool 圍繞 build
+流程；不能 call `Editor.Message`、不能 mutate live scene。我們是
+in-editor extension，主場景是 live scene/node/component 操作。**沒有
+任何 cocos-mcp 場景可以單靠 cocos-cli 解決。**
+
+值得借鏡的兩個技術點：
+
+- decorator-driven tool registration（`@Tool` 從裝飾器收 toolRegistry，
+  比每個 category 手寫 `getTools()` 集中）—— 長期重構考慮
+- Gemini-compat schema patch（手動覆蓋 `tools/list` 把 zod 轉成
+  Gemini 接受的 JSON Schema 7、不用 `$ref`）—— 接 Gemini client 時
+  會撞同樣的牆，可抄
+
+### FunplayAI LOC 為何 3,315？
+
+三個結構決定：
+
+1. **不用 SDK** — `lib/server.js` 436 行手刻 JSON-RPC dispatcher
+   （`if (method === 'tools/list')` cascade）。代價：失 schema
+   validation / protocol negotiation / structuredContent。
+2. **`execute_javascript` 統一 sandbox** — 1 個 `[primary]` tool
+   涵蓋 80% 用例，66 個 `[specialist]` 當補充。複合操作不再 wrap
+   多個 narrow tool。
+3. **沒 zod / 沒 i18n / 沒 tool-manager UI persistence** —
+   inputSchema 直接 JSON Schema inline，panel 單檔，沒上游 1700 行
+   prefab JSON 包袱。
+
+不該全盤抄。第 1 條（去 SDK）會丟驗證嚴謹度；第 3 條（去 zod）會
+讓 v2.1.5 那五個 rich description 沒地方掛。**第 2 條值得抄**——
+排進 v2.3.0 T-V23-1。
 
 ---
 
@@ -263,8 +425,8 @@ v2.1.7 ✅ done（B-1 description sweep 全 14 categories / 160 tools，commit f
 v2.2.0 ✅ done（本 session：T-P3-1 Resources，commit 4e5ab45）
 P2 ❌ closed（量測後否決：lossless +30.1% / lossy -62.8% 但丟 validation）
 
-待動工（依優先序，詳見 §待動工 Backlog）：
-B-2 ⏳ P3 protocol extensions（next：T-P3-3 Notifications，~3 天 / 動工前先跑 probe-broadcast）
+待動工（依優先序，詳見 §待動工 Backlog + §跨專案盤點筆記）：
+B-2 ⏳ 擴充功能 backlog（next v2.3.0：execute_javascript + screenshot + docs markdown，~2 天）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
