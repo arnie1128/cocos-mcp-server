@@ -1,111 +1,115 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const assetAdvancedSchemas = {
-    save_asset_meta: z.object({
-        urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
-        content: z.string().describe('Serialized asset meta content string to write.'),
-    }),
-    generate_available_url: z.object({
-        url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
-    }),
-    query_asset_db_ready: z.object({}),
-    open_asset_external: z.object({
-        urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
-    }),
-    batch_import_assets: z.object({
-        sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
-        targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
-        fileFilter: z.array(z.string()).default([]).describe('Allowed file extensions, e.g. [".png",".jpg"]. Empty means all files.'),
-        recursive: z.boolean().default(false).describe('Include files from subdirectories.'),
-        overwrite: z.boolean().default(false).describe('Overwrite existing target assets instead of auto-renaming.'),
-    }),
-    batch_delete_assets: z.object({
-        urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
-    }),
-    validate_asset_references: z.object({
-        directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
-    }),
-    get_asset_dependencies: z.object({
-        urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
-        direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
-    }),
-    get_unused_assets: z.object({
-        directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
-        excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
-    }),
-    compress_textures: z.object({
-        directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
-        format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
-        quality: z.number().min(0.1).max(1.0).default(0.8).describe('Requested compression quality from 0.1 to 1.0. Current implementation reports unsupported.'),
-    }),
-    export_asset_manifest: z.object({
-        directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
-        format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
-        includeMetadata: z.boolean().default(true).describe('Try to include asset metadata when available.'),
-    }),
-} as const;
-
-const assetAdvancedToolMeta: Record<keyof typeof assetAdvancedSchemas, string> = {
-    save_asset_meta: 'Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
-    generate_available_url: 'Return a collision-free asset URL derived from the requested URL.',
-    query_asset_db_ready: 'Check whether asset-db reports ready before batch operations.',
-    open_asset_external: 'Open an asset through the editor/OS external handler; does not edit content.',
-    batch_import_assets: 'Import files from a disk directory into asset-db; mutates project assets.',
-    batch_delete_assets: 'Delete multiple asset-db URLs; mutates project assets.',
-    validate_asset_references: 'Lightly scan assets under a directory for broken asset-info references.',
-    get_asset_dependencies: 'Unsupported dependency-analysis placeholder; always reports unsupported.',
-    get_unused_assets: 'Unsupported unused-asset placeholder; always reports unsupported.',
-    compress_textures: 'Unsupported texture-compression placeholder; always reports unsupported.',
-    export_asset_manifest: 'Return asset inventory for a directory as json/csv/xml text; does not write a file.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class AssetAdvancedTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(assetAdvancedSchemas) as Array<keyof typeof assetAdvancedSchemas>).map(name => ({
-            name,
-            description: assetAdvancedToolMeta[name],
-            inputSchema: toInputSchema(assetAdvancedSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'save_asset_meta',
+                description: 'Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
+                inputSchema: z.object({
+                    urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
+                    content: z.string().describe('Serialized asset meta content string to write.'),
+                }),
+                handler: a => this.saveAssetMeta(a.urlOrUUID, a.content),
+            },
+            {
+                name: 'generate_available_url',
+                description: 'Return a collision-free asset URL derived from the requested URL.',
+                inputSchema: z.object({
+                    url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
+                }),
+                handler: a => this.generateAvailableUrl(a.url),
+            },
+            {
+                name: 'query_asset_db_ready',
+                description: 'Check whether asset-db reports ready before batch operations.',
+                inputSchema: z.object({}),
+                handler: () => this.queryAssetDbReady(),
+            },
+            {
+                name: 'open_asset_external',
+                description: 'Open an asset through the editor/OS external handler; does not edit content.',
+                inputSchema: z.object({
+                    urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
+                }),
+                handler: a => this.openAssetExternal(a.urlOrUUID),
+            },
+            {
+                name: 'batch_import_assets',
+                description: 'Import files from a disk directory into asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
+                    targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
+                    fileFilter: z.array(z.string()).default([]).describe('Allowed file extensions, e.g. [".png",".jpg"]. Empty means all files.'),
+                    recursive: z.boolean().default(false).describe('Include files from subdirectories.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target assets instead of auto-renaming.'),
+                }),
+                handler: a => this.batchImportAssets(a),
+            },
+            {
+                name: 'batch_delete_assets',
+                description: 'Delete multiple asset-db URLs; mutates project assets.',
+                inputSchema: z.object({
+                    urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
+                }),
+                handler: a => this.batchDeleteAssets(a.urls),
+            },
+            {
+                name: 'validate_asset_references',
+                description: 'Lightly scan assets under a directory for broken asset-info references.',
+                inputSchema: z.object({
+                    directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
+                }),
+                handler: a => this.validateAssetReferences(a.directory),
+            },
+            {
+                name: 'get_asset_dependencies',
+                description: 'Unsupported dependency-analysis placeholder; always reports unsupported.',
+                inputSchema: z.object({
+                    urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
+                    direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
+                }),
+                handler: a => this.getAssetDependencies(a.urlOrUUID, a.direction),
+            },
+            {
+                name: 'get_unused_assets',
+                description: 'Unsupported unused-asset placeholder; always reports unsupported.',
+                inputSchema: z.object({
+                    directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
+                    excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
+                }),
+                handler: a => this.getUnusedAssets(a.directory, a.excludeDirectories),
+            },
+            {
+                name: 'compress_textures',
+                description: 'Unsupported texture-compression placeholder; always reports unsupported.',
+                inputSchema: z.object({
+                    directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
+                    format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
+                    quality: z.number().min(0.1).max(1.0).default(0.8).describe('Requested compression quality from 0.1 to 1.0. Current implementation reports unsupported.'),
+                }),
+                handler: a => this.compressTextures(a.directory, a.format, a.quality),
+            },
+            {
+                name: 'export_asset_manifest',
+                description: 'Return asset inventory for a directory as json/csv/xml text; does not write a file.',
+                inputSchema: z.object({
+                    directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
+                    format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
+                    includeMetadata: z.boolean().default(true).describe('Try to include asset metadata when available.'),
+                }),
+                handler: a => this.exportAssetManifest(a.directory, a.format, a.includeMetadata),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof assetAdvancedSchemas;
-        const schema = assetAdvancedSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'save_asset_meta':
-                return await this.saveAssetMeta(a.urlOrUUID, a.content);
-            case 'generate_available_url':
-                return await this.generateAvailableUrl(a.url);
-            case 'query_asset_db_ready':
-                return await this.queryAssetDbReady();
-            case 'open_asset_external':
-                return await this.openAssetExternal(a.urlOrUUID);
-            case 'batch_import_assets':
-                return await this.batchImportAssets(a);
-            case 'batch_delete_assets':
-                return await this.batchDeleteAssets(a.urls);
-            case 'validate_asset_references':
-                return await this.validateAssetReferences(a.directory);
-            case 'get_asset_dependencies':
-                return await this.getAssetDependencies(a.urlOrUUID, a.direction);
-            case 'get_unused_assets':
-                return await this.getUnusedAssets(a.directory, a.excludeDirectories);
-            case 'compress_textures':
-                return await this.compressTextures(a.directory, a.format, a.quality);
-            case 'export_asset_manifest':
-                return await this.exportAssetManifest(a.directory, a.format, a.includeMetadata);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async saveAssetMeta(urlOrUUID: string, content: string): Promise<ToolResponse> {
         return new Promise((resolve) => {

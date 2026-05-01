@@ -1,128 +1,137 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const debugSchemas = {
-    clear_console: z.object({}),
-    execute_javascript: z.object({
-        code: z.string().describe('JavaScript source to execute. Has access to cc.* in scene context, Editor.* in editor context.'),
-        context: z.enum(['scene', 'editor']).default('scene').describe('Execution sandbox. "scene" runs inside the cocos scene script context (cc, director, find). "editor" runs in the editor host process (Editor, asset-db, fs, require). Editor context is OFF by default and must be opt-in via panel setting `enableEditorContextEval` — arbitrary code in the host process is a prompt-injection risk.'),
-    }),
-    execute_script: z.object({
-        script: z.string().describe('JavaScript to execute in scene context via console/eval. Can read or mutate the current scene.'),
-    }),
-    get_node_tree: z.object({
-        rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
-        maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
-    }),
-    get_performance_stats: z.object({}),
-    validate_scene: z.object({
-        checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
-        checkPerformance: z.boolean().default(true).describe('Run basic performance checks such as high node count warnings.'),
-    }),
-    get_editor_info: z.object({}),
-    get_project_logs: z.object({
-        lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of temp/logs/project.log. Default 100.'),
-        filterKeyword: z.string().optional().describe('Optional case-insensitive keyword filter.'),
-        logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Optional log level filter. ALL disables level filtering.'),
-    }),
-    get_log_file_info: z.object({}),
-    search_project_logs: z.object({
-        pattern: z.string().describe('Search string or regex. Invalid regex is treated as a literal string.'),
-        maxResults: z.number().min(1).max(100).default(20).describe('Maximum matches to return. Default 20.'),
-        contextLines: z.number().min(0).max(10).default(2).describe('Context lines before/after each match. Default 2.'),
-    }),
-    screenshot: z.object({
-        savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
-        windowTitle: z.string().optional().describe('Optional substring match on window title to pick a specific Electron window. Default: focused window.'),
-        includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false). When false, only the saved file path is returned.'),
-    }),
-    batch_screenshot: z.object({
-        savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
-        delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
-        windowTitle: z.string().optional().describe('Optional substring match on window title.'),
-    }),
-} as const;
-
-const debugToolMeta: Record<keyof typeof debugSchemas, string> = {
-    clear_console: 'Clear the Cocos Editor Console UI. No project side effects.',
-    execute_javascript: '[primary] Execute JavaScript in scene or editor context. Use this as the default first tool for compound operations (read → mutate → verify) — one call replaces 5-10 narrow specialist tools and avoids per-call token overhead. context="scene" inspects/mutates cc.Node graph; context="editor" runs in host process for Editor.Message + fs (default off, opt-in).',
-    execute_script: '[compat] Scene-only JavaScript eval. Prefer execute_javascript with context="scene" — kept as compatibility entrypoint for older clients.',
-    get_node_tree: 'Read a debug node tree from a root or scene root for hierarchy/component inspection.',
-    get_performance_stats: 'Try to read scene query-performance stats; may return unavailable in edit mode.',
-    validate_scene: 'Run basic current-scene health checks for missing assets and node-count warnings.',
-    get_editor_info: 'Read Editor/Cocos/project/process information and memory summary.',
-    get_project_logs: 'Read temp/logs/project.log tail with optional level/keyword filters.',
-    get_log_file_info: 'Read temp/logs/project.log path, size, line count, and timestamps.',
-    search_project_logs: 'Search temp/logs/project.log for string/regex and return line context.',
-    screenshot: 'Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
-    batch_screenshot: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
-};
-
 export class DebugTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(debugSchemas) as Array<keyof typeof debugSchemas>).map(name => ({
-            name,
-            description: debugToolMeta[name],
-            inputSchema: toInputSchema(debugSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'clear_console',
+                description: 'Clear the Cocos Editor Console UI. No project side effects.',
+                inputSchema: z.object({}),
+                handler: () => this.clearConsole(),
+            },
+            {
+                name: 'execute_javascript',
+                description: '[primary] Execute JavaScript in scene or editor context. Use this as the default first tool for compound operations (read → mutate → verify) — one call replaces 5-10 narrow specialist tools and avoids per-call token overhead. context="scene" inspects/mutates cc.Node graph; context="editor" runs in host process for Editor.Message + fs (default off, opt-in).',
+                inputSchema: z.object({
+                    code: z.string().describe('JavaScript source to execute. Has access to cc.* in scene context, Editor.* in editor context.'),
+                    context: z.enum(['scene', 'editor']).default('scene').describe('Execution sandbox. "scene" runs inside the cocos scene script context (cc, director, find). "editor" runs in the editor host process (Editor, asset-db, fs, require). Editor context is OFF by default and must be opt-in via panel setting `enableEditorContextEval` — arbitrary code in the host process is a prompt-injection risk.'),
+                }),
+                handler: a => this.executeJavaScript(a.code, a.context ?? 'scene'),
+            },
+            {
+                name: 'execute_script',
+                description: '[compat] Scene-only JavaScript eval. Prefer execute_javascript with context="scene" — kept as compatibility entrypoint for older clients.',
+                inputSchema: z.object({
+                    script: z.string().describe('JavaScript to execute in scene context via console/eval. Can read or mutate the current scene.'),
+                }),
+                handler: a => this.executeScriptCompat(a.script),
+            },
+            {
+                name: 'get_node_tree',
+                description: 'Read a debug node tree from a root or scene root for hierarchy/component inspection.',
+                inputSchema: z.object({
+                    rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
+                    maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
+                }),
+                handler: a => this.getNodeTree(a.rootUuid, a.maxDepth),
+            },
+            {
+                name: 'get_performance_stats',
+                description: 'Try to read scene query-performance stats; may return unavailable in edit mode.',
+                inputSchema: z.object({}),
+                handler: () => this.getPerformanceStats(),
+            },
+            {
+                name: 'validate_scene',
+                description: 'Run basic current-scene health checks for missing assets and node-count warnings.',
+                inputSchema: z.object({
+                    checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
+                    checkPerformance: z.boolean().default(true).describe('Run basic performance checks such as high node count warnings.'),
+                }),
+                handler: a => this.validateScene({ checkMissingAssets: a.checkMissingAssets, checkPerformance: a.checkPerformance }),
+            },
+            {
+                name: 'get_editor_info',
+                description: 'Read Editor/Cocos/project/process information and memory summary.',
+                inputSchema: z.object({}),
+                handler: () => this.getEditorInfo(),
+            },
+            {
+                name: 'get_project_logs',
+                description: 'Read temp/logs/project.log tail with optional level/keyword filters.',
+                inputSchema: z.object({
+                    lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of temp/logs/project.log. Default 100.'),
+                    filterKeyword: z.string().optional().describe('Optional case-insensitive keyword filter.'),
+                    logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Optional log level filter. ALL disables level filtering.'),
+                }),
+                handler: a => this.getProjectLogs(a.lines, a.filterKeyword, a.logLevel),
+            },
+            {
+                name: 'get_log_file_info',
+                description: 'Read temp/logs/project.log path, size, line count, and timestamps.',
+                inputSchema: z.object({}),
+                handler: () => this.getLogFileInfo(),
+            },
+            {
+                name: 'search_project_logs',
+                description: 'Search temp/logs/project.log for string/regex and return line context.',
+                inputSchema: z.object({
+                    pattern: z.string().describe('Search string or regex. Invalid regex is treated as a literal string.'),
+                    maxResults: z.number().min(1).max(100).default(20).describe('Maximum matches to return. Default 20.'),
+                    contextLines: z.number().min(0).max(10).default(2).describe('Context lines before/after each match. Default 2.'),
+                }),
+                handler: a => this.searchProjectLogs(a.pattern, a.maxResults, a.contextLines),
+            },
+            {
+                name: 'screenshot',
+                description: 'Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
+                inputSchema: z.object({
+                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
+                    windowTitle: z.string().optional().describe('Optional substring match on window title to pick a specific Electron window. Default: focused window.'),
+                    includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false). When false, only the saved file path is returned.'),
+                }),
+                handler: a => this.screenshot(a.savePath, a.windowTitle, a.includeBase64),
+            },
+            {
+                name: 'batch_screenshot',
+                description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
+                inputSchema: z.object({
+                    savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
+                    delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
+                    windowTitle: z.string().optional().describe('Optional substring match on window title.'),
+                }),
+                handler: a => this.batchScreenshot(a.savePathPrefix, a.delaysMs, a.windowTitle),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof debugSchemas;
-        const schema = debugSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-        switch (schemaName) {
-            case 'clear_console':
-                return await this.clearConsole();
-            case 'execute_javascript':
-                return await this.executeJavaScript(a.code, a.context ?? 'scene');
-            case 'execute_script': {
-                // Compat path: preserve the pre-v2.3.0 response shape
-                // {success, data: {result, message: 'Script executed successfully'}}
-                // so older callers reading data.message keep working.
-                const out = await this.executeJavaScript(a.script, 'scene');
-                if (out.success && out.data && 'result' in out.data) {
-                    return {
-                        success: true,
-                        data: {
-                            result: out.data.result,
-                            message: 'Script executed successfully',
-                        },
-                    };
-                }
-                return out;
-            }
-            case 'get_node_tree':
-                return await this.getNodeTree(a.rootUuid, a.maxDepth);
-            case 'get_performance_stats':
-                return await this.getPerformanceStats();
-            case 'validate_scene':
-                return await this.validateScene(a);
-            case 'get_editor_info':
-                return await this.getEditorInfo();
-            case 'get_project_logs':
-                return await this.getProjectLogs(a.lines, a.filterKeyword, a.logLevel);
-            case 'get_log_file_info':
-                return await this.getLogFileInfo();
-            case 'search_project_logs':
-                return await this.searchProjectLogs(a.pattern, a.maxResults, a.contextLines);
-            case 'screenshot':
-                return await this.screenshot(a.savePath, a.windowTitle, a.includeBase64);
-            case 'batch_screenshot':
-                return await this.batchScreenshot(a.savePathPrefix, a.delaysMs, a.windowTitle);
+    // Compat path: preserve the pre-v2.3.0 response shape
+    // {success, data: {result, message: 'Script executed successfully'}}
+    // so older callers reading data.message keep working.
+    private async executeScriptCompat(script: string): Promise<ToolResponse> {
+        const out = await this.executeJavaScript(script, 'scene');
+        if (out.success && out.data && 'result' in out.data) {
+            return {
+                success: true,
+                data: {
+                    result: out.data.result,
+                    message: 'Script executed successfully',
+                },
+            };
         }
+        return out;
     }
 
     private async clearConsole(): Promise<ToolResponse> {

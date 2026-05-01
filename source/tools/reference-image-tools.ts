@@ -1,102 +1,108 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const referenceImageSchemas = {
-    add_reference_image: z.object({
-        paths: z.array(z.string()).describe('Absolute image file paths to add as scene reference images.'),
-    }),
-    remove_reference_image: z.object({
-        paths: z.array(z.string()).optional().describe('Reference image paths to remove. Omit/empty removes the current image.'),
-    }),
-    switch_reference_image: z.object({
-        path: z.string().describe('Absolute reference image path to make current.'),
-        sceneUUID: z.string().optional().describe('Optional scene UUID scope for the switch.'),
-    }),
-    set_reference_image_data: z.object({
-        key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).describe('Reference image property key to set.'),
-        value: z.any().describe('Property value: path string, x/y/sx/sy number, or opacity 0-1.'),
-    }),
-    query_reference_image_config: z.object({}),
-    query_current_reference_image: z.object({}),
-    refresh_reference_image: z.object({}),
-    set_reference_image_position: z.object({
-        x: z.number().describe('Reference image X offset.'),
-        y: z.number().describe('Reference image Y offset.'),
-    }),
-    set_reference_image_scale: z.object({
-        sx: z.number().min(0.1).max(10).describe('Reference image X scale, 0.1-10.'),
-        sy: z.number().min(0.1).max(10).describe('Reference image Y scale, 0.1-10.'),
-    }),
-    set_reference_image_opacity: z.object({
-        opacity: z.number().min(0).max(1).describe('Reference image opacity from 0.0 to 1.0.'),
-    }),
-    list_reference_images: z.object({}),
-    clear_all_reference_images: z.object({}),
-} as const;
-
-const referenceImageToolMeta: Record<keyof typeof referenceImageSchemas, string> = {
-    add_reference_image: 'Add absolute image paths to the reference-image module; does not create assets.',
-    remove_reference_image: 'Remove specific reference images, or current image when paths are omitted.',
-    switch_reference_image: 'Switch active reference image by absolute path, optionally scoped to scene UUID.',
-    set_reference_image_data: 'Set one raw reference-image display property: path/x/y/sx/sy/opacity.',
-    query_reference_image_config: 'Read reference-image module configuration.',
-    query_current_reference_image: 'Read current reference-image state.',
-    refresh_reference_image: 'Refresh reference-image display without changing image data.',
-    set_reference_image_position: 'Set current reference image x/y offsets.',
-    set_reference_image_scale: 'Set current reference image x/y scale.',
-    set_reference_image_opacity: 'Set current reference image opacity.',
-    list_reference_images: 'Read reference-image config plus current image data.',
-    clear_all_reference_images: 'Remove reference images from the module; does not delete files/assets.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class ReferenceImageTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(referenceImageSchemas) as Array<keyof typeof referenceImageSchemas>).map(name => ({
-            name,
-            description: referenceImageToolMeta[name],
-            inputSchema: toInputSchema(referenceImageSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'add_reference_image',
+                description: 'Add absolute image paths to the reference-image module; does not create assets.',
+                inputSchema: z.object({
+                    paths: z.array(z.string()).describe('Absolute image file paths to add as scene reference images.'),
+                }),
+                handler: a => this.addReferenceImage(a.paths),
+            },
+            {
+                name: 'remove_reference_image',
+                description: 'Remove specific reference images, or current image when paths are omitted.',
+                inputSchema: z.object({
+                    paths: z.array(z.string()).optional().describe('Reference image paths to remove. Omit/empty removes the current image.'),
+                }),
+                handler: a => this.removeReferenceImage(a.paths),
+            },
+            {
+                name: 'switch_reference_image',
+                description: 'Switch active reference image by absolute path, optionally scoped to scene UUID.',
+                inputSchema: z.object({
+                    path: z.string().describe('Absolute reference image path to make current.'),
+                    sceneUUID: z.string().optional().describe('Optional scene UUID scope for the switch.'),
+                }),
+                handler: a => this.switchReferenceImage(a.path, a.sceneUUID),
+            },
+            {
+                name: 'set_reference_image_data',
+                description: 'Set one raw reference-image display property: path/x/y/sx/sy/opacity.',
+                inputSchema: z.object({
+                    key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).describe('Reference image property key to set.'),
+                    value: z.any().describe('Property value: path string, x/y/sx/sy number, or opacity 0-1.'),
+                }),
+                handler: a => this.setReferenceImageData(a.key, a.value),
+            },
+            {
+                name: 'query_reference_image_config',
+                description: 'Read reference-image module configuration.',
+                inputSchema: z.object({}),
+                handler: () => this.queryReferenceImageConfig(),
+            },
+            {
+                name: 'query_current_reference_image',
+                description: 'Read current reference-image state.',
+                inputSchema: z.object({}),
+                handler: () => this.queryCurrentReferenceImage(),
+            },
+            {
+                name: 'refresh_reference_image',
+                description: 'Refresh reference-image display without changing image data.',
+                inputSchema: z.object({}),
+                handler: () => this.refreshReferenceImage(),
+            },
+            {
+                name: 'set_reference_image_position',
+                description: 'Set current reference image x/y offsets.',
+                inputSchema: z.object({
+                    x: z.number().describe('Reference image X offset.'),
+                    y: z.number().describe('Reference image Y offset.'),
+                }),
+                handler: a => this.setReferenceImagePosition(a.x, a.y),
+            },
+            {
+                name: 'set_reference_image_scale',
+                description: 'Set current reference image x/y scale.',
+                inputSchema: z.object({
+                    sx: z.number().min(0.1).max(10).describe('Reference image X scale, 0.1-10.'),
+                    sy: z.number().min(0.1).max(10).describe('Reference image Y scale, 0.1-10.'),
+                }),
+                handler: a => this.setReferenceImageScale(a.sx, a.sy),
+            },
+            {
+                name: 'set_reference_image_opacity',
+                description: 'Set current reference image opacity.',
+                inputSchema: z.object({
+                    opacity: z.number().min(0).max(1).describe('Reference image opacity from 0.0 to 1.0.'),
+                }),
+                handler: a => this.setReferenceImageOpacity(a.opacity),
+            },
+            {
+                name: 'list_reference_images',
+                description: 'Read reference-image config plus current image data.',
+                inputSchema: z.object({}),
+                handler: () => this.listReferenceImages(),
+            },
+            {
+                name: 'clear_all_reference_images',
+                description: 'Remove reference images from the module; does not delete files/assets.',
+                inputSchema: z.object({}),
+                handler: () => this.clearAllReferenceImages(),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof referenceImageSchemas;
-        const schema = referenceImageSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'add_reference_image':
-                return await this.addReferenceImage(a.paths);
-            case 'remove_reference_image':
-                return await this.removeReferenceImage(a.paths);
-            case 'switch_reference_image':
-                return await this.switchReferenceImage(a.path, a.sceneUUID);
-            case 'set_reference_image_data':
-                return await this.setReferenceImageData(a.key, a.value);
-            case 'query_reference_image_config':
-                return await this.queryReferenceImageConfig();
-            case 'query_current_reference_image':
-                return await this.queryCurrentReferenceImage();
-            case 'refresh_reference_image':
-                return await this.refreshReferenceImage();
-            case 'set_reference_image_position':
-                return await this.setReferenceImagePosition(a.x, a.y);
-            case 'set_reference_image_scale':
-                return await this.setReferenceImageScale(a.sx, a.sy);
-            case 'set_reference_image_opacity':
-                return await this.setReferenceImageOpacity(a.opacity);
-            case 'list_reference_images':
-                return await this.listReferenceImages();
-            case 'clear_all_reference_images':
-                return await this.clearAllReferenceImages();
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async addReferenceImage(paths: string[]): Promise<ToolResponse> {
         return new Promise((resolve) => {

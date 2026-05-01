@@ -1,62 +1,56 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const serverSchemas = {
-    query_server_ip_list: z.object({}),
-    query_sorted_server_ip_list: z.object({}),
-    query_server_port: z.object({}),
-    get_server_status: z.object({}),
-    check_server_connectivity: z.object({
-        timeout: z.number().default(5000).describe('Editor server response timeout in milliseconds. Default 5000.'),
-    }),
-    get_network_interfaces: z.object({}),
-} as const;
-
-const serverToolMeta: Record<keyof typeof serverSchemas, string> = {
-    query_server_ip_list: 'Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.',
-    query_sorted_server_ip_list: 'Read the Editor server IP list in preferred order. No project side effects.',
-    query_server_port: 'Read the current Cocos Editor server port. Does not start or stop any server.',
-    get_server_status: 'Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.',
-    check_server_connectivity: 'Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.',
-    get_network_interfaces: 'Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class ServerTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(serverSchemas) as Array<keyof typeof serverSchemas>).map(name => ({
-            name,
-            description: serverToolMeta[name],
-            inputSchema: toInputSchema(serverSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'query_server_ip_list',
+                description: 'Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.',
+                inputSchema: z.object({}),
+                handler: () => this.queryServerIPList(),
+            },
+            {
+                name: 'query_sorted_server_ip_list',
+                description: 'Read the Editor server IP list in preferred order. No project side effects.',
+                inputSchema: z.object({}),
+                handler: () => this.querySortedServerIPList(),
+            },
+            {
+                name: 'query_server_port',
+                description: 'Read the current Cocos Editor server port. Does not start or stop any server.',
+                inputSchema: z.object({}),
+                handler: () => this.queryServerPort(),
+            },
+            {
+                name: 'get_server_status',
+                description: 'Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.',
+                inputSchema: z.object({}),
+                handler: () => this.getServerStatus(),
+            },
+            {
+                name: 'check_server_connectivity',
+                description: 'Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.',
+                inputSchema: z.object({
+                    timeout: z.number().default(5000).describe('Editor server response timeout in milliseconds. Default 5000.'),
+                }),
+                handler: a => this.checkServerConnectivity(a.timeout),
+            },
+            {
+                name: 'get_network_interfaces',
+                description: 'Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.',
+                inputSchema: z.object({}),
+                handler: () => this.getNetworkInterfaces(),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof serverSchemas;
-        const schema = serverSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'query_server_ip_list':
-                return await this.queryServerIPList();
-            case 'query_sorted_server_ip_list':
-                return await this.querySortedServerIPList();
-            case 'query_server_port':
-                return await this.queryServerPort();
-            case 'get_server_status':
-                return await this.getServerStatus();
-            case 'check_server_connectivity':
-                return await this.checkServerConnectivity(a.timeout);
-            case 'get_network_interfaces':
-                return await this.getNetworkInterfaces();
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async queryServerIPList(): Promise<ToolResponse> {
         return new Promise((resolve) => {

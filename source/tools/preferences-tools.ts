@@ -1,83 +1,79 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const preferencesSchemas = {
-    open_preferences_settings: z.object({
-        tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open. Omit for the default settings panel.'),
-        args: z.array(z.any()).optional().describe('Extra tab arguments; normally unnecessary.'),
-    }),
-    query_preferences_config: z.object({
-        name: z.string().default('general').describe('Preferences category or extension/plugin name. Default general.'),
-        path: z.string().optional().describe('Optional config path. Omit to read the whole category.'),
-        type: z.enum(['default', 'global', 'local']).default('global').describe('Config source: default, global, or project-local.'),
-    }),
-    set_preferences_config: z.object({
-        name: z.string().describe('Preferences category or extension/plugin name to modify.'),
-        path: z.string().describe('Exact config path to modify. Query first if unsure.'),
-        value: z.any().describe('Value to write; must match the target preference field shape.'),
-        type: z.enum(['default', 'global', 'local']).default('global').describe('Write target. Prefer global or local; avoid default unless intentional.'),
-    }),
-    get_all_preferences: z.object({}),
-    reset_preferences: z.object({
-        name: z.string().optional().describe('Single preference category to reset. Resetting all categories is not supported.'),
-        type: z.enum(['global', 'local']).default('global').describe('Config scope to reset. Default global.'),
-    }),
-    export_preferences: z.object({
-        exportPath: z.string().optional().describe('Label for the returned export path. Current implementation returns JSON data only; it does not write a file.'),
-    }),
-    import_preferences: z.object({
-        importPath: z.string().describe('Preferences file path to import. Current implementation reports unsupported and does not modify settings.'),
-    }),
-} as const;
-
-const preferencesToolMeta: Record<keyof typeof preferencesSchemas, string> = {
-    open_preferences_settings: 'Open Cocos Preferences UI, optionally on a tab; UI side effect only.',
-    query_preferences_config: 'Read a Preferences config category/path/type; query before setting values.',
-    set_preferences_config: 'Write a Preferences config value; mutates Cocos global/local settings.',
-    get_all_preferences: 'Read common Preferences categories; may not include every extension category.',
-    reset_preferences: 'Reset one Preferences category to defaults; all-category reset is unsupported.',
-    export_preferences: 'Return readable Preferences as JSON data; does not write a file.',
-    import_preferences: 'Unsupported Preferences import placeholder; never modifies settings.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class PreferencesTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(preferencesSchemas) as Array<keyof typeof preferencesSchemas>).map(name => ({
-            name,
-            description: preferencesToolMeta[name],
-            inputSchema: toInputSchema(preferencesSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'open_preferences_settings',
+                description: 'Open Cocos Preferences UI, optionally on a tab; UI side effect only.',
+                inputSchema: z.object({
+                    tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open. Omit for the default settings panel.'),
+                    args: z.array(z.any()).optional().describe('Extra tab arguments; normally unnecessary.'),
+                }),
+                handler: a => this.openPreferencesSettings(a.tab, a.args),
+            },
+            {
+                name: 'query_preferences_config',
+                description: 'Read a Preferences config category/path/type; query before setting values.',
+                inputSchema: z.object({
+                    name: z.string().default('general').describe('Preferences category or extension/plugin name. Default general.'),
+                    path: z.string().optional().describe('Optional config path. Omit to read the whole category.'),
+                    type: z.enum(['default', 'global', 'local']).default('global').describe('Config source: default, global, or project-local.'),
+                }),
+                handler: a => this.queryPreferencesConfig(a.name, a.path, a.type),
+            },
+            {
+                name: 'set_preferences_config',
+                description: 'Write a Preferences config value; mutates Cocos global/local settings.',
+                inputSchema: z.object({
+                    name: z.string().describe('Preferences category or extension/plugin name to modify.'),
+                    path: z.string().describe('Exact config path to modify. Query first if unsure.'),
+                    value: z.any().describe('Value to write; must match the target preference field shape.'),
+                    type: z.enum(['default', 'global', 'local']).default('global').describe('Write target. Prefer global or local; avoid default unless intentional.'),
+                }),
+                handler: a => this.setPreferencesConfig(a.name, a.path, a.value, a.type),
+            },
+            {
+                name: 'get_all_preferences',
+                description: 'Read common Preferences categories; may not include every extension category.',
+                inputSchema: z.object({}),
+                handler: () => this.getAllPreferences(),
+            },
+            {
+                name: 'reset_preferences',
+                description: 'Reset one Preferences category to defaults; all-category reset is unsupported.',
+                inputSchema: z.object({
+                    name: z.string().optional().describe('Single preference category to reset. Resetting all categories is not supported.'),
+                    type: z.enum(['global', 'local']).default('global').describe('Config scope to reset. Default global.'),
+                }),
+                handler: a => this.resetPreferences(a.name, a.type),
+            },
+            {
+                name: 'export_preferences',
+                description: 'Return readable Preferences as JSON data; does not write a file.',
+                inputSchema: z.object({
+                    exportPath: z.string().optional().describe('Label for the returned export path. Current implementation returns JSON data only; it does not write a file.'),
+                }),
+                handler: a => this.exportPreferences(a.exportPath),
+            },
+            {
+                name: 'import_preferences',
+                description: 'Unsupported Preferences import placeholder; never modifies settings.',
+                inputSchema: z.object({
+                    importPath: z.string().describe('Preferences file path to import. Current implementation reports unsupported and does not modify settings.'),
+                }),
+                handler: a => this.importPreferences(a.importPath),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof preferencesSchemas;
-        const schema = preferencesSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'open_preferences_settings':
-                return await this.openPreferencesSettings(a.tab, a.args);
-            case 'query_preferences_config':
-                return await this.queryPreferencesConfig(a.name, a.path, a.type);
-            case 'set_preferences_config':
-                return await this.setPreferencesConfig(a.name, a.path, a.value, a.type);
-            case 'get_all_preferences':
-                return await this.getAllPreferences();
-            case 'reset_preferences':
-                return await this.resetPreferences(a.name, a.type);
-            case 'export_preferences':
-                return await this.exportPreferences(a.exportPath);
-            case 'import_preferences':
-                return await this.importPreferences(a.importPath);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async openPreferencesSettings(tab?: string, args?: any[]): Promise<ToolResponse> {
         return new Promise((resolve) => {

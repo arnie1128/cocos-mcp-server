@@ -1,178 +1,114 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 // Several tools accept either a single UUID or an array of UUIDs.
 const stringOrStringArray = z.union([z.string(), z.array(z.string())]);
 
-const sceneAdvancedSchemas = {
-    reset_node_property: z.object({
-        uuid: z.string().describe('Node UUID whose property should be reset.'),
-        path: z.string().describe('Node property path to reset, e.g. position, rotation, scale, layer.'),
-    }),
-    move_array_element: z.object({
-        uuid: z.string().describe('Node UUID that owns the array property.'),
-        path: z.string().describe('Array property path, e.g. __comps__.'),
-        target: z.number().describe('Original index of the array item to move.'),
-        offset: z.number().describe('Relative move offset; positive moves later, negative moves earlier.'),
-    }),
-    remove_array_element: z.object({
-        uuid: z.string().describe('Node UUID that owns the array property.'),
-        path: z.string().describe('Array property path to edit.'),
-        index: z.number().describe('Array index to remove.'),
-    }),
-    copy_node: z.object({
-        uuids: stringOrStringArray.describe('Node UUID or UUID array to copy into the editor clipboard context.'),
-    }),
-    paste_node: z.object({
-        target: z.string().describe('Target parent node UUID for pasted nodes.'),
-        uuids: stringOrStringArray.describe('Node UUID or UUID array returned/used by copy_node.'),
-        keepWorldTransform: z.boolean().default(false).describe('Preserve world transform while pasting/reparenting when Cocos supports it.'),
-    }),
-    cut_node: z.object({
-        uuids: stringOrStringArray.describe('Node UUID or UUID array to cut via editor scene channel.'),
-    }),
-    reset_node_transform: z.object({
-        uuid: z.string().describe('Node UUID whose transform should be reset to default.'),
-    }),
-    reset_component: z.object({
-        uuid: z.string().describe('Component UUID to reset to default values.'),
-    }),
-    restore_prefab: z.object({
-        nodeUuid: z.string().describe('Prefab instance node UUID to restore.'),
-        assetUuid: z.string().describe('Prefab asset UUID kept for context; scene/restore-prefab uses nodeUuid only.'),
-    }),
-    execute_component_method: z.object({
-        uuid: z.string().describe('Component UUID whose editor-exposed method should be invoked.'),
-        name: z.string().describe('Method name to execute on the component.'),
-        args: z.array(z.any()).default([]).describe('Positional method arguments.'),
-    }),
-    execute_scene_script: z.object({
-        name: z.string().describe('Scene script package/plugin name.'),
-        method: z.string().describe('Scene script method name to execute.'),
-        args: z.array(z.any()).default([]).describe('Positional method arguments.'),
-    }),
-    scene_snapshot: z.object({}),
-    scene_snapshot_abort: z.object({}),
-    begin_undo_recording: z.object({
-        nodeUuid: z.string().describe('Node UUID whose changes should be covered by the undo recording.'),
-    }),
-    end_undo_recording: z.object({
-        undoId: z.string().describe('Undo recording ID returned by begin_undo_recording.'),
-    }),
-    cancel_undo_recording: z.object({
-        undoId: z.string().describe('Undo recording ID to cancel without committing.'),
-    }),
-    soft_reload_scene: z.object({}),
-    query_scene_ready: z.object({}),
-    query_scene_dirty: z.object({}),
-    query_scene_classes: z.object({
-        extends: z.string().optional().describe('Optional base class filter for scene/query-classes.'),
-    }),
-    query_scene_components: z.object({}),
-    query_component_has_script: z.object({
-        className: z.string().describe('Script class name to check through scene/query-component-has-script.'),
-    }),
-    query_nodes_by_asset_uuid: z.object({
-        assetUuid: z.string().describe('Asset UUID to search for in scene nodes.'),
-    }),
-} as const;
-
-const sceneAdvancedToolMeta: Record<keyof typeof sceneAdvancedSchemas, string> = {
-    reset_node_property: 'Reset one node property to Cocos default; mutates scene.',
-    move_array_element: 'Move an item in a node array property such as __comps__; mutates scene.',
-    remove_array_element: 'Remove an item from a node array property by index; mutates scene.',
-    copy_node: 'Copy nodes through the Cocos scene clipboard channel.',
-    paste_node: 'Paste copied nodes under a target parent; mutates scene and returns new UUIDs.',
-    cut_node: 'Cut nodes through the Cocos scene channel; clipboard/scene side effects.',
-    reset_node_transform: 'Reset node transform to Cocos defaults; mutates scene.',
-    reset_component: 'Reset a component by component UUID; mutates scene.',
-    restore_prefab: 'Restore a prefab instance through scene/restore-prefab; mutates scene.',
-    execute_component_method: 'Execute an editor-exposed component method; side effects depend on method.',
-    execute_scene_script: 'Execute a scene script method; low-level escape hatch that can mutate scene.',
-    scene_snapshot: 'Create a Cocos scene snapshot for undo/change tracking.',
-    scene_snapshot_abort: 'Abort the current Cocos scene snapshot.',
-    begin_undo_recording: 'Begin undo recording for a node and return undoId.',
-    end_undo_recording: 'Commit a previously started undo recording.',
-    cancel_undo_recording: 'Cancel a previously started undo recording.',
-    soft_reload_scene: 'Soft reload the current scene; Editor state side effect.',
-    query_scene_ready: 'Check whether the scene module reports ready.',
-    query_scene_dirty: 'Check whether the current scene has unsaved changes.',
-    query_scene_classes: 'List registered scene classes, optionally filtered by base class.',
-    query_scene_components: 'List available scene component definitions from Cocos.',
-    query_component_has_script: 'Check whether a component class has an associated script.',
-    query_nodes_by_asset_uuid: 'Find current-scene nodes that reference an asset UUID.',
-};
-
 export class SceneAdvancedTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(sceneAdvancedSchemas) as Array<keyof typeof sceneAdvancedSchemas>).map(name => ({
-            name,
-            description: sceneAdvancedToolMeta[name],
-            inputSchema: toInputSchema(sceneAdvancedSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            { name: 'reset_node_property', description: 'Reset one node property to Cocos default; mutates scene.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID whose property should be reset.'),
+                    path: z.string().describe('Node property path to reset, e.g. position, rotation, scale, layer.'),
+                }), handler: a => this.resetNodeProperty(a.uuid, a.path) },
+            { name: 'move_array_element', description: 'Move an item in a node array property such as __comps__; mutates scene.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID that owns the array property.'),
+                    path: z.string().describe('Array property path, e.g. __comps__.'),
+                    target: z.number().describe('Original index of the array item to move.'),
+                    offset: z.number().describe('Relative move offset; positive moves later, negative moves earlier.'),
+                }), handler: a => this.moveArrayElement(a.uuid, a.path, a.target, a.offset) },
+            { name: 'remove_array_element', description: 'Remove an item from a node array property by index; mutates scene.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID that owns the array property.'),
+                    path: z.string().describe('Array property path to edit.'),
+                    index: z.number().describe('Array index to remove.'),
+                }), handler: a => this.removeArrayElement(a.uuid, a.path, a.index) },
+            { name: 'copy_node', description: 'Copy nodes through the Cocos scene clipboard channel.',
+                inputSchema: z.object({
+                    uuids: stringOrStringArray.describe('Node UUID or UUID array to copy into the editor clipboard context.'),
+                }), handler: a => this.copyNode(a.uuids) },
+            { name: 'paste_node', description: 'Paste copied nodes under a target parent; mutates scene and returns new UUIDs.',
+                inputSchema: z.object({
+                    target: z.string().describe('Target parent node UUID for pasted nodes.'),
+                    uuids: stringOrStringArray.describe('Node UUID or UUID array returned/used by copy_node.'),
+                    keepWorldTransform: z.boolean().default(false).describe('Preserve world transform while pasting/reparenting when Cocos supports it.'),
+                }), handler: a => this.pasteNode(a.target, a.uuids, a.keepWorldTransform) },
+            { name: 'cut_node', description: 'Cut nodes through the Cocos scene channel; clipboard/scene side effects.',
+                inputSchema: z.object({
+                    uuids: stringOrStringArray.describe('Node UUID or UUID array to cut via editor scene channel.'),
+                }), handler: a => this.cutNode(a.uuids) },
+            { name: 'reset_node_transform', description: 'Reset node transform to Cocos defaults; mutates scene.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID whose transform should be reset to default.'),
+                }), handler: a => this.resetNodeTransform(a.uuid) },
+            { name: 'reset_component', description: 'Reset a component by component UUID; mutates scene.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Component UUID to reset to default values.'),
+                }), handler: a => this.resetComponent(a.uuid) },
+            { name: 'restore_prefab', description: 'Restore a prefab instance through scene/restore-prefab; mutates scene.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Prefab instance node UUID to restore.'),
+                    assetUuid: z.string().describe('Prefab asset UUID kept for context; scene/restore-prefab uses nodeUuid only.'),
+                }), handler: a => this.restorePrefab(a.nodeUuid, a.assetUuid) },
+            { name: 'execute_component_method', description: 'Execute an editor-exposed component method; side effects depend on method.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Component UUID whose editor-exposed method should be invoked.'),
+                    name: z.string().describe('Method name to execute on the component.'),
+                    args: z.array(z.any()).default([]).describe('Positional method arguments.'),
+                }), handler: a => this.executeComponentMethod(a.uuid, a.name, a.args) },
+            { name: 'execute_scene_script', description: 'Execute a scene script method; low-level escape hatch that can mutate scene.',
+                inputSchema: z.object({
+                    name: z.string().describe('Scene script package/plugin name.'),
+                    method: z.string().describe('Scene script method name to execute.'),
+                    args: z.array(z.any()).default([]).describe('Positional method arguments.'),
+                }), handler: a => this.executeSceneScript(a.name, a.method, a.args) },
+            { name: 'scene_snapshot', description: 'Create a Cocos scene snapshot for undo/change tracking.',
+                inputSchema: z.object({}), handler: () => this.sceneSnapshot() },
+            { name: 'scene_snapshot_abort', description: 'Abort the current Cocos scene snapshot.',
+                inputSchema: z.object({}), handler: () => this.sceneSnapshotAbort() },
+            { name: 'begin_undo_recording', description: 'Begin undo recording for a node and return undoId.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID whose changes should be covered by the undo recording.'),
+                }), handler: a => this.beginUndoRecording(a.nodeUuid) },
+            { name: 'end_undo_recording', description: 'Commit a previously started undo recording.',
+                inputSchema: z.object({
+                    undoId: z.string().describe('Undo recording ID returned by begin_undo_recording.'),
+                }), handler: a => this.endUndoRecording(a.undoId) },
+            { name: 'cancel_undo_recording', description: 'Cancel a previously started undo recording.',
+                inputSchema: z.object({
+                    undoId: z.string().describe('Undo recording ID to cancel without committing.'),
+                }), handler: a => this.cancelUndoRecording(a.undoId) },
+            { name: 'soft_reload_scene', description: 'Soft reload the current scene; Editor state side effect.',
+                inputSchema: z.object({}), handler: () => this.softReloadScene() },
+            { name: 'query_scene_ready', description: 'Check whether the scene module reports ready.',
+                inputSchema: z.object({}), handler: () => this.querySceneReady() },
+            { name: 'query_scene_dirty', description: 'Check whether the current scene has unsaved changes.',
+                inputSchema: z.object({}), handler: () => this.querySceneDirty() },
+            { name: 'query_scene_classes', description: 'List registered scene classes, optionally filtered by base class.',
+                inputSchema: z.object({
+                    extends: z.string().optional().describe('Optional base class filter for scene/query-classes.'),
+                }), handler: a => this.querySceneClasses(a.extends) },
+            { name: 'query_scene_components', description: 'List available scene component definitions from Cocos.',
+                inputSchema: z.object({}), handler: () => this.querySceneComponents() },
+            { name: 'query_component_has_script', description: 'Check whether a component class has an associated script.',
+                inputSchema: z.object({
+                    className: z.string().describe('Script class name to check through scene/query-component-has-script.'),
+                }), handler: a => this.queryComponentHasScript(a.className) },
+            { name: 'query_nodes_by_asset_uuid', description: 'Find current-scene nodes that reference an asset UUID.',
+                inputSchema: z.object({
+                    assetUuid: z.string().describe('Asset UUID to search for in scene nodes.'),
+                }), handler: a => this.queryNodesByAssetUuid(a.assetUuid) },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof sceneAdvancedSchemas;
-        const schema = sceneAdvancedSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'reset_node_property':
-                return await this.resetNodeProperty(a.uuid, a.path);
-            case 'move_array_element':
-                return await this.moveArrayElement(a.uuid, a.path, a.target, a.offset);
-            case 'remove_array_element':
-                return await this.removeArrayElement(a.uuid, a.path, a.index);
-            case 'copy_node':
-                return await this.copyNode(a.uuids);
-            case 'paste_node':
-                return await this.pasteNode(a.target, a.uuids, a.keepWorldTransform);
-            case 'cut_node':
-                return await this.cutNode(a.uuids);
-            case 'reset_node_transform':
-                return await this.resetNodeTransform(a.uuid);
-            case 'reset_component':
-                return await this.resetComponent(a.uuid);
-            case 'restore_prefab':
-                return await this.restorePrefab(a.nodeUuid, a.assetUuid);
-            case 'execute_component_method':
-                return await this.executeComponentMethod(a.uuid, a.name, a.args);
-            case 'execute_scene_script':
-                return await this.executeSceneScript(a.name, a.method, a.args);
-            case 'scene_snapshot':
-                return await this.sceneSnapshot();
-            case 'scene_snapshot_abort':
-                return await this.sceneSnapshotAbort();
-            case 'begin_undo_recording':
-                return await this.beginUndoRecording(a.nodeUuid);
-            case 'end_undo_recording':
-                return await this.endUndoRecording(a.undoId);
-            case 'cancel_undo_recording':
-                return await this.cancelUndoRecording(a.undoId);
-            case 'soft_reload_scene':
-                return await this.softReloadScene();
-            case 'query_scene_ready':
-                return await this.querySceneReady();
-            case 'query_scene_dirty':
-                return await this.querySceneDirty();
-            case 'query_scene_classes':
-                return await this.querySceneClasses(a.extends);
-            case 'query_scene_components':
-                return await this.querySceneComponents();
-            case 'query_component_has_script':
-                return await this.queryComponentHasScript(a.className);
-            case 'query_nodes_by_asset_uuid':
-                return await this.queryNodesByAssetUuid(a.assetUuid);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async resetNodeProperty(uuid: string, path: string): Promise<ToolResponse> {
         return new Promise((resolve) => {

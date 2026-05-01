@@ -1,132 +1,66 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const sceneViewSchemas = {
-    change_gizmo_tool: z.object({
-        name: z.enum(['position', 'rotation', 'scale', 'rect']).describe('Scene view gizmo tool to activate.'),
-    }),
-    query_gizmo_tool_name: z.object({}),
-    change_gizmo_pivot: z.object({
-        name: z.enum(['pivot', 'center']).describe('Transform pivot mode: pivot or center.'),
-    }),
-    query_gizmo_pivot: z.object({}),
-    query_gizmo_view_mode: z.object({}),
-    change_gizmo_coordinate: z.object({
-        type: z.enum(['local', 'global']).describe('Transform coordinate system for the scene view gizmo.'),
-    }),
-    query_gizmo_coordinate: z.object({}),
-    change_view_mode_2d_3d: z.object({
-        is2D: z.boolean().describe('true switches scene view to 2D mode; false switches to 3D mode.'),
-    }),
-    query_view_mode_2d_3d: z.object({}),
-    set_grid_visible: z.object({
-        visible: z.boolean().describe('Whether the scene view grid should be visible.'),
-    }),
-    query_grid_visible: z.object({}),
-    set_icon_gizmo_3d: z.object({
-        is3D: z.boolean().describe('true sets IconGizmo to 3D mode; false sets 2D mode.'),
-    }),
-    query_icon_gizmo_3d: z.object({}),
-    set_icon_gizmo_size: z.object({
-        size: z.number().min(10).max(100).describe('IconGizmo size from 10 to 100.'),
-    }),
-    query_icon_gizmo_size: z.object({}),
-    focus_camera_on_nodes: z.object({
-        uuids: z.array(z.string()).nullable().describe('Node UUIDs to focus the scene camera on. null focuses all nodes.'),
-    }),
-    align_camera_with_view: z.object({}),
-    align_view_with_node: z.object({}),
-    get_scene_view_status: z.object({}),
-    reset_scene_view: z.object({}),
-} as const;
-
-const sceneViewToolMeta: Record<keyof typeof sceneViewSchemas, string> = {
-    change_gizmo_tool: 'Change active scene view gizmo tool; UI side effect only.',
-    query_gizmo_tool_name: 'Read active scene view gizmo tool.',
-    change_gizmo_pivot: 'Change scene view transform pivot mode; UI side effect only.',
-    query_gizmo_pivot: 'Read current scene view pivot mode.',
-    query_gizmo_view_mode: 'Read current scene view/select mode.',
-    change_gizmo_coordinate: 'Change scene view coordinate system to local/global; UI side effect only.',
-    query_gizmo_coordinate: 'Read current scene view coordinate system.',
-    change_view_mode_2d_3d: 'Switch scene view between 2D and 3D; UI side effect only.',
-    query_view_mode_2d_3d: 'Read whether scene view is in 2D or 3D mode.',
-    set_grid_visible: 'Show or hide scene view grid; UI side effect only.',
-    query_grid_visible: 'Read scene view grid visibility.',
-    set_icon_gizmo_3d: 'Switch IconGizmo between 3D and 2D mode; UI side effect only.',
-    query_icon_gizmo_3d: 'Read current IconGizmo 3D/2D mode.',
-    set_icon_gizmo_size: 'Set IconGizmo display size; UI side effect only.',
-    query_icon_gizmo_size: 'Read current IconGizmo display size.',
-    focus_camera_on_nodes: 'Focus scene view camera on nodes or all nodes; camera UI side effect only.',
-    align_camera_with_view: 'Apply scene view camera transform to selected camera/node; may mutate selection.',
-    align_view_with_node: 'Align scene view to selected node; camera UI side effect only.',
-    get_scene_view_status: 'Read combined scene view status snapshot.',
-    reset_scene_view: 'Reset scene view UI settings to defaults; UI side effects only.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class SceneViewTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(sceneViewSchemas) as Array<keyof typeof sceneViewSchemas>).map(name => ({
-            name,
-            description: sceneViewToolMeta[name],
-            inputSchema: toInputSchema(sceneViewSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            { name: 'change_gizmo_tool', description: 'Change active scene view gizmo tool; UI side effect only.',
+                inputSchema: z.object({ name: z.enum(['position', 'rotation', 'scale', 'rect']).describe('Scene view gizmo tool to activate.') }),
+                handler: a => this.changeGizmoTool(a.name) },
+            { name: 'query_gizmo_tool_name', description: 'Read active scene view gizmo tool.',
+                inputSchema: z.object({}), handler: () => this.queryGizmoToolName() },
+            { name: 'change_gizmo_pivot', description: 'Change scene view transform pivot mode; UI side effect only.',
+                inputSchema: z.object({ name: z.enum(['pivot', 'center']).describe('Transform pivot mode: pivot or center.') }),
+                handler: a => this.changeGizmoPivot(a.name) },
+            { name: 'query_gizmo_pivot', description: 'Read current scene view pivot mode.',
+                inputSchema: z.object({}), handler: () => this.queryGizmoPivot() },
+            { name: 'query_gizmo_view_mode', description: 'Read current scene view/select mode.',
+                inputSchema: z.object({}), handler: () => this.queryGizmoViewMode() },
+            { name: 'change_gizmo_coordinate', description: 'Change scene view coordinate system to local/global; UI side effect only.',
+                inputSchema: z.object({ type: z.enum(['local', 'global']).describe('Transform coordinate system for the scene view gizmo.') }),
+                handler: a => this.changeGizmoCoordinate(a.type) },
+            { name: 'query_gizmo_coordinate', description: 'Read current scene view coordinate system.',
+                inputSchema: z.object({}), handler: () => this.queryGizmoCoordinate() },
+            { name: 'change_view_mode_2d_3d', description: 'Switch scene view between 2D and 3D; UI side effect only.',
+                inputSchema: z.object({ is2D: z.boolean().describe('true switches scene view to 2D mode; false switches to 3D mode.') }),
+                handler: a => this.changeViewMode2D3D(a.is2D) },
+            { name: 'query_view_mode_2d_3d', description: 'Read whether scene view is in 2D or 3D mode.',
+                inputSchema: z.object({}), handler: () => this.queryViewMode2D3D() },
+            { name: 'set_grid_visible', description: 'Show or hide scene view grid; UI side effect only.',
+                inputSchema: z.object({ visible: z.boolean().describe('Whether the scene view grid should be visible.') }),
+                handler: a => this.setGridVisible(a.visible) },
+            { name: 'query_grid_visible', description: 'Read scene view grid visibility.',
+                inputSchema: z.object({}), handler: () => this.queryGridVisible() },
+            { name: 'set_icon_gizmo_3d', description: 'Switch IconGizmo between 3D and 2D mode; UI side effect only.',
+                inputSchema: z.object({ is3D: z.boolean().describe('true sets IconGizmo to 3D mode; false sets 2D mode.') }),
+                handler: a => this.setIconGizmo3D(a.is3D) },
+            { name: 'query_icon_gizmo_3d', description: 'Read current IconGizmo 3D/2D mode.',
+                inputSchema: z.object({}), handler: () => this.queryIconGizmo3D() },
+            { name: 'set_icon_gizmo_size', description: 'Set IconGizmo display size; UI side effect only.',
+                inputSchema: z.object({ size: z.number().min(10).max(100).describe('IconGizmo size from 10 to 100.') }),
+                handler: a => this.setIconGizmoSize(a.size) },
+            { name: 'query_icon_gizmo_size', description: 'Read current IconGizmo display size.',
+                inputSchema: z.object({}), handler: () => this.queryIconGizmoSize() },
+            { name: 'focus_camera_on_nodes', description: 'Focus scene view camera on nodes or all nodes; camera UI side effect only.',
+                inputSchema: z.object({ uuids: z.array(z.string()).nullable().describe('Node UUIDs to focus the scene camera on. null focuses all nodes.') }),
+                handler: a => this.focusCameraOnNodes(a.uuids) },
+            { name: 'align_camera_with_view', description: 'Apply scene view camera transform to selected camera/node; may mutate selection.',
+                inputSchema: z.object({}), handler: () => this.alignCameraWithView() },
+            { name: 'align_view_with_node', description: 'Align scene view to selected node; camera UI side effect only.',
+                inputSchema: z.object({}), handler: () => this.alignViewWithNode() },
+            { name: 'get_scene_view_status', description: 'Read combined scene view status snapshot.',
+                inputSchema: z.object({}), handler: () => this.getSceneViewStatus() },
+            { name: 'reset_scene_view', description: 'Reset scene view UI settings to defaults; UI side effects only.',
+                inputSchema: z.object({}), handler: () => this.resetSceneView() },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof sceneViewSchemas;
-        const schema = sceneViewSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'change_gizmo_tool':
-                return await this.changeGizmoTool(a.name);
-            case 'query_gizmo_tool_name':
-                return await this.queryGizmoToolName();
-            case 'change_gizmo_pivot':
-                return await this.changeGizmoPivot(a.name);
-            case 'query_gizmo_pivot':
-                return await this.queryGizmoPivot();
-            case 'query_gizmo_view_mode':
-                return await this.queryGizmoViewMode();
-            case 'change_gizmo_coordinate':
-                return await this.changeGizmoCoordinate(a.type);
-            case 'query_gizmo_coordinate':
-                return await this.queryGizmoCoordinate();
-            case 'change_view_mode_2d_3d':
-                return await this.changeViewMode2D3D(a.is2D);
-            case 'query_view_mode_2d_3d':
-                return await this.queryViewMode2D3D();
-            case 'set_grid_visible':
-                return await this.setGridVisible(a.visible);
-            case 'query_grid_visible':
-                return await this.queryGridVisible();
-            case 'set_icon_gizmo_3d':
-                return await this.setIconGizmo3D(a.is3D);
-            case 'query_icon_gizmo_3d':
-                return await this.queryIconGizmo3D();
-            case 'set_icon_gizmo_size':
-                return await this.setIconGizmoSize(a.size);
-            case 'query_icon_gizmo_size':
-                return await this.queryIconGizmoSize();
-            case 'focus_camera_on_nodes':
-                return await this.focusCameraOnNodes(a.uuids);
-            case 'align_camera_with_view':
-                return await this.alignCameraWithView();
-            case 'align_view_with_node':
-                return await this.alignViewWithNode();
-            case 'get_scene_view_status':
-                return await this.getSceneViewStatus();
-            case 'reset_scene_view':
-                return await this.resetSceneView();
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async changeGizmoTool(name: string): Promise<ToolResponse> {
         return new Promise((resolve) => {

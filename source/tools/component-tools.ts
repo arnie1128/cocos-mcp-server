@@ -1,6 +1,7 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 
 /**
@@ -113,153 +114,107 @@ const setComponentPropertyPropertyDescription =
     '• cc.UITransform: contentSize (content size), anchorPoint (anchor point)\n' +
     '• Custom Scripts: Based on properties defined in the script';
 
-const componentSchemas = {
-    add_component: z.object({
-        nodeUuid: z.string().describe('Target node UUID. REQUIRED: You must specify the exact node to add the component to. Use get_all_nodes or find_node_by_name to get the UUID of the desired node.'),
-        componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
-    }),
-    remove_component: z.object({
-        nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
-        componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
-    }),
-    get_components: z.object({
-        nodeUuid: z.string().describe('Node UUID whose components should be listed.'),
-    }),
-    get_component_info: z.object({
-        nodeUuid: z.string().describe('Node UUID that owns the component.'),
-        componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
-    }),
-    set_component_property: z.object({
-        nodeUuid: z.string().describe('Target node UUID - Must specify the node to operate on'),
-        // No enum on componentType — custom scripts must be allowed.
-        componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
-        property: z.string().describe(setComponentPropertyPropertyDescription),
-        propertyType: z.enum([
-            'string', 'number', 'boolean', 'integer', 'float',
-            'color', 'vec2', 'vec3', 'size',
-            'node', 'component', 'spriteFrame', 'prefab', 'asset',
-            'nodeArray', 'colorArray', 'numberArray', 'stringArray',
-        ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
-        value: z.any().describe(setComponentPropertyValueDescription),
-        preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
-    }),
-    attach_script: z.object({
-        nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
-        scriptPath: z.string().describe('Script asset db:// path, e.g. db://assets/scripts/MyScript.ts.'),
-    }),
-    get_available_components: z.object({
-        category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter for the built-in curated list.'),
-    }),
-    add_event_handler: z.object({
-        nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
-        componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
-        eventArrayProperty: z.string().default('clickEvents').describe('Component property holding the EventHandler array (cc.Button.clickEvents, cc.Toggle.checkEvents, …)'),
-        targetNodeUuid: z.string().describe('Node UUID where the callback component lives (most often the same as nodeUuid)'),
-        componentName: z.string().describe('Class name (cc-class) of the script that owns the callback method'),
-        handler: z.string().describe('Method name on the target component, e.g. "onClick"'),
-        customEventData: z.string().optional().describe('Optional string passed back when the event fires'),
-    }),
-    remove_event_handler: z.object({
-        nodeUuid: z.string().describe('Node UUID owning the component'),
-        componentType: z.string().default('cc.Button').describe('Component class name'),
-        eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
-        index: z.number().int().min(0).optional().describe('Zero-based index to remove. Takes precedence over targetNodeUuid/handler matching when provided.'),
-        targetNodeUuid: z.string().optional().describe('Match handlers whose target node has this UUID'),
-        handler: z.string().optional().describe('Match handlers with this method name'),
-    }),
-    list_event_handlers: z.object({
-        nodeUuid: z.string().describe('Node UUID owning the component'),
-        componentType: z.string().default('cc.Button').describe('Component class name'),
-        eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
-    }),
-} as const;
-
-const componentToolMeta: Record<keyof typeof componentSchemas, string> = {
-    add_component: 'Add a component to a specific node. Mutates scene; provide nodeUuid explicitly and verify the component type or script class name first.',
-    remove_component: "Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
-    get_components: 'List all components on a node with type/cid and basic properties. No mutation; use before remove_component or set_component_property.',
-    get_component_info: 'Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
-    set_component_property: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
-    attach_script: 'Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
-    get_available_components: 'Return a curated built-in component type list by category. No scene query; custom project scripts are not discovered here.',
-    add_event_handler: 'Append a cc.EventHandler to a component event array and nudge the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
-    remove_event_handler: 'Remove EventHandler entries by index or targetNodeUuid+handler match, then nudge the editor model for persistence. Mutates scene.',
-    list_event_handlers: 'List EventHandler entries currently bound to a component event array. No mutation; use before remove_event_handler.',
-};
-
 export class ComponentTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(componentSchemas) as Array<keyof typeof componentSchemas>).map(name => ({
-            name,
-            description: componentToolMeta[name],
-            inputSchema: toInputSchema(componentSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            { name: 'add_component', description: 'Add a component to a specific node. Mutates scene; provide nodeUuid explicitly and verify the component type or script class name first.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Target node UUID. REQUIRED: You must specify the exact node to add the component to. Use get_all_nodes or find_node_by_name to get the UUID of the desired node.'),
+                    componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
+                }), handler: a => this.addComponent(a.nodeUuid, a.componentType) },
+            { name: 'remove_component', description: "Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
+                    componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
+                }), handler: a => this.removeComponent(a.nodeUuid, a.componentType) },
+            { name: 'get_components', description: 'List all components on a node with type/cid and basic properties. No mutation; use before remove_component or set_component_property.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID whose components should be listed.'),
+                }), handler: a => this.getComponents(a.nodeUuid) },
+            { name: 'get_component_info', description: 'Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID that owns the component.'),
+                    componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
+                }), handler: a => this.getComponentInfo(a.nodeUuid, a.componentType) },
+            { name: 'set_component_property', description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Target node UUID - Must specify the node to operate on'),
+                    componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
+                    property: z.string().describe(setComponentPropertyPropertyDescription),
+                    propertyType: z.enum([
+                        'string', 'number', 'boolean', 'integer', 'float',
+                        'color', 'vec2', 'vec3', 'size',
+                        'node', 'component', 'spriteFrame', 'prefab', 'asset',
+                        'nodeArray', 'colorArray', 'numberArray', 'stringArray',
+                    ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
+                    value: z.any().describe(setComponentPropertyValueDescription),
+                    preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
+                }), handler: a => this.setComponentProperty(a) },
+            { name: 'attach_script', description: 'Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
+                    scriptPath: z.string().describe('Script asset db:// path, e.g. db://assets/scripts/MyScript.ts.'),
+                }), handler: a => this.attachScript(a.nodeUuid, a.scriptPath) },
+            { name: 'get_available_components', description: 'Return a curated built-in component type list by category. No scene query; custom project scripts are not discovered here.',
+                inputSchema: z.object({
+                    category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter for the built-in curated list.'),
+                }), handler: a => this.getAvailableComponents(a.category) },
+            { name: 'add_event_handler', description: 'Append a cc.EventHandler to a component event array and nudge the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
+                    componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
+                    eventArrayProperty: z.string().default('clickEvents').describe('Component property holding the EventHandler array (cc.Button.clickEvents, cc.Toggle.checkEvents, …)'),
+                    targetNodeUuid: z.string().describe('Node UUID where the callback component lives (most often the same as nodeUuid)'),
+                    componentName: z.string().describe('Class name (cc-class) of the script that owns the callback method'),
+                    handler: z.string().describe('Method name on the target component, e.g. "onClick"'),
+                    customEventData: z.string().optional().describe('Optional string passed back when the event fires'),
+                }),
+                handler: async a => {
+                    const resp = await runSceneMethodAsToolResponse('addEventHandler', [
+                        a.nodeUuid, a.componentType, a.eventArrayProperty,
+                        a.targetNodeUuid, a.componentName, a.handler, a.customEventData,
+                    ]);
+                    if (resp.success) {
+                        await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+                    }
+                    return resp;
+                } },
+            { name: 'remove_event_handler', description: 'Remove EventHandler entries by index or targetNodeUuid+handler match, then nudge the editor model for persistence. Mutates scene.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID owning the component'),
+                    componentType: z.string().default('cc.Button').describe('Component class name'),
+                    eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+                    index: z.number().int().min(0).optional().describe('Zero-based index to remove. Takes precedence over targetNodeUuid/handler matching when provided.'),
+                    targetNodeUuid: z.string().optional().describe('Match handlers whose target node has this UUID'),
+                    handler: z.string().optional().describe('Match handlers with this method name'),
+                }),
+                handler: async a => {
+                    const resp = await runSceneMethodAsToolResponse('removeEventHandler', [
+                        a.nodeUuid, a.componentType, a.eventArrayProperty,
+                        a.index ?? null, a.targetNodeUuid ?? null, a.handler ?? null,
+                    ]);
+                    if (resp.success) {
+                        await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+                    }
+                    return resp;
+                } },
+            { name: 'list_event_handlers', description: 'List EventHandler entries currently bound to a component event array. No mutation; use before remove_event_handler.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID owning the component'),
+                    componentType: z.string().default('cc.Button').describe('Component class name'),
+                    eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+                }),
+                handler: a => runSceneMethodAsToolResponse('listEventHandlers', [
+                    a.nodeUuid, a.componentType, a.eventArrayProperty,
+                ]) },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof componentSchemas;
-        const schema = componentSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'add_component':
-                return await this.addComponent(a.nodeUuid, a.componentType);
-            case 'remove_component':
-                return await this.removeComponent(a.nodeUuid, a.componentType);
-            case 'get_components':
-                return await this.getComponents(a.nodeUuid);
-            case 'get_component_info':
-                return await this.getComponentInfo(a.nodeUuid, a.componentType);
-            case 'set_component_property':
-                return await this.setComponentProperty(a);
-            case 'attach_script':
-                return await this.attachScript(a.nodeUuid, a.scriptPath);
-            case 'get_available_components':
-                return await this.getAvailableComponents(a.category);
-            case 'add_event_handler': {
-                const resp = await runSceneMethodAsToolResponse('addEventHandler', [
-                    a.nodeUuid,
-                    a.componentType,
-                    a.eventArrayProperty,
-                    a.targetNodeUuid,
-                    a.componentName,
-                    a.handler,
-                    a.customEventData,
-                ]);
-                if (resp.success) {
-                    await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
-                }
-                return resp;
-            }
-            case 'remove_event_handler': {
-                const resp = await runSceneMethodAsToolResponse('removeEventHandler', [
-                    a.nodeUuid,
-                    a.componentType,
-                    a.eventArrayProperty,
-                    a.index ?? null,
-                    a.targetNodeUuid ?? null,
-                    a.handler ?? null,
-                ]);
-                if (resp.success) {
-                    await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
-                }
-                return resp;
-            }
-            case 'list_event_handlers':
-                return await runSceneMethodAsToolResponse('listEventHandlers', [
-                    a.nodeUuid,
-                    a.componentType,
-                    a.eventArrayProperty,
-                ]);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async addComponent(nodeUuid: string, componentType: string): Promise<ToolResponse> {
         return new Promise(async (resolve) => {

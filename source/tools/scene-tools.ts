@@ -1,91 +1,89 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
 
 const LAYER_UI_2D = 33554432;
 
-const sceneSchemas = {
-    get_current_scene: z.object({}),
-    get_scene_list: z.object({}),
-    open_scene: z.object({
-        scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
-    }),
-    save_scene: z.object({}),
-    create_scene: z.object({
-        sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
-        savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
-        template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
-            'Built-in scaffolding for the new scene. ' +
-            '"empty" (default): bare scene root only — current behavior. ' +
-            '"2d-ui": Camera (cc.Camera, ortho projection) + Canvas (cc.UITransform + cc.Canvas with cameraComponent linked, layer UI_2D) so UI nodes render immediately under the UI camera. ' +
-            '"3d-basic": Camera (perspective) + DirectionalLight at scene root. ' +
-            '⚠️ Side effect: when template is not "empty" the editor opens the newly created scene to populate it. Save your current scene first if it has unsaved changes.'
-        ),
-    }),
-    save_scene_as: z.object({
-        path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
-        openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
-        overwrite: z.boolean().default(false).describe('Overwrite the target file if it already exists. Default false; with false, a name collision returns an error.'),
-    }),
-    close_scene: z.object({}),
-    get_scene_hierarchy: z.object({
-        includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
-    }),
-} as const;
-
-const sceneToolMeta: Record<keyof typeof sceneSchemas, string> = {
-    get_current_scene: 'Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
-    get_scene_list: 'List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
-    open_scene: 'Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
-    save_scene: 'Save the currently open scene back to its scene asset. Mutates the project file on disk.',
-    create_scene: 'Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
-    save_scene_as: 'Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
-    close_scene: 'Close the current scene. Editor state side effect; save first if unsaved changes matter.',
-    get_scene_hierarchy: 'Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
-};
-
 export class SceneTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(sceneSchemas) as Array<keyof typeof sceneSchemas>).map(name => ({
-            name,
-            description: sceneToolMeta[name],
-            inputSchema: toInputSchema(sceneSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'get_current_scene',
+                description: 'Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
+                inputSchema: z.object({}),
+                handler: () => this.getCurrentScene(),
+            },
+            {
+                name: 'get_scene_list',
+                description: 'List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
+                inputSchema: z.object({}),
+                handler: () => this.getSceneList(),
+            },
+            {
+                name: 'open_scene',
+                description: 'Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
+                inputSchema: z.object({
+                    scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
+                }),
+                handler: a => this.openScene(a.scenePath),
+            },
+            {
+                name: 'save_scene',
+                description: 'Save the currently open scene back to its scene asset. Mutates the project file on disk.',
+                inputSchema: z.object({}),
+                handler: () => this.saveScene(),
+            },
+            {
+                name: 'create_scene',
+                description: 'Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
+                inputSchema: z.object({
+                    sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
+                    savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
+                    template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
+                        'Built-in scaffolding for the new scene. ' +
+                        '"empty" (default): bare scene root only — current behavior. ' +
+                        '"2d-ui": Camera (cc.Camera, ortho projection) + Canvas (cc.UITransform + cc.Canvas with cameraComponent linked, layer UI_2D) so UI nodes render immediately under the UI camera. ' +
+                        '"3d-basic": Camera (perspective) + DirectionalLight at scene root. ' +
+                        '⚠️ Side effect: when template is not "empty" the editor opens the newly created scene to populate it. Save your current scene first if it has unsaved changes.'
+                    ),
+                }),
+                handler: a => this.createScene(a.sceneName, a.savePath, a.template),
+            },
+            {
+                name: 'save_scene_as',
+                description: 'Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
+                inputSchema: z.object({
+                    path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
+                    openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite the target file if it already exists. Default false; with false, a name collision returns an error.'),
+                }),
+                handler: a => this.saveSceneAs(a),
+            },
+            {
+                name: 'close_scene',
+                description: 'Close the current scene. Editor state side effect; save first if unsaved changes matter.',
+                inputSchema: z.object({}),
+                handler: () => this.closeScene(),
+            },
+            {
+                name: 'get_scene_hierarchy',
+                description: 'Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
+                inputSchema: z.object({
+                    includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
+                }),
+                handler: a => this.getSceneHierarchy(a.includeComponents),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof sceneSchemas;
-        const schema = sceneSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'get_current_scene':
-                return await this.getCurrentScene();
-            case 'get_scene_list':
-                return await this.getSceneList();
-            case 'open_scene':
-                return await this.openScene(a.scenePath);
-            case 'save_scene':
-                return await this.saveScene();
-            case 'create_scene':
-                return await this.createScene(a.sceneName, a.savePath, a.template);
-            case 'save_scene_as':
-                return await this.saveSceneAs(a);
-            case 'close_scene':
-                return await this.closeScene();
-            case 'get_scene_hierarchy':
-                return await this.getSceneHierarchy(a.includeComponents);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async getCurrentScene(): Promise<ToolResponse> {
         return new Promise((resolve) => {

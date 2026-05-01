@@ -1,56 +1,44 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const validationSchemas = {
-    validate_json_params: z.object({
-        jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
-        expectedSchema: z.object({}).passthrough().optional().describe('Optional simple JSON schema; checks only basic type and required fields.'),
-    }),
-    safe_string_value: z.object({
-        value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
-    }),
-    format_mcp_request: z.object({
-        toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),
-        arguments: z.object({}).passthrough().describe('Arguments object for the target tool. This helper formats only; it does not execute the tool.'),
-    }),
-} as const;
-
-const validationToolMeta: Record<keyof typeof validationSchemas, string> = {
-    validate_json_params: 'Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
-    safe_string_value: 'Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
-    format_mcp_request: 'Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class ValidationTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(validationSchemas) as Array<keyof typeof validationSchemas>).map(name => ({
-            name,
-            description: validationToolMeta[name],
-            inputSchema: toInputSchema(validationSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            {
+                name: 'validate_json_params',
+                description: 'Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
+                inputSchema: z.object({
+                    jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
+                    expectedSchema: z.object({}).passthrough().optional().describe('Optional simple JSON schema; checks only basic type and required fields.'),
+                }),
+                handler: a => this.validateJsonParams(a.jsonString, a.expectedSchema),
+            },
+            {
+                name: 'safe_string_value',
+                description: 'Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
+                inputSchema: z.object({
+                    value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
+                }),
+                handler: a => this.createSafeStringValue(a.value),
+            },
+            {
+                name: 'format_mcp_request',
+                description: 'Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
+                inputSchema: z.object({
+                    toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),
+                    arguments: z.object({}).passthrough().describe('Arguments object for the target tool. This helper formats only; it does not execute the tool.'),
+                }),
+                handler: a => this.formatMcpRequest(a.toolName, a.arguments),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof validationSchemas;
-        const schema = validationSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'validate_json_params':
-                return await this.validateJsonParams(a.jsonString, a.expectedSchema);
-            case 'safe_string_value':
-                return await this.createSafeStringValue(a.value);
-            case 'format_mcp_request':
-                return await this.formatMcpRequest(a.toolName, a.arguments);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async validateJsonParams(jsonString: string, expectedSchema?: any): Promise<ToolResponse> {
         try {

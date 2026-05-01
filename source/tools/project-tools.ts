@@ -1,189 +1,121 @@
 import { ToolDefinition, ToolResponse, ToolExecutor, ProjectInfo, AssetInfo } from '../types';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const projectSchemas = {
-    run_project: z.object({
-        platform: z.enum(['browser', 'simulator', 'preview']).default('browser').describe('Requested preview platform. Current implementation opens the build panel instead of launching preview.'),
-    }),
-    build_project: z.object({
-        platform: z.enum(['web-mobile', 'web-desktop', 'ios', 'android', 'windows', 'mac']).describe('Build platform to pre-contextualize the response. Actual build still requires Editor UI.'),
-        debug: z.boolean().default(true).describe('Requested debug build flag. Returned as context only; build is not started programmatically.'),
-    }),
-    get_project_info: z.object({}),
-    get_project_settings: z.object({
-        category: z.enum(['general', 'physics', 'render', 'assets']).default('general').describe('Project settings category to query via project/query-config.'),
-    }),
-    refresh_assets: z.object({
-        folder: z.string().optional().describe('Asset db:// folder to refresh. Omit to refresh db://assets.'),
-    }),
-    import_asset: z.object({
-        sourcePath: z.string().describe('Absolute source file path on disk. Must exist.'),
-        targetFolder: z.string().describe('Target asset folder, either db://... or relative under db://assets.'),
-    }),
-    get_asset_info: z.object({
-        assetPath: z.string().describe('Asset db:// path to query.'),
-    }),
-    get_assets: z.object({
-        type: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation']).default('all').describe('Asset type filter translated into filename patterns.'),
-        folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
-    }),
-    get_build_settings: z.object({}),
-    open_build_panel: z.object({}),
-    check_builder_status: z.object({}),
-    start_preview_server: z.object({
-        port: z.number().default(7456).describe('Requested preview server port. Current implementation reports unsupported.'),
-    }),
-    stop_preview_server: z.object({}),
-    create_asset: z.object({
-        url: z.string().describe('Target asset db:// URL, e.g. db://assets/newfile.json.'),
-        // Original schema declared type:string with default:null, which is contradictory;
-        // practical semantics: omit / null for folder, string for file content.
-        content: z.string().nullable().optional().describe('File content. Pass null/omit for folder creation.'),
-        overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-    }),
-    copy_asset: z.object({
-        source: z.string().describe('Source asset db:// URL.'),
-        target: z.string().describe('Target asset db:// URL or folder path.'),
-        overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-    }),
-    move_asset: z.object({
-        source: z.string().describe('Source asset db:// URL.'),
-        target: z.string().describe('Target asset db:// URL or folder path.'),
-        overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-    }),
-    delete_asset: z.object({
-        url: z.string().describe('Asset db:// URL to delete.'),
-    }),
-    save_asset: z.object({
-        url: z.string().describe('Asset db:// URL whose content should be saved.'),
-        content: z.string().describe('Serialized asset content to write.'),
-    }),
-    reimport_asset: z.object({
-        url: z.string().describe('Asset db:// URL to reimport.'),
-    }),
-    query_asset_path: z.object({
-        url: z.string().describe('Asset db:// URL to resolve to a disk path.'),
-    }),
-    query_asset_uuid: z.object({
-        url: z.string().describe('Asset db:// URL to resolve to UUID.'),
-    }),
-    query_asset_url: z.object({
-        uuid: z.string().describe('Asset UUID to resolve to db:// URL.'),
-    }),
-    find_asset_by_name: z.object({
-        name: z.string().describe('Asset name search term. Partial match unless exactMatch=true.'),
-        exactMatch: z.boolean().default(false).describe('Require exact asset name match. Default false.'),
-        assetType: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation', 'spriteFrame']).default('all').describe('Asset type filter for the search.'),
-        folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
-        maxResults: z.number().min(1).max(100).default(20).describe('Maximum matched assets to return. Default 20.'),
-    }),
-    get_asset_details: z.object({
-        assetPath: z.string().describe('Asset db:// path to inspect.'),
-        includeSubAssets: z.boolean().default(true).describe('Try to include known image sub-assets such as spriteFrame and texture UUIDs.'),
-    }),
-} as const;
-
-const projectToolMeta: Record<keyof typeof projectSchemas, string> = {
-    run_project: 'Open Build panel as preview fallback; does not launch preview automatically.',
-    build_project: 'Open Build panel for the requested platform; does not start the build.',
-    get_project_info: 'Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.',
-    get_project_settings: 'Read one project settings category via project/query-config.',
-    refresh_assets: 'Refresh asset-db for a folder; affects Editor asset state, not file content.',
-    import_asset: 'Import one disk file into asset-db; mutates project assets.',
-    get_asset_info: 'Read basic metadata for one db:// asset path.',
-    get_assets: 'List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.',
-    get_build_settings: 'Report builder readiness and MCP build limitations.',
-    open_build_panel: 'Open the Cocos Build panel; does not start a build.',
-    check_builder_status: 'Check whether the builder worker is ready.',
-    start_preview_server: 'Unsupported preview-server placeholder; use Editor UI.',
-    stop_preview_server: 'Unsupported preview-server placeholder; use Editor UI.',
-    create_asset: 'Create an asset file or folder through asset-db; null content creates folder.',
-    copy_asset: 'Copy an asset through asset-db; mutates project assets.',
-    move_asset: 'Move/rename an asset through asset-db; mutates project assets.',
-    delete_asset: 'Delete one asset-db URL; mutates project assets.',
-    save_asset: 'Write serialized content to an asset URL; use only for known-good formats.',
-    reimport_asset: 'Ask asset-db to reimport an asset; updates imported asset state/cache.',
-    query_asset_path: 'Resolve an asset db:// URL to disk path.',
-    query_asset_uuid: 'Resolve an asset db:// URL to UUID.',
-    query_asset_url: 'Resolve an asset UUID to db:// URL.',
-    find_asset_by_name: 'Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.',
-    get_asset_details: 'Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.',
-};
-
 export class ProjectTools implements ToolExecutor {
-    getTools(): ToolDefinition[] {
-        return (Object.keys(projectSchemas) as Array<keyof typeof projectSchemas>).map(name => ({
-            name,
-            description: projectToolMeta[name],
-            inputSchema: toInputSchema(projectSchemas[name]),
-        }));
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        const defs: ToolDef[] = [
+            { name: 'run_project', description: 'Open Build panel as preview fallback; does not launch preview automatically.',
+                inputSchema: z.object({
+                    platform: z.enum(['browser', 'simulator', 'preview']).default('browser').describe('Requested preview platform. Current implementation opens the build panel instead of launching preview.'),
+                }), handler: a => this.runProject(a.platform) },
+            { name: 'build_project', description: 'Open Build panel for the requested platform; does not start the build.',
+                inputSchema: z.object({
+                    platform: z.enum(['web-mobile', 'web-desktop', 'ios', 'android', 'windows', 'mac']).describe('Build platform to pre-contextualize the response. Actual build still requires Editor UI.'),
+                    debug: z.boolean().default(true).describe('Requested debug build flag. Returned as context only; build is not started programmatically.'),
+                }), handler: a => this.buildProject(a) },
+            { name: 'get_project_info', description: 'Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.',
+                inputSchema: z.object({}), handler: () => this.getProjectInfo() },
+            { name: 'get_project_settings', description: 'Read one project settings category via project/query-config.',
+                inputSchema: z.object({
+                    category: z.enum(['general', 'physics', 'render', 'assets']).default('general').describe('Project settings category to query via project/query-config.'),
+                }), handler: a => this.getProjectSettings(a.category) },
+            { name: 'refresh_assets', description: 'Refresh asset-db for a folder; affects Editor asset state, not file content.',
+                inputSchema: z.object({
+                    folder: z.string().optional().describe('Asset db:// folder to refresh. Omit to refresh db://assets.'),
+                }), handler: a => this.refreshAssets(a.folder) },
+            { name: 'import_asset', description: 'Import one disk file into asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    sourcePath: z.string().describe('Absolute source file path on disk. Must exist.'),
+                    targetFolder: z.string().describe('Target asset folder, either db://... or relative under db://assets.'),
+                }), handler: a => this.importAsset(a.sourcePath, a.targetFolder) },
+            { name: 'get_asset_info', description: 'Read basic metadata for one db:// asset path.',
+                inputSchema: z.object({
+                    assetPath: z.string().describe('Asset db:// path to query.'),
+                }), handler: a => this.getAssetInfo(a.assetPath) },
+            { name: 'get_assets', description: 'List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.',
+                inputSchema: z.object({
+                    type: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation']).default('all').describe('Asset type filter translated into filename patterns.'),
+                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
+                }), handler: a => this.getAssets(a.type, a.folder) },
+            { name: 'get_build_settings', description: 'Report builder readiness and MCP build limitations.',
+                inputSchema: z.object({}), handler: () => this.getBuildSettings() },
+            { name: 'open_build_panel', description: 'Open the Cocos Build panel; does not start a build.',
+                inputSchema: z.object({}), handler: () => this.openBuildPanel() },
+            { name: 'check_builder_status', description: 'Check whether the builder worker is ready.',
+                inputSchema: z.object({}), handler: () => this.checkBuilderStatus() },
+            { name: 'start_preview_server', description: 'Unsupported preview-server placeholder; use Editor UI.',
+                inputSchema: z.object({
+                    port: z.number().default(7456).describe('Requested preview server port. Current implementation reports unsupported.'),
+                }), handler: a => this.startPreviewServer(a.port) },
+            { name: 'stop_preview_server', description: 'Unsupported preview-server placeholder; use Editor UI.',
+                inputSchema: z.object({}), handler: () => this.stopPreviewServer() },
+            { name: 'create_asset', description: 'Create an asset file or folder through asset-db; null content creates folder.',
+                inputSchema: z.object({
+                    url: z.string().describe('Target asset db:// URL, e.g. db://assets/newfile.json.'),
+                    content: z.string().nullable().optional().describe('File content. Pass null/omit for folder creation.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                }), handler: a => this.createAsset(a.url, a.content, a.overwrite) },
+            { name: 'copy_asset', description: 'Copy an asset through asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    source: z.string().describe('Source asset db:// URL.'),
+                    target: z.string().describe('Target asset db:// URL or folder path.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                }), handler: a => this.copyAsset(a.source, a.target, a.overwrite) },
+            { name: 'move_asset', description: 'Move/rename an asset through asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    source: z.string().describe('Source asset db:// URL.'),
+                    target: z.string().describe('Target asset db:// URL or folder path.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                }), handler: a => this.moveAsset(a.source, a.target, a.overwrite) },
+            { name: 'delete_asset', description: 'Delete one asset-db URL; mutates project assets.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to delete.'),
+                }), handler: a => this.deleteAsset(a.url) },
+            { name: 'save_asset', description: 'Write serialized content to an asset URL; use only for known-good formats.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL whose content should be saved.'),
+                    content: z.string().describe('Serialized asset content to write.'),
+                }), handler: a => this.saveAsset(a.url, a.content) },
+            { name: 'reimport_asset', description: 'Ask asset-db to reimport an asset; updates imported asset state/cache.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to reimport.'),
+                }), handler: a => this.reimportAsset(a.url) },
+            { name: 'query_asset_path', description: 'Resolve an asset db:// URL to disk path.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to resolve to a disk path.'),
+                }), handler: a => this.queryAssetPath(a.url) },
+            { name: 'query_asset_uuid', description: 'Resolve an asset db:// URL to UUID.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to resolve to UUID.'),
+                }), handler: a => this.queryAssetUuid(a.url) },
+            { name: 'query_asset_url', description: 'Resolve an asset UUID to db:// URL.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Asset UUID to resolve to db:// URL.'),
+                }), handler: a => this.queryAssetUrl(a.uuid) },
+            { name: 'find_asset_by_name', description: 'Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.',
+                inputSchema: z.object({
+                    name: z.string().describe('Asset name search term. Partial match unless exactMatch=true.'),
+                    exactMatch: z.boolean().default(false).describe('Require exact asset name match. Default false.'),
+                    assetType: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation', 'spriteFrame']).default('all').describe('Asset type filter for the search.'),
+                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
+                    maxResults: z.number().min(1).max(100).default(20).describe('Maximum matched assets to return. Default 20.'),
+                }), handler: a => this.findAssetByName(a) },
+            { name: 'get_asset_details', description: 'Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.',
+                inputSchema: z.object({
+                    assetPath: z.string().describe('Asset db:// path to inspect.'),
+                    includeSubAssets: z.boolean().default(true).describe('Try to include known image sub-assets such as spriteFrame and texture UUIDs.'),
+                }), handler: a => this.getAssetDetails(a.assetPath, a.includeSubAssets) },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof projectSchemas;
-        const schema = projectSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'run_project':
-                return await this.runProject(a.platform);
-            case 'build_project':
-                return await this.buildProject(a);
-            case 'get_project_info':
-                return await this.getProjectInfo();
-            case 'get_project_settings':
-                return await this.getProjectSettings(a.category);
-            case 'refresh_assets':
-                return await this.refreshAssets(a.folder);
-            case 'import_asset':
-                return await this.importAsset(a.sourcePath, a.targetFolder);
-            case 'get_asset_info':
-                return await this.getAssetInfo(a.assetPath);
-            case 'get_assets':
-                return await this.getAssets(a.type, a.folder);
-            case 'get_build_settings':
-                return await this.getBuildSettings();
-            case 'open_build_panel':
-                return await this.openBuildPanel();
-            case 'check_builder_status':
-                return await this.checkBuilderStatus();
-            case 'start_preview_server':
-                return await this.startPreviewServer(a.port);
-            case 'stop_preview_server':
-                return await this.stopPreviewServer();
-            case 'create_asset':
-                return await this.createAsset(a.url, a.content, a.overwrite);
-            case 'copy_asset':
-                return await this.copyAsset(a.source, a.target, a.overwrite);
-            case 'move_asset':
-                return await this.moveAsset(a.source, a.target, a.overwrite);
-            case 'delete_asset':
-                return await this.deleteAsset(a.url);
-            case 'save_asset':
-                return await this.saveAsset(a.url, a.content);
-            case 'reimport_asset':
-                return await this.reimportAsset(a.url);
-            case 'query_asset_path':
-                return await this.queryAssetPath(a.url);
-            case 'query_asset_uuid':
-                return await this.queryAssetUuid(a.url);
-            case 'query_asset_url':
-                return await this.queryAssetUrl(a.uuid);
-            case 'find_asset_by_name':
-                return await this.findAssetByName(a);
-            case 'get_asset_details':
-                return await this.getAssetDetails(a.assetPath, a.includeSubAssets);
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async runProject(platform: string = 'browser'): Promise<ToolResponse> {
         return new Promise((resolve) => {

@@ -1,71 +1,59 @@
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { debugLog } from '../lib/log';
-import { z, toInputSchema, validateArgs } from '../lib/schema';
-
-const broadcastSchemas = {
-    get_broadcast_log: z.object({
-        limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
-        messageType: z.string().optional().describe('Optional broadcast type filter, e.g. scene:ready or asset-db:asset-change.'),
-    }),
-    listen_broadcast: z.object({
-        messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
-    }),
-    stop_listening: z.object({
-        messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
-    }),
-    clear_broadcast_log: z.object({}),
-    get_active_listeners: z.object({}),
-} as const;
-
-const broadcastToolMeta: Record<keyof typeof broadcastSchemas, string> = {
-    get_broadcast_log: 'Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
-    listen_broadcast: 'Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
-    stop_listening: 'Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
-    clear_broadcast_log: 'Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
-    get_active_listeners: 'List extension-local broadcast listener types and counts for diagnostics.',
-};
+import { z } from '../lib/schema';
+import { defineTools, ToolDef } from '../lib/define-tools';
 
 export class BroadcastTools implements ToolExecutor {
     private listeners: Map<string, Function[]> = new Map();
     private messageLog: Array<{ message: string; data: any; timestamp: number }> = [];
+    private readonly exec: ToolExecutor;
 
     constructor() {
         this.setupBroadcastListeners();
+        const defs: ToolDef[] = [
+            {
+                name: 'get_broadcast_log',
+                description: 'Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
+                inputSchema: z.object({
+                    limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
+                    messageType: z.string().optional().describe('Optional broadcast type filter, e.g. scene:ready or asset-db:asset-change.'),
+                }),
+                handler: a => this.getBroadcastLog(a.limit, a.messageType),
+            },
+            {
+                name: 'listen_broadcast',
+                description: 'Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
+                inputSchema: z.object({
+                    messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
+                }),
+                handler: a => this.listenBroadcast(a.messageType),
+            },
+            {
+                name: 'stop_listening',
+                description: 'Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
+                inputSchema: z.object({
+                    messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
+                }),
+                handler: a => this.stopListening(a.messageType),
+            },
+            {
+                name: 'clear_broadcast_log',
+                description: 'Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
+                inputSchema: z.object({}),
+                handler: () => this.clearBroadcastLog(),
+            },
+            {
+                name: 'get_active_listeners',
+                description: 'List extension-local broadcast listener types and counts for diagnostics.',
+                inputSchema: z.object({}),
+                handler: () => this.getActiveListeners(),
+            },
+        ];
+        this.exec = defineTools(defs);
     }
 
-    getTools(): ToolDefinition[] {
-        return (Object.keys(broadcastSchemas) as Array<keyof typeof broadcastSchemas>).map(name => ({
-            name,
-            description: broadcastToolMeta[name],
-            inputSchema: toInputSchema(broadcastSchemas[name]),
-        }));
-    }
-
-    async execute(toolName: string, args: any): Promise<ToolResponse> {
-        const schemaName = toolName as keyof typeof broadcastSchemas;
-        const schema = broadcastSchemas[schemaName];
-        if (!schema) {
-            throw new Error(`Unknown tool: ${toolName}`);
-        }
-        const validation = validateArgs(schema, args ?? {});
-        if (!validation.ok) {
-            return validation.response;
-        }
-        const a = validation.data as any;
-
-        switch (schemaName) {
-            case 'get_broadcast_log':
-                return await this.getBroadcastLog(a.limit, a.messageType);
-            case 'listen_broadcast':
-                return await this.listenBroadcast(a.messageType);
-            case 'stop_listening':
-                return await this.stopListening(a.messageType);
-            case 'clear_broadcast_log':
-                return await this.clearBroadcastLog();
-            case 'get_active_listeners':
-                return await this.getActiveListeners();
-        }
-    }
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private setupBroadcastListeners(): void {
         // 設置預定義的重要廣播消息監聽
