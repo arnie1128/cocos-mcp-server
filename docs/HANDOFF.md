@@ -3,11 +3,24 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 完工）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 完工 + 三方 audit pass）
 
-當下版本：**v2.1.2**（commit `4d15563`）。P0/P1/P4/v2.1.1/v2.1.2 全部完工，
-Test 1/2/3 + remove_event_handler + Toggle.checkEvents 全實機驗完。沒有
-in-flight 任務。本檔 + CLAUDE.md Landmine #11 同步至 4d15563 狀態。
+當下版本：**v2.1.2 + round-1 audit fix**（commit `d5c97ef`）。P0/P1/P4/
+v2.1.1/v2.1.2 全部完工，Test 1/2/3 + remove_event_handler +
+Toggle.checkEvents 全實機驗完，三方（codex/gemini/claude）round-1 三項
+finds 已修、round-2 兩家「no further changes needed」。沒有 in-flight
+任務。本檔 + CLAUDE.md Landmine #11 同步至 d5c97ef 狀態。
+
+**round-1 audit 修補（`d5c97ef`）**：
+- `nudgeEditorModel` 的 `enabledValue` 讀取改防禦式（nested → flat
+  fallback）；之前只讀 nested 路徑，flat-shape dump 會 fall through
+  變 `true`，disabled 元件可能被誤寫回 enabled。
+- `nudgeEditorModel` 改用 `componentUuid` 做精確 findIndex（fall back 到
+  type 比對）；解多個同型元件的 ambiguity。`add_event_handler` /
+  `remove_event_handler` 在 host case 把 `resp.data?.componentUuid`
+  傳下去（這就是 v2.1.2 那兩個「孤兒欄位」的真正用途）。
+- `ConsoleMessage` interface 從 `source/types/index.ts` 刪掉（死 export
+  ——P2(b) 把 consumer 拿掉後變孤）。
 
 **v2.1.2 內容**（含修補史）：
 - ✅ **P1 EventHandler 持久化**：scene-script `arr.push` 不動 editor
