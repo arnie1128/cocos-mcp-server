@@ -603,15 +603,19 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array` };
             }
 
+            // Trim around comparisons so callers passing UUIDs / handler
+            // names with leading/trailing whitespace (LLM tool args often
+            // come with stray spaces) still find a match. Crucial: the
+            // outer guard tests the *trimmed* values too — otherwise a
+            // whitespace-only targetUuid/handler would pass as truthy,
+            // collapse to null after trim, and the predicate would match
+            // every entry vacuously, silently deleting arr[0].
+            const targetUuidNorm = targetUuid?.trim() || null;
+            const handlerNorm = handler?.trim() || null;
             let removeAt = -1;
             if (typeof index === 'number' && index >= 0) {
                 removeAt = index;
-            } else if (targetUuid || handler) {
-                // Trim around comparisons so callers passing UUIDs / handler
-                // names with leading/trailing whitespace (LLM tool args often
-                // come with stray spaces) still find a match.
-                const targetUuidNorm = targetUuid?.trim() || null;
-                const handlerNorm = handler?.trim() || null;
+            } else if (targetUuidNorm || handlerNorm) {
                 removeAt = arr.findIndex((eh: any) => {
                     const ehTargetUuid = typeof eh?.target?.uuid === 'string' ? eh.target.uuid.trim() : eh?.target?.uuid;
                     const ehHandler = typeof eh?.handler === 'string' ? eh.handler.trim() : eh?.handler;
