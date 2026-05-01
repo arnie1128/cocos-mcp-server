@@ -86,13 +86,6 @@ export interface ProjectInfo {
     cocosVersion: string;
 }
 
-export interface ConsoleMessage {
-    timestamp: string;
-    type: 'log' | 'warn' | 'error' | 'info';
-    message: string;
-    stack?: string;
-}
-
 export interface PerformanceStats {
     nodeCount: number;
     componentCount: number;

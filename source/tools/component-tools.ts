@@ -15,19 +15,44 @@ import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
  *
  * The set-property channel for component properties uses a node-rooted
  * path: `uuid = nodeUuid`, `path = __comps__.<index>.<property>`. We
- * query the node, locate the matching component index, and set
- * `enabled` to its current value (no-op semantically, forces sync).
+ * query the node, locate the matching component, and set `enabled` to
+ * its current value (no-op semantically, forces sync).
+ *
+ * Lookup precedence:
+ *   1. `componentUuid` (precise — disambiguates multiple same-type
+ *      components on the same node).
+ *   2. `componentType` fallback if uuid wasn't supplied or didn't
+ *      match (covers tests / older callers).
+ *
+ * `enabledValue` is read defensively because the `query-node` dump shape
+ * varies across Cocos versions: properties can be flat (`comp.enabled`)
+ * or nested (`comp.value.enabled.value`). We try nested first, fall
+ * back to flat — matches the pattern used by `getComponents`.
  *
  * Best-effort: failures are swallowed because the runtime mutation
  * already happened — only persistence to disk is at stake.
  */
-async function nudgeEditorModel(nodeUuid: string, componentType: string): Promise<void> {
+async function nudgeEditorModel(
+    nodeUuid: string,
+    componentType: string,
+    componentUuid?: string,
+): Promise<void> {
     try {
         const nodeData: any = await Editor.Message.request('scene', 'query-node', nodeUuid);
         const comps: any[] = nodeData?.__comps__ ?? [];
-        const idx = comps.findIndex(c => (c?.__type__ || c?.cid || c?.type) === componentType);
+        let idx = -1;
+        if (componentUuid) {
+            idx = comps.findIndex(c => (c?.uuid?.value ?? c?.uuid) === componentUuid);
+        }
+        if (idx === -1) {
+            idx = comps.findIndex(c => (c?.__type__ || c?.cid || c?.type) === componentType);
+        }
         if (idx === -1) return;
-        const enabledValue: boolean = comps[idx]?.value?.enabled?.value !== false;
+        const raw = comps[idx];
+        const enabledValue: boolean =
+            raw?.value?.enabled?.value !== undefined
+                ? raw.value.enabled.value !== false
+                : raw?.enabled !== false;
         await Editor.Message.request('scene', 'set-property', {
             uuid: nodeUuid,
             path: `__comps__.${idx}.enabled`,
@@ -201,7 +226,9 @@ export class ComponentTools implements ToolExecutor {
                     a.handler,
                     a.customEventData,
                 ]);
-                if (resp.success) await nudgeEditorModel(a.nodeUuid, a.componentType);
+                if (resp.success) {
+                    await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+                }
                 return resp;
             }
             case 'remove_event_handler': {
@@ -213,7 +240,9 @@ export class ComponentTools implements ToolExecutor {
                     a.targetNodeUuid ?? null,
                     a.handler ?? null,
                 ]);
-                if (resp.success) await nudgeEditorModel(a.nodeUuid, a.componentType);
+                if (resp.success) {
+                    await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+                }
                 return resp;
             }
             case 'list_event_handlers':
