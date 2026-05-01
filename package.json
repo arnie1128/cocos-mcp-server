@@ -165,14 +165,11 @@
         "scene": {
             "script": "./dist/scene.js",
             "methods": [
-                "createNewScene",
                 "addComponentToNode",
-                "removeComponentFromNode",
                 "getNodeInfo",
                 "getAllNodes",
                 "findNodeByName",
                 "setNodeProperty",
-                "setComponentProperty",
                 "getCurrentSceneInfo",
                 "getSceneHierarchy",
                 "createPrefabFromNode",
