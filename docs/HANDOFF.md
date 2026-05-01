@@ -5,30 +5,88 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.3.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.3.1）
 
-**當下版本**：v2.3.0（origin/main HEAD 為 v2.3.0 commit、已 push、無
-in-flight 任務）。
+**當下版本**：v2.3.1（origin/main HEAD = `351023b`，已 push、無 in-flight
+任務）。最近兩個 commit 是 v2.3.0 主功能 + v2.3.1 三方 review 反修。
 
-**v2.3.0 改動**（execute_javascript + screenshot + docs markdown，3 條 task
-全清，~3 小時實際工時）：
+**最近 commit**（最新到舊）：
+
+| SHA | 內容 |
+|---|---|
+| `351023b` | fix(v2.3.1): three-way review fixes — re-apply editor-eval flag on settings update + 5 issues |
+| `188ba52` | feat: v2.3.0 — execute_javascript [primary] + screenshots + docs markdown resources |
+| `16655bb` | docs: split bloated HANDOFF — extract version plan + per-repo notes |
+| `4e89abc` | docs(handoff): swap RomaRogov reference to cocos-code-mode, finalize v2.3-v2.7 plan |
+
+**v2.3.1 vs v2.3.0**：v2.3.1 是反修 patch，無新功能，6 個 review 共識
+issue 全清——詳見 CHANGELOG v2.3.1 區塊與下方 §三方 review 紀錄。下一個
+session 直接動工 v2.4.0。
+
+### v2.3.0 + v2.3.1 改動摘要
 
 | 區 | 內容 |
 |---|---|
 | 新增 tool（3）| `debug_execute_javascript` `[primary]` / `debug_screenshot` / `debug_batch_screenshot` |
-| 改既有 tool | `debug_execute_script` 改 `[compat]`，alias 到 execute_javascript scene context |
-| Tool 描述 | 所有 non-primary tool 在 tools/list 自動補 `[specialist]` prefix（在 mcp-server-sdk setupTools 加 1 行，不改 source）|
+| 改既有 tool | `debug_execute_script` 改 `[compat]` alias 到 execute_javascript scene context（v2.3.1 wrapper 還原 legacy 回應形狀 `{data:{result, message}}`）|
+| Tool 描述 | 所有 non-primary tool 在 tools/list 自動補 `[specialist]` prefix（mcp-server-sdk setupTools 加 1 行、不改 source）|
 | 新增 resource（3）| `cocos://docs/landmines` / `cocos://docs/tools` / `cocos://docs/handoff`（全 `text/markdown`）|
 | 新增檔 | `source/lib/runtime-flags.ts`（gate `enableEditorContextEval`）|
-| Settings | 新增 `enableEditorContextEval: false` 默認，opt-in 才允 `execute_javascript(context='editor')` |
+| Settings | 新增 `enableEditorContextEval: false` 默認；v2.3.1 wire `updateSettings()` 即時 re-apply runtime flag |
+| 安全強化 | CLAUDE.md landmine #13 — editor-eval 兩層 opt-in（runtime flag 可逆 / persisted state 不自動可逆）|
+| 反 DoS | `batch_screenshot.delaysMs` schema cap `.max(20)`（v2.3.1）|
+| 多視窗友好 | `pickWindow` 預設過濾 Preview-titled 視窗（v2.3.1）|
+| Windows 友好 | `readDocsSection` 處理 CRLF + UTF-8 BOM（v2.3.1）|
 | Smoke | 14 條 check（+ docs/handoff round-trip + [specialist] prefix）|
 | Tool 數 | 14 categories / **163 tools**（+3） |
 
-詳細 changelog 在 CHANGELOG.md v2.3.0 區塊。
+### 三方 review 紀錄
 
-**下一個動工**：v2.4.0 6-step 重構（含 InstanceReference + TS 定義生成 +
-`@mcpTool` decorator，~4 天）。細拆見
+v2.3.0 commit `188ba52` 收 codex / claude / gemini 三方 review，找到 6
+issues：
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `updateSettings()` 沒 re-apply `setEditorContextEvalEnabled` | Claude + Codex |
+| 2 | 🟡 worth | `execute_script` 回應形狀變了（backward-compat） | 三方一致 |
+| 3 | 🟡 worth | `batch_screenshot.delaysMs` 無 array length cap | Claude |
+| 4 | 🟡 worth | `pickWindow` 預設可能選到 Preview 視窗 | Codex + Gemini |
+| 5 | 🟡 worth | `readDocsSection` 沒 CRLF / BOM 處理 | Gemini |
+| 6 | 🟡 worth | 缺 editor-eval 威脅模型的 landmine | Claude |
+
+v2.3.1 commit `351023b` 全部反修。第二輪 review 三方 🟢 ship it。
+完整 review 流程記錄在對話紀錄 2026-05-02。
+
+### 下一個動工（**新 session 開**）
+
+**v2.4.0 6-step 重構**（含 InstanceReference + TS 定義生成 + `@mcpTool`
+decorator，~4 天）。細拆見
 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0](roadmap/06-version-plan-v23-v27.md)。
+
+**v2.4.0 動工前讀**：
+
+1. 本 §NEXT SESSION ENTRY POINT
+2. [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.0](roadmap/06-version-plan-v23-v27.md)
+   — 6 step 細拆 + 同梱項
+3. [`docs/research/repos/cocos-code-mode.md`](research/repos/cocos-code-mode.md)
+   — InstanceReference / TS 定義生成 prior art
+4. [`docs/research/repos/cocos-creator-mcp.md`](research/repos/cocos-creator-mcp.md)
+   — `resolveNode()` / batch property 模式
+5. CLAUDE.md §Conventions + §Landmines（特別 #13 editor-eval 注意事項）
+
+**v2.4.0 風險點**：
+
+- 重構 surface 大（160 tool 全 migration）—— 建議每個 step 一個 commit、
+  smoke / measure 每步重跑
+- InstanceReference 模式改變所有 input schema 形狀，可能觸發 client 端
+  argument validation 錯誤，要實機驗 Claude Code → tools/call 通暢
+- `@mcpTool` decorator 採 cocos-code-mode 風格（不用 `reflect-metadata`），
+  確保 tsconfig `experimentalDecorators` 不衝突 cocos editor build 流程
+- 動工前留 v2.3.1 release commit `351023b` 為 rollback anchor
+
+**動工建議**：v2.4.0 是純架構重構，不增 tool 不改 user-facing 行為。
+落地後可以也走 v2.3.0 同樣的「主 commit + 三方 review + 反修 patch」
+流程，確保大規模改動不破 backward-compat。
 
 ---
 
@@ -43,7 +101,8 @@ in-flight 任務）。
 | 版本 | 主題 | 估時 | 狀態 |
 |---|---|---|---|
 | **v2.3.0** | execute_javascript + screenshot + docs markdown | 2 天 | ✅ done |
-| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ⏳ next |
+| **v2.3.1** | 三方 review patch（6 issues 全清） | 0.5 天 | ✅ done |
+| **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ⏳ next（新 session）|
 | **v2.4.1** | Asset interpreters（asset meta 編輯能力） | 2-3 天 | ⏳ |
 | **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
@@ -90,10 +149,11 @@ v2.1.6 ✅ done（P2 量測 close + 死碼清掃 -3286 行）
 v2.1.7 ✅ done（B-1 description sweep 全 14 categories / 160 tools）
 v2.2.0 ✅ done（T-P3-1 Resources）
 v2.3.0 ✅ done（execute_javascript + screenshot + docs markdown，163 tools）
+v2.3.1 ✅ done（三方 review patch — 6 issues 全清，commit 351023b）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ 擴充功能（next v2.3.0；細拆見 docs/roadmap/06）
+B-2 ⏳ 擴充功能（next v2.4.0 重構，新 session 開；細拆見 docs/roadmap/06）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -106,7 +166,7 @@ B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 應為乾淨
-git log --oneline -6          # 最頂為 v2.3.0 系列 commit
+git log --oneline -6          # 最頂為 351023b（v2.3.1 review patch）
 
 # tsc + smoke + 工具數
 npm run build                 # 預期 tsc 無輸出
@@ -191,6 +251,7 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.3.1 review fixes 改動前（v2.3.0 release 點） | `git reset --hard 188ba52` 然後 `git push --force-with-lease` |
 | v2.3.0 改動前（v2.2.0 release 點） | `git reset --hard 16655bb` 然後 `git push --force-with-lease` |
 | v2.2.0 T-P3-1 Resources 改動前（v2.1.7 release 點） | `git reset --hard ab7191b` 然後 `git push --force-with-lease` |
 | v2.1.7 description sweep 改動前（v2.1.6 release 點） | `git reset --hard 05d865e` 然後 `git push --force-with-lease` |
