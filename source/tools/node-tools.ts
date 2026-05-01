@@ -5,6 +5,7 @@ import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { nodeReferenceShape, resolveOrToolError } from '../lib/resolve-node';
+import { batchSetProperties } from '../lib/batch-set';
 
 // vec3 used by create_node's initialTransform — original schema had no
 // per-axis description and no required marker, so axes are plain optional numbers.
@@ -135,6 +136,20 @@ export class NodeTools implements ToolExecutor {
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
                 }), handler: a => this.detectNodeType(a.uuid) },
+            { name: 'set_node_properties', description: 'Batch-write multiple node properties in a single round-trip. Mutates scene; each entry runs concurrently and returns per-entry success/error so partial failures are visible. Use when changing several properties on the same node at once.',
+                inputSchema: z.object({
+                    uuid: z.string().optional().describe('Node UUID to modify. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
+                    properties: z.array(z.object({
+                        path: z.string().describe('Property path passed to scene/set-property (e.g. active, name, layer, position).'),
+                        value: z.any().describe('Property value matching the Cocos dump shape for the path.'),
+                    })).min(1).max(50).describe('Properties to write. Capped at 50 entries per call.'),
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    return batchSetProperties(r.uuid, a.properties);
+                } },
         ];
         this.exec = defineTools(defs);
     }

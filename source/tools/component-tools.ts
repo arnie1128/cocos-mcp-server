@@ -222,6 +222,57 @@ export class ComponentTools implements ToolExecutor {
                 handler: a => runSceneMethodAsToolResponse('listEventHandlers', [
                     a.nodeUuid, a.componentType, a.eventArrayProperty,
                 ]) },
+            { name: 'set_component_properties', description: 'Batch-set multiple component properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
+                    componentType: z.string().describe('Component type/cid shared by all entries.'),
+                    properties: z.array(z.object({
+                        property: z.string().describe('Property name on the component, e.g. fontSize, color, sizeMode.'),
+                        propertyType: z.enum([
+                            'string', 'number', 'boolean', 'integer', 'float',
+                            'color', 'vec2', 'vec3', 'size',
+                            'node', 'component', 'spriteFrame', 'prefab', 'asset',
+                            'nodeArray', 'colorArray', 'numberArray', 'stringArray',
+                        ]).describe('Property data type for value conversion.'),
+                        value: z.any().describe('Property value matching propertyType.'),
+                        preserveContentSize: z.boolean().default(false).describe('See set_component_property; only honoured when componentType="cc.Sprite" and property="spriteFrame".'),
+                    })).min(1).max(20).describe('Property entries. Capped at 20 per call.'),
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    const results: Array<{ property: string; success: boolean; error?: string }> = [];
+                    for (const entry of a.properties) {
+                        const resp = await this.setComponentProperty({
+                            nodeUuid: r.uuid,
+                            componentType: a.componentType,
+                            property: entry.property,
+                            propertyType: entry.propertyType,
+                            value: entry.value,
+                            preserveContentSize: entry.preserveContentSize ?? false,
+                        });
+                        results.push({
+                            property: entry.property,
+                            success: !!resp.success,
+                            error: resp.success ? undefined : (resp.error ?? resp.message ?? 'unknown'),
+                        });
+                    }
+                    const failed = results.filter(x => !x.success);
+                    return {
+                        success: failed.length === 0,
+                        data: {
+                            nodeUuid: r.uuid,
+                            componentType: a.componentType,
+                            total: results.length,
+                            failedCount: failed.length,
+                            results,
+                        },
+                        message: failed.length === 0
+                            ? `Wrote ${results.length} component properties`
+                            : `${failed.length}/${results.length} component property writes failed`,
+                    };
+                } },
         ];
         this.exec = defineTools(defs);
     }
