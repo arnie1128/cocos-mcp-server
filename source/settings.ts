@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { MCPServerSettings, ToolManagerSettings, ToolConfiguration, ToolConfig } from './types';
+import { logger } from './lib/log';
 
 const DEFAULT_SETTINGS: MCPServerSettings = {
     port: 3000,
@@ -40,7 +41,7 @@ export function readSettings(): MCPServerSettings {
             return { ...DEFAULT_SETTINGS, ...JSON.parse(content) };
         }
     } catch (e) {
-        console.error('Failed to read settings:', e);
+        logger.error('Failed to read settings:', e);
     }
     return DEFAULT_SETTINGS;
 }
@@ -51,7 +52,7 @@ export function saveSettings(settings: MCPServerSettings): void {
         const settingsFile = getSettingsPath();
         fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
     } catch (e) {
-        console.error('Failed to save settings:', e);
+        logger.error('Failed to save settings:', e);
         throw e;
     }
 }
@@ -66,7 +67,7 @@ export function readToolManagerSettings(): ToolManagerSettings {
             return { ...DEFAULT_TOOL_MANAGER_SETTINGS, ...JSON.parse(content) };
         }
     } catch (e) {
-        console.error('Failed to read tool manager settings:', e);
+        logger.error('Failed to read tool manager settings:', e);
     }
     return DEFAULT_TOOL_MANAGER_SETTINGS;
 }
@@ -77,7 +78,7 @@ export function saveToolManagerSettings(settings: ToolManagerSettings): void {
         const settingsFile = getToolManagerSettingsPath();
         fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
     } catch (e) {
-        console.error('Failed to save tool manager settings:', e);
+        logger.error('Failed to save tool manager settings:', e);
         throw e;
     }
 }
@@ -95,7 +96,7 @@ export function importToolConfiguration(configJson: string): ToolConfiguration {
         }
         return config;
     } catch (e) {
-        console.error('Failed to parse tool configuration:', e);
+        logger.error('Failed to parse tool configuration:', e);
         throw new Error('Invalid JSON format or configuration structure');
     }
 }

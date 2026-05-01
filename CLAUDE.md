@@ -41,10 +41,10 @@ source/
 ├── settings.ts             # Server settings persistence (project settings/)
 ├── scene.ts                # Scene-context script run via Editor.Message 'execute-scene-script'
 ├── tools/                  # ToolExecutor implementations, one file per category
-│   ├── scene-tools.ts             #  10 tools
+│   ├── scene-tools.ts             #   8 tools
 │   ├── scene-advanced-tools.ts    #  23 tools
 │   ├── scene-view-tools.ts        #  20 tools
-│   ├── node-tools.ts              #  15 tools
+│   ├── node-tools.ts              #  11 tools
 │   ├── component-tools.ts         #  10 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  13 tools  (P4 T-P4-3 added link/unlink/get_prefab_data)
 │   ├── project-tools.ts           #  24 tools

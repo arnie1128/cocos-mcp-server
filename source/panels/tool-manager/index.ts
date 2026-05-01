@@ -1,10 +1,11 @@
 import { readFileSync } from 'fs-extra';
 import { join } from 'path';
+import { logger } from '../../lib/log';
 
 module.exports = Editor.Panel.define({
     listeners: {
-        show() { console.log('Tool Manager panel shown'); },
-        hide() { console.log('Tool Manager panel hidden'); }
+        show() { logger.debug('[Tool Manager Panel] shown'); },
+        hide() { logger.debug('[Tool Manager Panel] hidden'); }
     },
     template: readFileSync(join(__dirname, '../../../static/template/default/tool-manager.html'), 'utf-8'),
     style: readFileSync(join(__dirname, '../../../static/style/default/index.css'), 'utf-8'),
@@ -47,7 +48,7 @@ module.exports = Editor.Panel.define({
                 this.availableTools = this.toolManagerState.availableTools;
                 this.updateUI();
             } catch (error) {
-                console.error('Failed to load tool manager state:', error);
+                logger.error('Failed to load tool manager state:', error);
                 this.showError('加载工具管理器状态失败');
             }
         },
@@ -160,7 +161,7 @@ module.exports = Editor.Panel.define({
         async toggleCategoryTools(this: any, category: string, enabled: boolean) {
             if (!this.currentConfiguration) return;
 
-            console.log(`Toggling category tools: ${category} = ${enabled}`);
+            logger.debug(`Toggling category tools: ${category} = ${enabled}`);
 
             const categoryTools = this.currentConfiguration.tools.filter((tool: any) => tool.category === category);
             if (categoryTools.length === 0) return;
@@ -176,7 +177,7 @@ module.exports = Editor.Panel.define({
                 categoryTools.forEach((tool: any) => {
                     tool.enabled = enabled;
                 });
-                console.log(`Updated local category state: ${category} = ${enabled}`);
+                logger.debug(`Updated local category state: ${category} = ${enabled}`);
                 
                 // 立即更新UI
                 this.updateStatusBar();
@@ -188,7 +189,7 @@ module.exports = Editor.Panel.define({
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
-                console.error('Failed to toggle category tools:', error);
+                logger.error('Failed to toggle category tools:', error);
                 this.showError('切换类别工具失败');
                 
                 // 如果后端更新失败，回滚本地状态
@@ -204,33 +205,33 @@ module.exports = Editor.Panel.define({
         async updateToolStatus(this: any, category: string, name: string, enabled: boolean) {
             if (!this.currentConfiguration) return;
 
-            console.log(`Updating tool status: ${category}.${name} = ${enabled}`);
-            console.log(`Current config ID: ${this.currentConfiguration.id}`);
+            logger.debug(`Updating tool status: ${category}.${name} = ${enabled}`);
+            logger.debug(`Current config ID: ${this.currentConfiguration.id}`);
 
             // 先更新本地状态
             const tool = this.currentConfiguration.tools.find((t: any) => 
                 t.category === category && t.name === name);
             if (!tool) {
-                console.error(`Tool not found: ${category}.${name}`);
+                logger.error(`Tool not found: ${category}.${name}`);
                 return;
             }
 
             try {
                 tool.enabled = enabled;
-                console.log(`Updated local tool state: ${tool.name} = ${tool.enabled}`);
+                logger.debug(`Updated local tool state: ${tool.name} = ${tool.enabled}`);
                 
                 // 立即更新UI（只更新统计信息，不重新渲染工具列表）
                 this.updateStatusBar();
                 this.updateCategoryCounts();
 
                 // 然后发送到后端
-                console.log(`Sending to backend: configId=${this.currentConfiguration.id}, category=${category}, name=${name}, enabled=${enabled}`);
+                logger.debug(`Sending to backend: configId=${this.currentConfiguration.id}, category=${category}, name=${name}, enabled=${enabled}`);
                 const result = await Editor.Message.request('cocos-mcp-server', 'updateToolStatus', 
                     this.currentConfiguration.id, category, name, enabled);
-                console.log('Backend response:', result);
+                logger.debug('Backend response:', result);
                 
             } catch (error) {
-                console.error('Failed to update tool status:', error);
+                logger.error('Failed to update tool status:', error);
                 this.showError('更新工具状态失败');
                 
                 // 如果后端更新失败，回滚本地状态
@@ -252,7 +253,7 @@ module.exports = Editor.Panel.define({
             const enabled = this.currentConfiguration.tools.filter((t: any) => t.enabled).length;
             const disabled = total - enabled;
 
-            console.log(`Status bar update: total=${total}, enabled=${enabled}, disabled=${disabled}`);
+            logger.debug(`Status bar update: total=${total}, enabled=${enabled}, disabled=${disabled}`);
 
             this.$.totalToolsCount.textContent = total.toString();
             this.$.enabledToolsCount.textContent = enabled.toString();
@@ -333,7 +334,7 @@ module.exports = Editor.Panel.define({
                 this.hideModal('configModal');
                 await this.loadToolManagerState();
             } catch (error) {
-                console.error('Failed to save configuration:', error);
+                logger.error('Failed to save configuration:', error);
                 this.showError('保存配置失败');
             }
         },
@@ -351,7 +352,7 @@ module.exports = Editor.Panel.define({
                         this.currentConfiguration.id);
                     await this.loadToolManagerState();
                 } catch (error) {
-                    console.error('Failed to delete configuration:', error);
+                    logger.error('Failed to delete configuration:', error);
                     this.showError('删除配置失败');
                 }
             }
@@ -365,7 +366,7 @@ module.exports = Editor.Panel.define({
                 await Editor.Message.request('cocos-mcp-server', 'setCurrentToolConfiguration', configId);
                 await this.loadToolManagerState();
             } catch (error) {
-                console.error('Failed to apply configuration:', error);
+                logger.error('Failed to apply configuration:', error);
                 this.showError('应用配置失败');
             }
         },
@@ -380,7 +381,7 @@ module.exports = Editor.Panel.define({
                 Editor.Clipboard.write('text', result.configJson);
                 Editor.Dialog.info('导出成功', { detail: '配置已复制到剪贴板' });
             } catch (error) {
-                console.error('Failed to export configuration:', error);
+                logger.error('Failed to export configuration:', error);
                 this.showError('导出配置失败');
             }
         },
@@ -403,7 +404,7 @@ module.exports = Editor.Panel.define({
                 await this.loadToolManagerState();
                 Editor.Dialog.info('导入成功', { detail: '配置已成功导入' });
             } catch (error) {
-                console.error('Failed to import configuration:', error);
+                logger.error('Failed to import configuration:', error);
                 this.showError('导入配置失败');
             }
         },
@@ -411,7 +412,7 @@ module.exports = Editor.Panel.define({
         async selectAllTools(this: any) {
             if (!this.currentConfiguration) return;
 
-            console.log('Selecting all tools');
+            logger.debug('Selecting all tools');
 
             const updates = this.currentConfiguration.tools.map((tool: any) => ({
                 category: tool.category,
@@ -424,7 +425,7 @@ module.exports = Editor.Panel.define({
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = true;
                 });
-                console.log('Updated local state: all tools enabled');
+                logger.debug('Updated local state: all tools enabled');
                 
                 // 立即更新UI
                 this.updateStatusBar();
@@ -435,7 +436,7 @@ module.exports = Editor.Panel.define({
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
-                console.error('Failed to select all tools:', error);
+                logger.error('Failed to select all tools:', error);
                 this.showError('全选工具失败');
                 
                 // 如果后端更新失败，回滚本地状态
@@ -450,7 +451,7 @@ module.exports = Editor.Panel.define({
         async deselectAllTools(this: any) {
             if (!this.currentConfiguration) return;
 
-            console.log('Deselecting all tools');
+            logger.debug('Deselecting all tools');
 
             const updates = this.currentConfiguration.tools.map((tool: any) => ({
                 category: tool.category,
@@ -463,7 +464,7 @@ module.exports = Editor.Panel.define({
                 this.currentConfiguration.tools.forEach((tool: any) => {
                     tool.enabled = false;
                 });
-                console.log('Updated local state: all tools disabled');
+                logger.debug('Updated local state: all tools disabled');
                 
                 // 立即更新UI
                 this.updateStatusBar();
@@ -474,7 +475,7 @@ module.exports = Editor.Panel.define({
                     this.currentConfiguration.id, updates);
                 
             } catch (error) {
-                console.error('Failed to deselect all tools:', error);
+                logger.error('Failed to deselect all tools:', error);
                 this.showError('取消全选工具失败');
                 
                 // 如果后端更新失败，回滚本地状态
@@ -535,7 +536,7 @@ module.exports = Editor.Panel.define({
                 
                 Editor.Dialog.info('保存成功', { detail: '配置更改已保存' });
             } catch (error) {
-                console.error('Failed to save changes:', error);
+                logger.error('Failed to save changes:', error);
                 this.showError('保存更改失败');
             }
         },
