@@ -17,6 +17,50 @@ export class ToolManager {
         if (this.settings.configurations.length === 0) {
             debugLog('[ToolManager] No configurations found, creating default configuration...');
             this.createConfiguration('默认配置', '自动创建的默认工具配置');
+        } else {
+            this.reconcileConfigurationsWithRegistry();
+        }
+    }
+
+    /**
+     * Add tools that exist in the live registry but not in a saved
+     * configuration (defaults to enabled), and drop tools whose name no
+     * longer appears in the registry. This runs once per startup so the
+     * panel reflects what the build actually exposes after upgrades.
+     */
+    private reconcileConfigurationsWithRegistry(): void {
+        const registryKey = (t: { category: string; name: string }) => `${t.category}::${t.name}`;
+        const registryIndex = new Map(this.availableTools.map(t => [registryKey(t), t]));
+
+        let mutated = false;
+        for (const config of this.settings.configurations) {
+            const seen = new Set<string>();
+            const kept: ToolConfig[] = [];
+            for (const tool of config.tools) {
+                const k = registryKey(tool);
+                if (registryIndex.has(k)) {
+                    seen.add(k);
+                    kept.push(tool);
+                } else {
+                    debugLog(`[ToolManager] Dropping stale tool from config '${config.name}': ${k}`);
+                    mutated = true;
+                }
+            }
+            for (const [k, tool] of registryIndex) {
+                if (!seen.has(k)) {
+                    kept.push({ ...tool });
+                    debugLog(`[ToolManager] Adding new tool to config '${config.name}': ${k}`);
+                    mutated = true;
+                }
+            }
+            if (mutated) {
+                config.tools = kept;
+                config.updatedAt = new Date().toISOString();
+            }
+        }
+        if (mutated) {
+            this.saveSettings();
+            debugLog('[ToolManager] Reconciled saved configurations with current registry');
         }
     }
 
