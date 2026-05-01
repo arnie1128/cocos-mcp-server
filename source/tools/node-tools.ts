@@ -4,6 +4,7 @@ import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod } from '../lib/scene-bridge';
+import { nodeReferenceShape, resolveOrToolError } from '../lib/resolve-node';
 
 // vec3 used by create_node's initialTransform — original schema had no
 // per-axis description and no required marker, so axes are plain optional numbers.
@@ -90,19 +91,31 @@ export class NodeTools implements ToolExecutor {
                 }), handler: a => this.findNodeByName(a.name) },
             { name: 'get_all_nodes', description: 'List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
                 inputSchema: z.object({}), handler: () => this.getAllNodes() },
-            { name: 'set_node_property', description: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale.',
+            { name: 'set_node_property', description: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts uuid OR nodeName (uuid wins).',
                 inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID to modify.'),
+                    uuid: z.string().optional().describe('Node UUID to modify. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
                     property: z.string().describe('Node property path, e.g. active, name, layer. Prefer set_node_transform for position/rotation/scale.'),
                     value: z.any().describe('Value to write; must match the Cocos dump shape for the property path.'),
-                }), handler: a => this.setNodeProperty(a.uuid, a.property, a.value) },
-            { name: 'set_node_transform', description: 'Write position/rotation/scale with 2D/3D normalization; mutates scene.',
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    return this.setNodeProperty(r.uuid, a.property, a.value);
+                } },
+            { name: 'set_node_transform', description: 'Write position/rotation/scale with 2D/3D normalization; mutates scene. Accepts uuid OR nodeName (uuid wins).',
                 inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID whose transform should be changed.'),
+                    uuid: z.string().optional().describe('Node UUID whose transform should be changed. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used only when uuid is omitted.'),
                     position: transformPositionSchema.optional().describe('Local position. 2D nodes mainly use x/y; 3D nodes use x/y/z.'),
                     rotation: transformRotationSchema.optional().describe('Local euler rotation. 2D nodes mainly use z; 3D nodes use x/y/z.'),
                     scale: transformScaleSchema.optional().describe('Local scale. 2D nodes mainly use x/y and usually keep z=1.'),
-                }), handler: a => this.setNodeTransform(a) },
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.uuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    return this.setNodeTransform({ ...a, uuid: r.uuid });
+                } },
             { name: 'delete_node', description: 'Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to delete. Children are removed with the node.'),

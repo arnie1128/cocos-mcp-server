@@ -3,6 +3,7 @@ import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
+import { resolveOrToolError } from '../lib/resolve-node';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -119,11 +120,17 @@ export class ComponentTools implements ToolExecutor {
 
     constructor() {
         const defs: ToolDef[] = [
-            { name: 'add_component', description: 'Add a component to a specific node. Mutates scene; provide nodeUuid explicitly and verify the component type or script class name first.',
+            { name: 'add_component', description: 'Add a component to a specific node. Mutates scene; verify the component type or script class name first. Accepts nodeUuid OR nodeName (uuid wins).',
                 inputSchema: z.object({
-                    nodeUuid: z.string().describe('Target node UUID. REQUIRED: You must specify the exact node to add the component to. Use get_all_nodes or find_node_by_name to get the UUID of the desired node.'),
+                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
                     componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
-                }), handler: a => this.addComponent(a.nodeUuid, a.componentType) },
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    return this.addComponent(r.uuid, a.componentType);
+                } },
             { name: 'remove_component', description: "Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
@@ -138,9 +145,10 @@ export class ComponentTools implements ToolExecutor {
                     nodeUuid: z.string().describe('Node UUID that owns the component.'),
                     componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
                 }), handler: a => this.getComponentInfo(a.nodeUuid, a.componentType) },
-            { name: 'set_component_property', description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+            { name: 'set_component_property', description: 'Set component property values for UI components or custom script components. Supports setting properties of built-in UI components (e.g., cc.Label, cc.Sprite) and custom script components. Accepts nodeUuid OR nodeName (uuid wins). Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
                 inputSchema: z.object({
-                    nodeUuid: z.string().describe('Target node UUID - Must specify the node to operate on'),
+                    nodeUuid: z.string().optional().describe('Target node UUID. Provide this OR nodeName.'),
+                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used only when nodeUuid is omitted.'),
                     componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
                     property: z.string().describe(setComponentPropertyPropertyDescription),
                     propertyType: z.enum([
@@ -151,7 +159,12 @@ export class ComponentTools implements ToolExecutor {
                     ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
                     value: z.any().describe(setComponentPropertyValueDescription),
                     preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
-                }), handler: a => this.setComponentProperty(a) },
+                }),
+                handler: async a => {
+                    const r = await resolveOrToolError({ nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+                    if ('response' in r) return r.response;
+                    return this.setComponentProperty({ ...a, nodeUuid: r.uuid });
+                } },
             { name: 'attach_script', description: 'Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
