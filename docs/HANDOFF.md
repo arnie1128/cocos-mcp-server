@@ -73,6 +73,21 @@ reference 走英文，正確。
 協議。Client（Claude Desktop / Claude Code）可選擇性載入大資源；新增
 read-only API 時方向明確（不再走 tool）。
 
+**Prior art（動工前必讀）**：
+
+- `cocos/cocos-cli` 是官方 CLI 且 ship MCP server（`cocos start-mcp-server`，
+  build 在 `fastmcp` 上）。`src/mcp/resources.ts` + `src/mcp/mcp.middleware.ts`
+  是官方 URI scheme 的 anchor。雖然它是 standalone CLI（不是 editor 內擴充，
+  call 不到 `Editor.Message`），URI 命名 / resources 結構應對齊。
+- `FunplayAI/funplay-cocos-mcp` 是唯一 ship `tools + resources + prompts`
+  的編輯器擴充。`lib/resources.js` 已經用 `cocos://` 前綴 + ResourceTemplate
+  pattern（`cocos://scene/node/{path}`、`cocos://asset/info/{uuid_or_path}`）。
+  與我們架構同源（embedded extension），是最直接的 prior art。
+- 9 repo 調查（含 tidys、RomaRogov、harady、Spaydo 等）**沒有任何一家**
+  實作 MCP notifications/subscribe，T-P3-3 是 first mover。
+
+**URI scheme 決議**：採用 `cocos://`（兩個 prior art 都用），生態對齊。
+
 **選哪些做 resource**：候選是「沒副作用 + 一次回大塊狀態」的 tool。
 
 | URI | 對應 tool | 為什麼 |
@@ -82,7 +97,7 @@ read-only API 時方向明確（不再走 tool）。
 | `cocos://scene/list` | `scene_get_scene_list` | 全專案場景清單 |
 | `cocos://prefabs` | `prefab_get_prefab_list` | 全專案 prefab 清單 |
 | `cocos://project/info` | `project_get_project_info` | 專案元資料 |
-| `cocos://assets{?folder}` | `project_list_assets`（如有） | 參數化 query；用 ResourceTemplate |
+| `cocos://assets{?folder}` | `project_get_assets` | 參數化 query；用 ResourceTemplate |
 
 **不選**的 read-only tool：細粒度的 `get_node_info` / `get_components`
 / `get_component_info` 維持 tool（每次拿一個 UUID 不適合走 resource
@@ -90,6 +105,9 @@ URI 列舉）。
 
 **實作步驟**：
 
+0. **Prior-art 讀通**：WebFetch 上述兩支檔案，落檔
+   `docs/research/t-p3-1-prior-art.md`——三家（cocos-cli / FunplayAI / 我們）
+   URI 表 side-by-side、命名差異、有沒有要調整 6 個 URI。**估 30 分**。
 1. 在 `source/mcp-server-sdk.ts` `buildSdkServer()` 內：
    - 加 capability `resources: { listChanged: true, subscribe: false }`
      （subscribe 留給 T-P3-3）
@@ -118,6 +136,25 @@ URI 列舉）。
 - [ ] 文件更新：`docs/architecture/overview.md` 加 Resources 區塊；
       `docs/roadmap/04-protocol-extensions.md` 標 T-P3-1 ✅
 - [ ] dist + package.json 同步到 cocos_cs 安裝路徑
+
+**Deprecated 生命週期**（tool 標 deprecated 後何時清）：
+
+- 條件 A：主流 client（Claude Desktop / Claude Code / Cline / Continue）
+  全部支援 `resources/*`
+- 條件 B：自家 `live-test.js` + ad-hoc curl 都改走 resources，REST 短路
+  停用一個 minor 版本以上
+- 兩條都達成才走 major bump（3.0.0）拔舊 tool。在那之前 tool **保留**、
+  description 帶 deprecation 提示
+- 文件落點：`CHANGELOG.md` v2.2.0 加 Deprecated 區塊；
+  `docs/roadmap/04-protocol-extensions.md` 加 deprecation tracker 表
+  （tool / deprecated since / scheduled removal / current usage signal）
+
+**測試**（不需新 framework）：
+
+- `scripts/smoke-mcp-sdk.js` 加 equivalence check：每個 resource read 完
+  跑一次對應 tool call，斷言兩邊 JSON 相等（容忍 timestamp）
+- `scripts/live-test.js` 加 6 個 URI 的 round-trip 對照——實機 cocos
+  editor 環境也對等
 
 **版本策略**：minor bump（2.1.7 → 2.2.0），因為 capability 擴張屬
 public surface 增加。
