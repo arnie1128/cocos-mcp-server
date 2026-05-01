@@ -217,12 +217,16 @@ that target until token cost is measured.
    mutation; save caught both up). Without the nudge, save writes the
    stale model state.
 
-   The `_componentName` workaround (issue #16517) becomes informational
-   on disk too — the scene file does NOT contain `_componentName`, yet
-   runtime dispatch still finds the callback (verified 2026-05-01 with
-   project.log line 40786: `[PreviewInEditor] [EhTest] onClickFromMcp
-   fired EventTouch {…}`). The workaround is kept defensively pending
-   more builds tested.
+   The `_componentName` workaround for cocos-engine #16517 was removed
+   in v2.1.3 after a clean A/B test (2026-05-01): with the line
+   `(eh as any)._componentName = componentName` deleted, a fresh
+   `add_event_handler` → `save_scene` → preview-click flow on a
+   `db://assets/test-mcp/a-test.scene` TestBtn still fired
+   `onClickFromMcp` (project.log: `[PreviewInEditor] [EhTest]
+   onClickFromMcp fired data=a-test`). The disk file never carried
+   `_componentName` anyway (the editor's serialization model rejects
+   it), so the in-memory assignment was always dropped on save+reload.
+   Don't re-introduce it.
 
    Rule of thumb when adding tools that mutate component runtime state:
    mutate from scene-script then nudge from **host side** via

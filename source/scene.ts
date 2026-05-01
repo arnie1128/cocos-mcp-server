@@ -520,10 +520,6 @@ export const methods: { [key: string]: (...any: any) => any } = {
      * Append a cc.EventHandler entry to a component's event array
      * (e.g. cc.Button.clickEvents, cc.Toggle.checkEvents).
      *
-     * Sets both `component` and `_componentName` because cocos-engine
-     * issue #16517 reports that runtime-pushed EventHandlers don't
-     * dispatch unless `_componentName` is populated on 3.8.x.
-     *
      * Persistence note (CLAUDE.md Landmine #11): scene-script `arr.push`
      * only mutates the runtime cc.Component instance; the editor's
      * serialization model (what `save-scene` writes to disk) does not see
@@ -561,9 +557,6 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const eh = new cc.EventHandler();
             eh.target = targetNode;
             eh.component = componentName;
-            // Workaround for cocos-engine#16517: dispatcher reads
-            // _componentName, not component, in 3.8.x runtime path.
-            (eh as any)._componentName = componentName;
             eh.handler = handler;
             eh.customEventData = customEventData ?? '';
             arr.push(eh);
