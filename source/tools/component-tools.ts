@@ -3,6 +3,41 @@ import { debugLog } from '../lib/log';
 import { z, toInputSchema, validateArgs } from '../lib/schema';
 import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 
+/**
+ * Force the editor's serialization model to re-pull a component dump
+ * from runtime. CLAUDE.md Landmine #11: scene-script `arr.push` mutations
+ * only touch the runtime; the model that `save-scene` writes to disk is
+ * only updated when changes flow through the editor's set-property
+ * channel.
+ *
+ * Calling `set-property` from inside scene-script doesn't propagate (the
+ * scene-process IPC short-circuits). The nudge must come from host side.
+ *
+ * The set-property channel for component properties uses a node-rooted
+ * path: `uuid = nodeUuid`, `path = __comps__.<index>.<property>`. We
+ * query the node, locate the matching component index, and set
+ * `enabled` to its current value (no-op semantically, forces sync).
+ *
+ * Best-effort: failures are swallowed because the runtime mutation
+ * already happened — only persistence to disk is at stake.
+ */
+async function nudgeEditorModel(nodeUuid: string, componentType: string): Promise<void> {
+    try {
+        const nodeData: any = await Editor.Message.request('scene', 'query-node', nodeUuid);
+        const comps: any[] = nodeData?.__comps__ ?? [];
+        const idx = comps.findIndex(c => (c?.__type__ || c?.cid || c?.type) === componentType);
+        if (idx === -1) return;
+        const enabledValue: boolean = comps[idx]?.value?.enabled?.value !== false;
+        await Editor.Message.request('scene', 'set-property', {
+            uuid: nodeUuid,
+            path: `__comps__.${idx}.enabled`,
+            dump: { value: enabledValue },
+        });
+    } catch (err) {
+        debugLog('[ComponentTools] nudge set-property failed (non-fatal):', err);
+    }
+}
+
 const setComponentPropertyValueDescription =
     'Property value - Use the corresponding data format based on propertyType:\n\n' +
     '📝 Basic Data Types:\n' +
@@ -156,8 +191,8 @@ export class ComponentTools implements ToolExecutor {
                 return await this.attachScript(a.nodeUuid, a.scriptPath);
             case 'get_available_components':
                 return await this.getAvailableComponents(a.category);
-            case 'add_event_handler':
-                return await runSceneMethodAsToolResponse('addEventHandler', [
+            case 'add_event_handler': {
+                const resp = await runSceneMethodAsToolResponse('addEventHandler', [
                     a.nodeUuid,
                     a.componentType,
                     a.eventArrayProperty,
@@ -166,8 +201,11 @@ export class ComponentTools implements ToolExecutor {
                     a.handler,
                     a.customEventData,
                 ]);
-            case 'remove_event_handler':
-                return await runSceneMethodAsToolResponse('removeEventHandler', [
+                if (resp.success) await nudgeEditorModel(a.nodeUuid, a.componentType);
+                return resp;
+            }
+            case 'remove_event_handler': {
+                const resp = await runSceneMethodAsToolResponse('removeEventHandler', [
                     a.nodeUuid,
                     a.componentType,
                     a.eventArrayProperty,
@@ -175,6 +213,9 @@ export class ComponentTools implements ToolExecutor {
                     a.targetNodeUuid ?? null,
                     a.handler ?? null,
                 ]);
+                if (resp.success) await nudgeEditorModel(a.nodeUuid, a.componentType);
+                return resp;
+            }
             case 'list_event_handlers':
                 return await runSceneMethodAsToolResponse('listEventHandlers', [
                     a.nodeUuid,

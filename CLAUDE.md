@@ -185,25 +185,44 @@ that target until token cost is measured.
    `set-property` with the entire new array as the dump value. That
    would require constructing the IProperty dump shape from host side.
 
-   **v2.1.2 fix (commit pending P1)**: `addEventHandler` /
-   `removeEventHandler` in `source/scene.ts` keep the scene-script
-   `arr.push` / `arr.splice` (so the runtime sees the change immediately)
-   and follow it with `nudgeComponentSerializationModel(component)` —
-   a no-op `scene/set-property` on `enabled` that triggers layer (b) to
-   re-pull the component dump from layer (a). Verified empirically: with
-   the nudge, `save-scene` writes the new array entries to disk; without
-   it, save writes empty arrays. The `_componentName` workaround (issue
-   #16517) becomes informational on disk too — the scene file does NOT
-   contain `_componentName`, yet runtime dispatch still finds the
-   callback (verified 2026-05-01 with project.log line 40786:
-   `[PreviewInEditor] [EhTest] onClickFromMcp fired EventTouch {…}`).
-   The workaround is kept defensively pending more builds tested.
+   **v2.1.2 fix (live-verified 2026-05-01)**: nudge has to run from
+   **host side**, NOT inside scene-script. Calling `set-property` from
+   inside scene-script doesn't propagate the model sync — the
+   scene-process IPC seems to short-circuit and skip whatever bookkeeping
+   is needed. The working pattern is implemented in
+   `source/tools/component-tools.ts:nudgeEditorModel(nodeUuid, componentType)`:
+
+   - keep scene-script `arr.push` / `arr.splice` (runtime instant change)
+   - after `runSceneMethodAsToolResponse` resolves, host issues
+     `Editor.Message.request('scene', 'set-property', { uuid: nodeUuid,
+     path: '__comps__.<idx>.enabled', dump: { value: <current> } })`
+   - that no-op set-property triggers layer (b) to re-pull the component
+     dump from layer (a)
+
+   Note the path shape: component property writes are addressed as
+   `nodeUuid + __comps__.<idx>.<prop>`, **not** as `componentUuid +
+   <prop>`. Earlier prototype passed the cc.Component's runtime UUID as
+   the set-property target — that does NOT propagate. See how
+   `setComponentProperty` resolves `rawComponentIndex` for the canonical
+   pattern.
+
+   Verified empirically: disk goes from 4 → 6 cc.ClickEvent entries
+   after add+save (runtime had 6 because of an earlier orphaned
+   mutation; save caught both up). Without the nudge, save writes the
+   stale model state.
+
+   The `_componentName` workaround (issue #16517) becomes informational
+   on disk too — the scene file does NOT contain `_componentName`, yet
+   runtime dispatch still finds the callback (verified 2026-05-01 with
+   project.log line 40786: `[PreviewInEditor] [EhTest] onClickFromMcp
+   fired EventTouch {…}`). The workaround is kept defensively pending
+   more builds tested.
 
    Rule of thumb when adding tools that mutate component runtime state:
-   either (a) use `scene/set-property` from host side with a constructed
-   dump, or (b) mutate from scene-script then call
-   `nudgeComponentSerializationModel` to force model sync. Don't trust
-   `snapshot` alone for persistence.
+   mutate from scene-script then nudge from **host side** via
+   `set-property` on `__comps__.<idx>.<some-prop>`. Don't try to nudge
+   from scene-script (won't propagate). Don't trust `snapshot` alone for
+   persistence.
 
 ## Conventions
 

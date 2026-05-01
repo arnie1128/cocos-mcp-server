@@ -80,30 +80,6 @@ function resolveComponentContext(nodeUuid: string, componentType: string): Compo
     return { ok: true, scene, node, component };
 }
 
-/**
- * Nudge the editor's serialization model to re-pull the component dump
- * from runtime. Without this, scene-script mutations to a component's
- * internal state (e.g. `cc.Button.clickEvents.push(eh)`) never reach the
- * model that `save-scene` writes to disk — see CLAUDE.md Landmine #11.
- *
- * The trick: any `set-property` call to the component triggers the
- * model to re-sync. We pick `enabled` (defined on every cc.Component)
- * and write back the current value, which is a no-op semantically but
- * forces the sync. Best-effort — we swallow errors so the caller still
- * sees the runtime mutation it asked for.
- */
-async function nudgeComponentSerializationModel(component: any): Promise<void> {
-    try {
-        await Editor.Message.request('scene', 'set-property', {
-            uuid: component.uuid,
-            path: 'enabled',
-            dump: { value: component.enabled !== false },
-        });
-    } catch {
-        // best-effort
-    }
-}
-
 function serializeEventHandler(eh: any) {
     if (!eh) return null;
     return {
@@ -599,12 +575,14 @@ export const methods: { [key: string]: (...any: any) => any } = {
      * Persistence note (CLAUDE.md Landmine #11): scene-script `arr.push`
      * only mutates the runtime cc.Component instance; the editor's
      * serialization model (what `save-scene` writes to disk) does not see
-     * the change. After mutating, we issue a no-op `set-property` on
-     * `enabled` with its current value to nudge the editor to re-pull
-     * the component dump from runtime, which makes the array change
-     * visible to `save-scene`.
+     * the change. The host-side caller (`component-tools.ts`) is
+     * responsible for nudging the model afterwards via a no-op
+     * `set-property` on a component field — calling `set-property` from
+     * here doesn't propagate (scene-process IPC short-circuits and
+     * skips the model sync). We surface `componentUuid` and
+     * `componentEnabled` so the caller has what it needs.
      */
-    async addEventHandler(
+    addEventHandler(
         nodeUuid: string,
         componentType: string,
         eventArrayProperty: string,
@@ -639,12 +617,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
             arr.push(eh);
 
             Editor.Message.send('scene', 'snapshot');
-            await nudgeComponentSerializationModel(ctx.component);
             return {
                 success: true,
                 data: {
                     index: arr.length - 1,
                     count: arr.length,
+                    componentUuid: ctx.component.uuid,
+                    componentEnabled: ctx.component.enabled !== false,
                 },
             };
         } catch (error: any) {
@@ -656,10 +635,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
      * Remove a cc.EventHandler entry by index, or by matching
      * (targetUuid, handler) pair. If both are provided, index wins.
      *
-     * See addEventHandler for the persistence note explaining the
-     * `nudgeComponentSerializationModel` follow-up.
+     * See addEventHandler for the persistence note. Caller must follow up
+     * with a host-side `set-property` nudge using the returned
+     * `componentUuid` / `componentEnabled` to make the change visible to
+     * `save-scene`.
      */
-    async removeEventHandler(
+    removeEventHandler(
         nodeUuid: string,
         componentType: string,
         eventArrayProperty: string,
@@ -693,13 +674,14 @@ export const methods: { [key: string]: (...any: any) => any } = {
             }
             const removed = arr.splice(removeAt, 1)[0];
             Editor.Message.send('scene', 'snapshot');
-            await nudgeComponentSerializationModel(ctx.component);
             return {
                 success: true,
                 data: {
                     index: removeAt,
                     remaining: arr.length,
                     removed: serializeEventHandler(removed),
+                    componentUuid: ctx.component.uuid,
+                    componentEnabled: ctx.component.enabled !== false,
                 },
             };
         } catch (error: any) {

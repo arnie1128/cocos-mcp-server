@@ -334,17 +334,31 @@ prefab 相關 channel 只有一個：`restore-prefab`**，簽章
   apply 不 mark scene dirty 也不 auto-save；需另呼叫 `save_scene`。
 
 **v2.1.2 backlog**（按優先序）：
-- ✅ **P1 EventHandler 持久化 bug**（fix landed 2026-05-01）：
-  Cocos 的 scene message API 並沒有 `insert-array-element` channel（只有
-  move / remove），加 entry 的官方路徑是 `set-property` 帶完整新陣列當 dump
-  value，要從 host 端構建 IProperty dump shape 比較重。實證更輕量的
-  「nudge」path：scene-script 完成 `arr.push` / `arr.splice` 後，呼叫
-  `nudgeComponentSerializationModel(component)`（在 `source/scene.ts`
-  新加的 helper）—— 對 `component.enabled` 做一次 no-op `set-property`，
-  觸發 editor 序列化模型從 runtime 重新 pull dump，於是 `save-scene` 看到
-  新陣列、寫進 disk。實證：nudge 前 disk clickEvents 為空；nudge 後 disk
-  正確寫出 2 筆 cc.ClickEvent。`addEventHandler` / `removeEventHandler`
-  改成 async 並在 mutation 後 `await nudgeComponentSerializationModel(...)`。
+- ✅ **P1 EventHandler 持久化 bug**（fix landed 2026-05-01；
+  scene-side 嘗試失敗、改 host-side 後實機驗證通過）：
+  - 第一版（scene.ts 內 nudge，commit `92a613e`）— 失敗。從 scene-script
+    內呼叫 `Editor.Message.request('scene', 'set-property', ...)` 不會
+    propagate model sync，scene-process IPC 看似 short-circuit 自己。
+  - **第二版**（host-side nudge，本次 commit）— 成功。`source/tools/
+    component-tools.ts` 新加 helper `nudgeEditorModel(nodeUuid,
+    componentType)`：在 `add_event_handler` / `remove_event_handler`
+    case 拿到 scene-script response 之後，host 自己發 `set-property`：
+    ```
+    Editor.Message.request('scene', 'set-property', {
+      uuid: nodeUuid,
+      path: `__comps__.${idx}.enabled`,
+      dump: { value: <current enabled> },
+    })
+    ```
+    **重點**：path 走 `nodeUuid + __comps__.<idx>.<prop>`，**不是**
+    `componentUuid + <prop>` —— 後者不會 propagate（早先試過用
+    runtime cc.Component.uuid 當 target，無效）。idx 透過
+    `Editor.Message scene/query-node` 拿 `__comps__` 陣列、按 type 比對
+    解出。實機驗證：add+save 後 disk 從 4 → 6 cc.ClickEvent（runtime 之前
+    有 6 但 disk 只有 4，nudge 觸發 save 一次補上兩筆）。
+  - scene.ts 的 `addEventHandler` / `removeEventHandler` 已改回 sync，
+    保留新加的 `componentUuid` / `componentEnabled` 欄位在 `data` 裡（給
+    debug / 將來其他 nudge 路徑備用，host-side 目前不用這兩欄、自己 query）。
 - ✅ **P2(b) `debug_get_console_logs` 拿掉**（fix landed 2026-05-01）：
   原本 `setupConsoleCapture()` 是 placeholder（只 `debugLog` 一句、沒掛
   任何 listener），`consoleMessages` 永遠空陣列；tool 永遠回 `[]` 騙
