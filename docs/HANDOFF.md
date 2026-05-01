@@ -3,13 +3,15 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去，不需要重看歷史對話。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 完工 + 三方 audit pass）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-01 v2.1.2 + 三方 audit + project sweep 完工）
 
-當下版本：**v2.1.2 + round-1 audit fix**（commit `d5c97ef`）。P0/P1/P4/
-v2.1.1/v2.1.2 全部完工，Test 1/2/3 + remove_event_handler +
-Toggle.checkEvents 全實機驗完，三方（codex/gemini/claude）round-1 三項
-finds 已修、round-2 兩家「no further changes needed」。沒有 in-flight
-任務。本檔 + CLAUDE.md Landmine #11 同步至 d5c97ef 狀態。
+當下版本：**v2.1.2 + round-1 audit fix + project /code-review + simplifier**
+（commit `ccb5d04`）。P0/P1/P4/v2.1.1/v2.1.2 全部完工，Test 1/2/3 +
+remove_event_handler + Toggle.checkEvents 全實機驗完，三方
+（codex/gemini/claude）round-1 三項 finds 已修、round-2 兩家「no further
+changes needed」；接著做整專案 /code-review 與 code-simplifier 各一次，
+真實 finds 已修補，simplifier 提案項目作為 v2.1.3 backlog（見下）。
+沒有 in-flight 任務。
 
 **round-1 audit 修補（`d5c97ef`）**：
 - `nudgeEditorModel` 的 `enabledValue` 讀取改防禦式（nested → flat
@@ -21,6 +23,36 @@ finds 已修、round-2 兩家「no further changes needed」。沒有 in-flight
   傳下去（這就是 v2.1.2 那兩個「孤兒欄位」的真正用途）。
 - `ConsoleMessage` interface 從 `source/types/index.ts` 刪掉（死 export
   ——P2(b) 把 consumer 拿掉後變孤）。
+
+**整專案 review + simplifier 落地**：
+- `e2ffa3d` Landmine #4 收尾：`source/settings.ts` 5 處 `console.error` +
+  `source/panels/tool-manager/index.ts` 26 處 `console.log/error`（之前
+  P4 T-P4-2 只搬遷了 default panel）改走 logger。CLAUDE.md 工具表
+  scene 10 → 8、node 15 → 11 校正（其他類別實機核對都正確）。
+- `ccb5d04` simplifier：拿掉 `tool-manager.ts:initializeDefaultTools`
+  死後援（v1.4.0 殘留的 47 條硬編碼工具列表，wrapped 在不會丟例外的
+  `Object.entries` + forEach 外）。-104 行 source / -209 行 dist；
+  tsc + smoke 全綠，registry 162 tools 不變。
+
+**v2.1.3 backlog**（simplifier 提案、未 apply；逐項 medium risk，建議
+分檔逐個處理）：
+- **scene-bridge migration**（最大潛在收益）：11 處直接
+  `Editor.Message.request('scene', 'execute-scene-script', ...)` 散落於
+  `component-tools.ts` / `node-tools.ts` / `scene-tools.ts` /
+  `scene-advanced-tools.ts` / `debug-tools.ts`，可逐檔換成
+  `lib/scene-bridge.ts:runSceneMethodAsToolResponse` 1-liner，估減 ~200 行。
+  風險：每 callsite 的 envelope 略有不同，要逐個比對 success/error 構造。
+- **scene.ts 死 method 清理**：`createNewScene` / `removeComponentFromNode` /
+  `setComponentProperty`（scene-script 版，host 已有自己的）等疑似無人
+  呼叫的 scene-script `methods` 條目，~150 行省。風險：因
+  `execute-scene-script` 用 method 名 string 做 dispatch，可能有外部或
+  動態呼叫，需 grep + maintainer 確認。
+- `setComponentProperty`（scene.ts）內 spriteFrame / material 載入梯式
+  dedup（~25 行省）。
+- `MCPServer.getFilteredTools` 二次過濾可能多餘（low-medium risk）。
+- 不要動：`nudgeEditorModel` 的 nested-vs-flat dump 雙路徑（Landmine #11
+  經驗值）；`prefab-tools.ts` legacy custom-JSON fallback（CLAUDE.md
+  line 117 標明保留至 façade 路徑全驗）。
 
 **v2.1.2 內容**（含修補史）：
 - ✅ **P1 EventHandler 持久化**：scene-script `arr.push` 不動 editor
@@ -72,6 +104,9 @@ P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
    │                                  + add/remove 持久化 + Toggle.checkEvents）
    └── T-P4-2 Panel composable 拆分   ✅ done（直式 640×720 / min 480×640）
 v2.1.2 ✅ done（P1 host-side nudge 4d15563 + P2(b) 拿 placeholder + P3 文件訂正）
+v2.1.2-audit ✅ done（round-1 d5c97ef + project sweep e2ffa3d/ccb5d04）
+v2.1.3 ⏳ backlog（simplifier 提案：scene-bridge migration、scene.ts 死 method、
+                   setComponentProperty 載入 ladder dedup；見 entry-point）
 P2/P3 ⏳ pending（roadmap 級別，非 v2 patch）
 ```
 

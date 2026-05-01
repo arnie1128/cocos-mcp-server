@@ -61,3 +61,9 @@ $RECYCLE.BIN/
 *.temp
 tmp/
 temp/
+
+# ---- Claude Code session runtime ----
+# Lock file written by ScheduleWakeup / dynamic loop runtime; per-session, no
+# value to share. Project-level rules (if added later) live under
+# .claude/rules/ and remain trackable.
+.claude/scheduled_tasks.lock
