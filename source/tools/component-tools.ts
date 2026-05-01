@@ -78,15 +78,16 @@ const setComponentPropertyValueDescription =
     '• vec3: {"x":1,"y":2,"z":3} (3D vector)\n' +
     '• size: {"width":100,"height":50} (size dimensions)\n\n' +
     '🔗 Reference Types (using UUID strings):\n' +
-    '• node: "target-node-uuid" (node reference)\n' +
+    '• node: "target-node-uuid" (cc.Node reference — property metadata type === "cc.Node")\n' +
     '  How to get: Use get_all_nodes or find_node_by_name to get node UUIDs\n' +
-    '• component: "target-node-uuid" (component reference)\n' +
-    '  How it works: \n' +
-    '    1. Provide the UUID of the NODE that contains the target component\n' +
-    '    2. System auto-detects required component type from property metadata\n' +
-    '    3. Finds the component on target node and gets its scene __id__\n' +
-    '    4. Sets reference using the scene __id__ (not node UUID)\n' +
-    '  Example: value="label-node-uuid" will find cc.Label and use its scene ID\n' +
+    '• component: "target-node-uuid" (cc.Component subclass reference — e.g. cc.Camera, cc.Sprite)\n' +
+    '  ⚠️ Easy to confuse with "node": pick "component" whenever the property\n' +
+    '     metadata expects a Component subclass, even though the value is still\n' +
+    '     a NODE UUID (the server auto-resolves the component\'s scene __id__).\n' +
+    '  Example — cc.Canvas.cameraComponent expects a cc.Camera ref:\n' +
+    '     propertyType: "component", value: "<UUID of node that has cc.Camera>"\n' +
+    '  Pitfall: passing propertyType: "node" for cameraComponent appears to\n' +
+    '     succeed at the IPC layer but the reference never connects.\n' +
     '• spriteFrame: "spriteframe-uuid" (sprite frame asset)\n' +
     '  How to get: Check asset database or use asset browser\n' +
     '• prefab: "prefab-uuid" (prefab asset)\n' +
@@ -103,7 +104,8 @@ const setComponentPropertyPropertyDescription =
     'Property name - The property to set. Common properties include:\n' +
     '• cc.Label: string (text content), fontSize (font size), color (text color)\n' +
     '• cc.Sprite: spriteFrame (sprite frame), color (tint color), sizeMode (size mode)\n' +
-    '• cc.Button: normalColor (normal color), pressedColor (pressed color), target (target node)\n' +
+    '• cc.Button: normalColor (normal color), pressedColor (pressed color), target (target node — propertyType: "node")\n' +
+    '• cc.Canvas: cameraComponent (cc.Camera ref — propertyType: "component", value = node UUID hosting the camera)\n' +
     '• cc.UITransform: contentSize (content size), anchorPoint (anchor point)\n' +
     '• Custom Scripts: Based on properties defined in the script';
 
@@ -643,7 +645,24 @@ export class ComponentTools implements ToolExecutor {
                     });
                     return;
                 }
-                
+
+                // Step 3.5: propertyType vs metadata reference-kind preflight.
+                // Catches the common pitfall where a cc.Component subclass field
+                // (e.g. cc.Canvas.cameraComponent : cc.Camera) gets called with
+                // propertyType: 'node' — the IPC silently accepts but the ref
+                // never connects. We surface the right propertyType + value shape.
+                const mismatch = this.detectPropertyTypeMismatch(
+                    propertyInfo,
+                    propertyType,
+                    nodeUuid,
+                    componentType,
+                    property,
+                );
+                if (mismatch) {
+                    resolve(mismatch);
+                    return;
+                }
+
                 // Step 4: 處理屬性值和設置
                 const originalValue = propertyInfo.originalValue;
                 let processedValue: any;
@@ -1281,19 +1300,29 @@ export class ComponentTools implements ToolExecutor {
         }
     }
 
-    private analyzeProperty(component: any, propertyName: string): { exists: boolean; type: string; availableProperties: string[]; originalValue: any } {
+    private analyzeProperty(component: any, propertyName: string): { exists: boolean; type: string; availableProperties: string[]; originalValue: any; metaType?: string; metaExtends?: string[] } {
         // 從複雜的組件結構中提取可用屬性
         const availableProperties: string[] = [];
         let propertyValue: any = undefined;
         let propertyExists = false;
-        
+        let metaType: string | undefined;
+        let metaExtends: string[] | undefined;
+
+        const captureMeta = (propInfo: any) => {
+            if (!propInfo || typeof propInfo !== 'object') return;
+            if (typeof propInfo.type === 'string') metaType = propInfo.type;
+            if (Array.isArray(propInfo.extends)) {
+                metaExtends = propInfo.extends.filter((s: any) => typeof s === 'string');
+            }
+        };
+
         // 嘗試多種方式查找屬性：
         // 1. 直接屬性訪問
         if (Object.prototype.hasOwnProperty.call(component, propertyName)) {
             propertyValue = component[propertyName];
             propertyExists = true;
         }
-        
+
         // 2. 從嵌套結構中查找 (如從測試數據看到的複雜結構)
         if (!propertyExists && component.properties && typeof component.properties === 'object') {
             // 首先檢查properties.value是否存在（這是我們在getComponents中看到的結構）
@@ -1314,6 +1343,7 @@ export class ComponentTools implements ToolExecutor {
                                 // 如果檢查失敗，直接使用propInfo
                                 propertyValue = propInfo;
                             }
+                            captureMeta(propInfo);
                             propertyExists = true;
                         }
                     }
@@ -1333,6 +1363,7 @@ export class ComponentTools implements ToolExecutor {
                                 // 如果檢查失敗，直接使用propInfo
                                 propertyValue = propInfo;
                             }
+                            captureMeta(propInfo);
                             propertyExists = true;
                         }
                     }
@@ -1427,7 +1458,57 @@ export class ComponentTools implements ToolExecutor {
             exists: true,
             type,
             availableProperties,
-            originalValue: propertyValue
+            originalValue: propertyValue,
+            metaType,
+            metaExtends,
+        };
+    }
+
+    private detectPropertyTypeMismatch(
+        propertyInfo: { metaType?: string; metaExtends?: string[] },
+        propertyType: string,
+        nodeUuid: string,
+        componentType: string,
+        property: string,
+    ): ToolResponse | null {
+        const { metaType, metaExtends } = propertyInfo;
+        if (!metaType && (!metaExtends || metaExtends.length === 0)) return null;
+
+        const extendsList = metaExtends ?? [];
+        const isNodeRef = metaType === 'cc.Node';
+        const isComponentRef = !isNodeRef && extendsList.includes('cc.Component');
+        const isAssetRef = !isNodeRef && !isComponentRef && extendsList.includes('cc.Asset');
+        if (!isNodeRef && !isComponentRef && !isAssetRef) return null;
+
+        const expectedKind = isNodeRef ? 'node' : isComponentRef ? 'component' : 'asset';
+        const userKind =
+            propertyType === 'spriteFrame' || propertyType === 'prefab' || propertyType === 'asset' ? 'asset'
+            : propertyType === 'node' ? 'node'
+            : propertyType === 'component' ? 'component'
+            : null;
+        if (!userKind || userKind === expectedKind) return null;
+
+        const expectedTypeName = metaType ?? '(unknown)';
+        let suggestedPropertyType: string;
+        let valueHint: string;
+        if (isComponentRef) {
+            suggestedPropertyType = 'component';
+            valueHint = `the UUID of the NODE that hosts the ${expectedTypeName} component (the server resolves the component's scene __id__ for you)`;
+        } else if (isNodeRef) {
+            suggestedPropertyType = 'node';
+            valueHint = "the target node's UUID";
+        } else {
+            suggestedPropertyType =
+                expectedTypeName === 'cc.SpriteFrame' ? 'spriteFrame'
+                : expectedTypeName === 'cc.Prefab' ? 'prefab'
+                : 'asset';
+            valueHint = `the asset UUID (type: ${expectedTypeName})`;
+        }
+
+        return {
+            success: false,
+            error: `propertyType mismatch: '${componentType}.${property}' is a ${expectedKind} reference (metadata type: ${expectedTypeName}), but you passed propertyType: '${propertyType}'.`,
+            instruction: `Use propertyType: '${suggestedPropertyType}' with ${valueHint}.\nExample: set_component_property(nodeUuid="${nodeUuid}", componentType="${componentType}", property="${property}", propertyType="${suggestedPropertyType}", value="<uuid>")`,
         };
     }
 
