@@ -13,6 +13,7 @@ import { SceneViewTools } from './scene-view-tools';
 import { ReferenceImageTools } from './reference-image-tools';
 import { AssetAdvancedTools } from './asset-advanced-tools';
 import { ValidationTools } from './validation-tools';
+import { InspectorTools } from './inspector-tools';
 
 export type ToolRegistry = Record<string, ToolExecutor>;
 
@@ -32,5 +33,6 @@ export function createToolRegistry(): ToolRegistry {
         referenceImage: new ReferenceImageTools(),
         assetAdvanced: new AssetAdvancedTools(),
         validation: new ValidationTools(),
+        inspector: new InspectorTools(),
     };
 }
