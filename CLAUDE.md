@@ -172,9 +172,20 @@ token cost is measured.
    `findNodeByUuidDeep` from `source/scene.ts` (depth-first walk,
    matches both `_id` and `uuid`) when looking up arbitrary scene
    nodes from scene-script context.
-10. **No test runner wired up.** `source/test/*.ts` exists but is not
-   invoked by any npm script. (`scripts/smoke-mcp-sdk.js` covers the SDK
-   server endpoints with a stub registry — manual; runs via `node`.)
+10. **No test runner wired up.** `source/test/*.ts` was deleted in v2.1.6
+   (4 files, 699 lines, never invoked by any npm script; `mcp-tool-tester.ts`
+   even still used WebSocket which P1 retired). Smoke / live testing now
+   lives in `scripts/`:
+   - `scripts/smoke-mcp-sdk.js` — SDK server endpoints with a stub
+     registry; manual `node` run; covers init / list / call success /
+     call failure / REST short-circuit.
+   - `scripts/live-test.js` — exercises representative tools per category
+     against the live editor extension at `:3000`; wraps writes in
+     try/finally so editor state restores on exit. Manual.
+   - `scripts/measure-tool-tokens.js` — P2 token measurement; rerun for
+     regression checks against current schema vs router-A/B simulations.
+   When adding new test coverage, prefer scripts under `scripts/` over
+   re-introducing `source/test/`.
 11. **Scene-script `arr.push` / `arr.splice` is NOT auto-persistent through
    `save_scene`** (verified 2026-05-01). The editor maintains two state
    layers: (a) the *runtime* cc.Node graph that scene-script mutates via
@@ -246,6 +257,40 @@ token cost is measured.
    would re-introduce the bug where disabled components get nudged back
    to `enabled: true` because the flat shape silently fell through to
    the nested-shape default.
+
+   **Scalar property writes do NOT need the nudge** (verified v2.1.5).
+   `set-property` on `__comps__.<idx>.<scalar>` paths (e.g. `layer`,
+   `sizeMode`, `cameraComponent`, simple primitive props) propagates to
+   the serialization model immediately, no nudge required. The nudge
+   pattern is specifically for **array-element insert / splice** done
+   from scene-script. Don't blanket-apply `nudgeEditorModel` to every
+   write — it's only required when the layer (a) mutation is an array
+   length change that the editor's set-property channel didn't see.
+
+12. **Asset-DB write channels can pop a confirmation dialog and ignore
+   your `overwrite` flag** (verified v2.1.5 via `save_scene_as`). The
+   `asset-db: copy-asset` / `move-asset` / `create-asset` channels each
+   detect target collisions internally; on collision, cocos pops a
+   *native confirm dialog* and **blocks the IPC reply until the user
+   clicks**, regardless of whatever `overwrite: false / true` you passed.
+   This was the root cause of the v2.1.4 `save_scene_as` >15s timeout
+   (user not at the keyboard → never confirmed → tool hung).
+
+   Mitigation pattern: **pre-check uuid collision from host side** before
+   issuing the write. `save_scene_as` (commit `d36221e`) is the canonical
+   example:
+
+   ```ts
+   const targetUuid = await Editor.Message.request('asset-db', 'query-uuid', targetUrl);
+   if (targetUuid && !args.overwrite) return error('target exists');
+   if (targetUuid && args.overwrite) await deleteAsset(targetUuid);
+   await Editor.Message.request('asset-db', 'copy-asset', { src, target });
+   ```
+
+   Apply the same pre-check to any new tool that wraps `copy-asset` /
+   `move-asset` / `create-asset`. Don't trust the channel's own
+   `overwrite` parameter — it's a no-op against the dialog. Always
+   explicit-delete-then-write or fail-fast on collision from your code.
 
 ## Conventions
 
