@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -175,7 +175,14 @@
                 "setComponentProperty",
                 "getCurrentSceneInfo",
                 "getSceneHierarchy",
-                "createPrefabFromNode"
+                "createPrefabFromNode",
+                "applyPrefab",
+                "linkPrefab",
+                "unlinkPrefab",
+                "getPrefabData",
+                "addEventHandler",
+                "removeEventHandler",
+                "listEventHandlers"
             ]
         }
     }

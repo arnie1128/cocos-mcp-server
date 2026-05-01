@@ -1,5 +1,69 @@
 # Changelog
 
+## v2.1.0 — 2026-05-01
+
+P4 partial parity with the announced upstream v1.5.0 spec, scoped to the
+items that map cleanly to official Cocos editor APIs. Detailed feasibility
+audit lives at `docs/analysis/v15-feasibility.md`.
+
+### New tools (157 → 163)
+
+- **Prefab facade** (T-P4-3): `prefab_link_prefab`, `prefab_unlink_prefab`,
+  `prefab_get_prefab_data`. `prefab_update_prefab` (apply) no longer
+  fail-loudly — it now routes through the scene facade
+  (`cce.SceneFacade.applyPrefab`) via `execute-scene-script`.
+  `prefab_create_prefab` tries `cce.Prefab.createPrefab` first and only
+  falls back to the legacy hand-rolled JSON path if the facade is
+  unavailable.
+- **EventHandler binding** (T-P4-1): `component_add_event_handler`,
+  `component_remove_event_handler`, `component_list_event_handlers`.
+  Defaults tuned for `cc.Button.clickEvents` but
+  `componentType` / `eventArrayProperty` are configurable for
+  `cc.Toggle.checkEvents`, ScrollView, etc. Sets both `component` and
+  `_componentName` on the EventHandler to dodge cocos-engine#16517.
+
+### Internals
+
+- New helper `source/lib/scene-bridge.ts` (`runSceneMethod` /
+  `runSceneMethodAsToolResponse`) so any tool category can reach engine
+  APIs through the scene-script bridge with a single typed call.
+- `source/scene.ts`: 11 → 18 exposed methods; new methods registered in
+  `package.json contributions.scene.methods` whitelist.
+- `source/panels/default/index.ts` refactored into composables (T-P4-2):
+  `useServerStatus`, `useSettings`, `useToolConfig`. Panel entry shrank
+  from 384 → 80 lines and now routes log output through `logger` instead
+  of raw `console.log`. Panel-side `setDebugLogEnabled` is wired so the
+  panel toggle controls panel-process debug output.
+
+### Documentation
+
+- `docs/analysis/v15-feasibility.md` (new): per-promise mapping of v1.5.0
+  README items to their authoritative cocos-docs / `@cocos/creator-types`
+  paths. Pre-records pending real-editor verification items so future
+  sessions don't re-investigate.
+- `docs/roadmap/05-v15-spec-parity.md` rewritten with T-P4-3 added and
+  T-P4-2 narrowed.
+- `docs/HANDOFF.md`, `docs/analysis/upstream-status.md`,
+  `docs/roadmap/README.md`, `docs/README.md`, `CLAUDE.md` synced.
+
+### Pending real-editor verification
+
+The new code compiles and the offline smoke test passes, but several
+behaviours need a Cocos Creator instance to confirm. They are not blockers
+for the release but should be ticked off when convenient:
+
+- `cce.Prefab.createPrefab` url shape (`db://...` vs absolute path).
+- Whether `applyPrefab` triggers asset-db re-import on its own.
+- Which of `cce.Prefab` / `cce.SceneFacadeManager.instance` /
+  `cce.SceneFacadeManager` resolves the facade on the user's editor build.
+- `cc.EventHandler` import on the scene-script side.
+- `Editor.Message.send('scene', 'snapshot')` vs `save-scene` for
+  EventHandler persistence.
+- Whether the `_componentName` workaround for cocos-engine#16517 is
+  actually needed on the user's editor build.
+
+---
+
 ## v2.0.0 — 2026-05-01
 
 First major release of this fork. Diverges from upstream LiDaxian/cocos-mcp-server@v1.4.0
