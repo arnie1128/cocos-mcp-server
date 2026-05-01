@@ -32,32 +32,32 @@ type LayerPreset = keyof typeof LAYER_PRESETS;
 const transformPositionSchema = z.object({
     x: z.number().optional(),
     y: z.number().optional(),
-    z: z.number().optional().describe('Z coordinate (ignored for 2D nodes)'),
+    z: z.number().optional().describe('Z coordinate. Ignored/normalized for 2D nodes.'),
 });
 
 const transformRotationSchema = z.object({
-    x: z.number().optional().describe('X rotation (ignored for 2D nodes)'),
-    y: z.number().optional().describe('Y rotation (ignored for 2D nodes)'),
-    z: z.number().optional().describe('Z rotation (main rotation axis for 2D nodes)'),
+    x: z.number().optional().describe('X euler rotation. Ignored/normalized for 2D nodes.'),
+    y: z.number().optional().describe('Y euler rotation. Ignored/normalized for 2D nodes.'),
+    z: z.number().optional().describe('Z euler rotation. Main rotation axis for 2D nodes.'),
 });
 
 const transformScaleSchema = z.object({
     x: z.number().optional(),
     y: z.number().optional(),
-    z: z.number().optional().describe('Z scale (usually 1 for 2D nodes)'),
+    z: z.number().optional().describe('Z scale. Usually 1 for 2D nodes.'),
 });
 
 const nodeSchemas = {
     create_node: z.object({
-        name: z.string().describe('Node name'),
-        parentUuid: z.string().optional().describe('Parent node UUID. STRONGLY RECOMMENDED: Always provide this parameter. Use get_current_scene or get_all_nodes to find parent UUIDs. If not provided, node will be created at scene root.'),
-        nodeType: z.enum(['Node', '2DNode', '3DNode']).default('Node').describe('Node type: Node, 2DNode, 3DNode'),
-        siblingIndex: z.number().default(-1).describe('Sibling index for ordering (-1 means append at end)'),
-        assetUuid: z.string().optional().describe('Asset UUID to instantiate from (e.g., prefab UUID). When provided, creates a node instance from the asset instead of an empty node.'),
-        assetPath: z.string().optional().describe('Asset path to instantiate from (e.g., "db://assets/prefabs/MyPrefab.prefab"). Alternative to assetUuid.'),
-        components: z.array(z.string()).optional().describe('Array of component type names to add to the new node (e.g., ["cc.Sprite", "cc.Button"])'),
-        unlinkPrefab: z.boolean().default(false).describe('If true and creating from prefab, unlink from prefab to create a regular node'),
-        keepWorldTransform: z.boolean().default(false).describe('Whether to keep world transform when creating the node'),
+        name: z.string().describe('New node name. The response returns the created UUID.'),
+        parentUuid: z.string().optional().describe('Parent node UUID. Strongly recommended; omit only when creating at scene root.'),
+        nodeType: z.enum(['Node', '2DNode', '3DNode']).default('Node').describe('Empty-node type hint. Usually unnecessary when instantiating from assetUuid/assetPath.'),
+        siblingIndex: z.number().default(-1).describe('Sibling index under the parent. -1 means append.'),
+        assetUuid: z.string().optional().describe('Asset UUID to instantiate from, e.g. prefab UUID. Creates an asset instance instead of an empty node.'),
+        assetPath: z.string().optional().describe('db:// asset path to instantiate from. Alternative to assetUuid; resolved before create-node.'),
+        components: z.array(z.string()).optional().describe('Component types to add after creation, e.g. ["cc.Sprite","cc.Button"].'),
+        unlinkPrefab: z.boolean().default(false).describe('When instantiating a prefab, immediately unlink it into a regular node. Default false preserves prefab link.'),
+        keepWorldTransform: z.boolean().default(false).describe('Preserve world transform while parenting/creating when Cocos supports it.'),
         layer: z.union([
             z.enum(['DEFAULT', 'UI_2D', 'UI_3D', 'SCENE_GIZMO', 'EDITOR', 'GIZMOS', 'IGNORE_RAYCAST', 'PROFILER']),
             z.number().int().nonnegative(),
@@ -66,59 +66,59 @@ const nodeSchemas = {
             position: vec3Schema.optional(),
             rotation: vec3Schema.optional(),
             scale: vec3Schema.optional(),
-        }).optional().describe('Initial transform to apply to the created node'),
+        }).optional().describe('Initial transform applied after create-node via set_node_transform.'),
     }),
     get_node_info: z.object({
-        uuid: z.string().describe('Node UUID'),
+        uuid: z.string().describe('Node UUID to inspect.'),
     }),
     find_nodes: z.object({
-        pattern: z.string().describe('Name pattern to search'),
-        exactMatch: z.boolean().default(false).describe('Exact match or partial match'),
+        pattern: z.string().describe('Node name search pattern. Partial match unless exactMatch=true.'),
+        exactMatch: z.boolean().default(false).describe('Require exact node name match. Default false.'),
     }),
     find_node_by_name: z.object({
-        name: z.string().describe('Node name to find'),
+        name: z.string().describe('Exact node name to find. Returns the first match only.'),
     }),
     get_all_nodes: z.object({}),
     set_node_property: z.object({
-        uuid: z.string().describe('Node UUID'),
-        property: z.string().describe('Property name (e.g., active, name, layer)'),
-        value: z.any().describe('Property value'),
+        uuid: z.string().describe('Node UUID to modify.'),
+        property: z.string().describe('Node property path, e.g. active, name, layer. Prefer set_node_transform for position/rotation/scale.'),
+        value: z.any().describe('Value to write; must match the Cocos dump shape for the property path.'),
     }),
     set_node_transform: z.object({
-        uuid: z.string().describe('Node UUID'),
-        position: transformPositionSchema.optional().describe('Node position. For 2D nodes, only x,y are used; z is ignored. For 3D nodes, all coordinates are used.'),
-        rotation: transformRotationSchema.optional().describe('Node rotation in euler angles. For 2D nodes, only z rotation is used. For 3D nodes, all axes are used.'),
-        scale: transformScaleSchema.optional().describe('Node scale. For 2D nodes, z is typically 1. For 3D nodes, all axes are used.'),
+        uuid: z.string().describe('Node UUID whose transform should be changed.'),
+        position: transformPositionSchema.optional().describe('Local position. 2D nodes mainly use x/y; 3D nodes use x/y/z.'),
+        rotation: transformRotationSchema.optional().describe('Local euler rotation. 2D nodes mainly use z; 3D nodes use x/y/z.'),
+        scale: transformScaleSchema.optional().describe('Local scale. 2D nodes mainly use x/y and usually keep z=1.'),
     }),
     delete_node: z.object({
-        uuid: z.string().describe('Node UUID to delete'),
+        uuid: z.string().describe('Node UUID to delete. Children are removed with the node.'),
     }),
     move_node: z.object({
-        nodeUuid: z.string().describe('Node UUID to move'),
-        newParentUuid: z.string().describe('New parent node UUID'),
-        siblingIndex: z.number().default(-1).describe('Sibling index in new parent'),
+        nodeUuid: z.string().describe('Node UUID to reparent.'),
+        newParentUuid: z.string().describe('New parent node UUID.'),
+        siblingIndex: z.number().default(-1).describe('Sibling index under the new parent. Currently advisory; move uses set-parent.'),
     }),
     duplicate_node: z.object({
-        uuid: z.string().describe('Node UUID to duplicate'),
-        includeChildren: z.boolean().default(true).describe('Include children nodes'),
+        uuid: z.string().describe('Node UUID to duplicate.'),
+        includeChildren: z.boolean().default(true).describe('Whether children should be included; actual behavior follows Cocos duplicate-node.'),
     }),
     detect_node_type: z.object({
-        uuid: z.string().describe('Node UUID to analyze'),
+        uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
     }),
 } as const;
 
 const nodeToolMeta: Record<keyof typeof nodeSchemas, string> = {
-    create_node: 'Create a new node in the scene. Supports creating empty nodes, nodes with components, or instantiating from assets (prefabs, etc.). IMPORTANT: You should always provide parentUuid to specify where to create the node.',
-    get_node_info: 'Get node information by UUID',
-    find_nodes: 'Find nodes by name pattern',
-    find_node_by_name: 'Find first node by exact name',
-    get_all_nodes: 'Get all nodes in the scene with their UUIDs',
-    set_node_property: 'Set node property value (prefer using set_node_transform for active/layer/mobility/position/rotation/scale)',
-    set_node_transform: 'Set node transform properties (position, rotation, scale) with unified interface. Automatically handles 2D/3D node differences.',
-    delete_node: 'Delete a node from scene',
-    move_node: 'Move node to new parent',
-    duplicate_node: 'Duplicate a node',
-    detect_node_type: 'Detect if a node is 2D or 3D based on its components and properties',
+    create_node: 'Create a node in current scene; supports empty, components, or prefab/asset instance. Provide parentUuid for predictable placement.',
+    get_node_info: 'Read one node by UUID, including transform, children, and component summary. No mutation.',
+    find_nodes: 'Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
+    find_node_by_name: 'Find the first node with an exact name. No mutation; only safe when the name is unique enough.',
+    get_all_nodes: 'List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
+    set_node_property: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale.',
+    set_node_transform: 'Write position/rotation/scale with 2D/3D normalization; mutates scene.',
+    delete_node: 'Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
+    move_node: 'Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.',
+    duplicate_node: 'Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.',
+    detect_node_type: 'Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.',
 };
 
 export class NodeTools implements ToolExecutor {

@@ -7,41 +7,41 @@ import * as path from 'path';
 const debugSchemas = {
     clear_console: z.object({}),
     execute_script: z.object({
-        script: z.string().describe('JavaScript code to execute'),
+        script: z.string().describe('JavaScript to execute in scene context via console/eval. Can read or mutate the current scene.'),
     }),
     get_node_tree: z.object({
-        rootUuid: z.string().optional().describe('Root node UUID (optional, uses scene root if not provided)'),
-        maxDepth: z.number().default(10).describe('Maximum tree depth'),
+        rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
+        maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
     }),
     get_performance_stats: z.object({}),
     validate_scene: z.object({
-        checkMissingAssets: z.boolean().default(true).describe('Check for missing asset references'),
-        checkPerformance: z.boolean().default(true).describe('Check for performance issues'),
+        checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
+        checkPerformance: z.boolean().default(true).describe('Run basic performance checks such as high node count warnings.'),
     }),
     get_editor_info: z.object({}),
     get_project_logs: z.object({
-        lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of the log file (default: 100)'),
-        filterKeyword: z.string().optional().describe('Filter logs containing specific keyword (optional)'),
-        logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Filter by log level'),
+        lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of temp/logs/project.log. Default 100.'),
+        filterKeyword: z.string().optional().describe('Optional case-insensitive keyword filter.'),
+        logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Optional log level filter. ALL disables level filtering.'),
     }),
     get_log_file_info: z.object({}),
     search_project_logs: z.object({
-        pattern: z.string().describe('Search pattern (supports regex)'),
-        maxResults: z.number().min(1).max(100).default(20).describe('Maximum number of matching results'),
-        contextLines: z.number().min(0).max(10).default(2).describe('Number of context lines to show around each match'),
+        pattern: z.string().describe('Search string or regex. Invalid regex is treated as a literal string.'),
+        maxResults: z.number().min(1).max(100).default(20).describe('Maximum matches to return. Default 20.'),
+        contextLines: z.number().min(0).max(10).default(2).describe('Context lines before/after each match. Default 2.'),
     }),
 } as const;
 
 const debugToolMeta: Record<keyof typeof debugSchemas, string> = {
-    clear_console: 'Clear editor console',
-    execute_script: 'Execute JavaScript in scene context',
-    get_node_tree: 'Get detailed node tree for debugging',
-    get_performance_stats: 'Get performance statistics',
-    validate_scene: 'Validate current scene for issues',
-    get_editor_info: 'Get editor and environment information',
-    get_project_logs: 'Get project logs from temp/logs/project.log file',
-    get_log_file_info: 'Get information about the project log file',
-    search_project_logs: 'Search for specific patterns or errors in project logs',
+    clear_console: 'Clear the Cocos Editor Console UI. No project side effects.',
+    execute_script: 'Execute arbitrary JavaScript in scene context; can mutate the current scene.',
+    get_node_tree: 'Read a debug node tree from a root or scene root for hierarchy/component inspection.',
+    get_performance_stats: 'Try to read scene query-performance stats; may return unavailable in edit mode.',
+    validate_scene: 'Run basic current-scene health checks for missing assets and node-count warnings.',
+    get_editor_info: 'Read Editor/Cocos/project/process information and memory summary.',
+    get_project_logs: 'Read temp/logs/project.log tail with optional level/keyword filters.',
+    get_log_file_info: 'Read temp/logs/project.log path, size, line count, and timestamps.',
+    search_project_logs: 'Search temp/logs/project.log for string/regex and return line context.',
 };
 
 export class DebugTools implements ToolExecutor {

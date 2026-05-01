@@ -4,25 +4,25 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const broadcastSchemas = {
     get_broadcast_log: z.object({
-        limit: z.number().default(50).describe('Number of recent messages to return'),
-        messageType: z.string().optional().describe('Filter by message type (optional)'),
+        limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
+        messageType: z.string().optional().describe('Optional broadcast type filter, e.g. scene:ready or asset-db:asset-change.'),
     }),
     listen_broadcast: z.object({
-        messageType: z.string().describe('Message type to listen for'),
+        messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
     }),
     stop_listening: z.object({
-        messageType: z.string().describe('Message type to stop listening for'),
+        messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
     }),
     clear_broadcast_log: z.object({}),
     get_active_listeners: z.object({}),
 } as const;
 
 const broadcastToolMeta: Record<keyof typeof broadcastSchemas, string> = {
-    get_broadcast_log: 'Get recent broadcast messages log',
-    listen_broadcast: 'Start listening for specific broadcast messages',
-    stop_listening: 'Stop listening for specific broadcast messages',
-    clear_broadcast_log: 'Clear the broadcast messages log',
-    get_active_listeners: 'Get list of active broadcast listeners',
+    get_broadcast_log: 'Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
+    listen_broadcast: 'Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
+    stop_listening: 'Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
+    clear_broadcast_log: 'Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
+    get_active_listeners: 'List extension-local broadcast listener types and counts for diagnostics.',
 };
 
 export class BroadcastTools implements ToolExecutor {

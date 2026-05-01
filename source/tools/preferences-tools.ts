@@ -3,41 +3,41 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const preferencesSchemas = {
     open_preferences_settings: z.object({
-        tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open (optional)'),
-        args: z.array(z.any()).optional().describe('Additional arguments to pass to the tab'),
+        tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open. Omit for the default settings panel.'),
+        args: z.array(z.any()).optional().describe('Extra tab arguments; normally unnecessary.'),
     }),
     query_preferences_config: z.object({
-        name: z.string().default('general').describe('Plugin or category name'),
-        path: z.string().optional().describe('Configuration path (optional)'),
-        type: z.enum(['default', 'global', 'local']).default('global').describe('Configuration type'),
+        name: z.string().default('general').describe('Preferences category or extension/plugin name. Default general.'),
+        path: z.string().optional().describe('Optional config path. Omit to read the whole category.'),
+        type: z.enum(['default', 'global', 'local']).default('global').describe('Config source: default, global, or project-local.'),
     }),
     set_preferences_config: z.object({
-        name: z.string().describe('Plugin name'),
-        path: z.string().describe('Configuration path'),
-        value: z.any().describe('Configuration value'),
-        type: z.enum(['default', 'global', 'local']).default('global').describe('Configuration type'),
+        name: z.string().describe('Preferences category or extension/plugin name to modify.'),
+        path: z.string().describe('Exact config path to modify. Query first if unsure.'),
+        value: z.any().describe('Value to write; must match the target preference field shape.'),
+        type: z.enum(['default', 'global', 'local']).default('global').describe('Write target. Prefer global or local; avoid default unless intentional.'),
     }),
     get_all_preferences: z.object({}),
     reset_preferences: z.object({
-        name: z.string().optional().describe('Specific preference category to reset (optional)'),
-        type: z.enum(['global', 'local']).default('global').describe('Configuration type to reset'),
+        name: z.string().optional().describe('Single preference category to reset. Resetting all categories is not supported.'),
+        type: z.enum(['global', 'local']).default('global').describe('Config scope to reset. Default global.'),
     }),
     export_preferences: z.object({
-        exportPath: z.string().optional().describe('Path to export preferences file (optional)'),
+        exportPath: z.string().optional().describe('Label for the returned export path. Current implementation returns JSON data only; it does not write a file.'),
     }),
     import_preferences: z.object({
-        importPath: z.string().describe('Path to import preferences file from'),
+        importPath: z.string().describe('Preferences file path to import. Current implementation reports unsupported and does not modify settings.'),
     }),
 } as const;
 
 const preferencesToolMeta: Record<keyof typeof preferencesSchemas, string> = {
-    open_preferences_settings: 'Open preferences settings panel',
-    query_preferences_config: 'Query preferences configuration',
-    set_preferences_config: 'Set preferences configuration',
-    get_all_preferences: 'Get all available preferences categories',
-    reset_preferences: 'Reset preferences to default values',
-    export_preferences: 'Export current preferences configuration',
-    import_preferences: 'Import preferences configuration from file',
+    open_preferences_settings: 'Open Cocos Preferences UI, optionally on a tab; UI side effect only.',
+    query_preferences_config: 'Read a Preferences config category/path/type; query before setting values.',
+    set_preferences_config: 'Write a Preferences config value; mutates Cocos global/local settings.',
+    get_all_preferences: 'Read common Preferences categories; may not include every extension category.',
+    reset_preferences: 'Reset one Preferences category to defaults; all-category reset is unsupported.',
+    export_preferences: 'Return readable Preferences as JSON data; does not write a file.',
+    import_preferences: 'Unsupported Preferences import placeholder; never modifies settings.',
 };
 
 export class PreferencesTools implements ToolExecutor {

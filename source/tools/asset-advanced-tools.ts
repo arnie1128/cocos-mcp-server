@@ -3,61 +3,61 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const assetAdvancedSchemas = {
     save_asset_meta: z.object({
-        urlOrUUID: z.string().describe('Asset URL or UUID'),
-        content: z.string().describe('Asset meta serialized content string'),
+        urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
+        content: z.string().describe('Serialized asset meta content string to write.'),
     }),
     generate_available_url: z.object({
-        url: z.string().describe('Asset URL to generate available URL for'),
+        url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
     }),
     query_asset_db_ready: z.object({}),
     open_asset_external: z.object({
-        urlOrUUID: z.string().describe('Asset URL or UUID to open'),
+        urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
     }),
     batch_import_assets: z.object({
-        sourceDirectory: z.string().describe('Source directory path'),
-        targetDirectory: z.string().describe('Target directory URL'),
-        fileFilter: z.array(z.string()).default([]).describe('File extensions to include (e.g., [".png", ".jpg"])'),
-        recursive: z.boolean().default(false).describe('Include subdirectories'),
-        overwrite: z.boolean().default(false).describe('Overwrite existing files'),
+        sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
+        targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
+        fileFilter: z.array(z.string()).default([]).describe('Allowed file extensions, e.g. [".png",".jpg"]. Empty means all files.'),
+        recursive: z.boolean().default(false).describe('Include files from subdirectories.'),
+        overwrite: z.boolean().default(false).describe('Overwrite existing target assets instead of auto-renaming.'),
     }),
     batch_delete_assets: z.object({
-        urls: z.array(z.string()).describe('Array of asset URLs to delete'),
+        urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
     }),
     validate_asset_references: z.object({
-        directory: z.string().default('db://assets').describe('Directory to validate (default: entire project)'),
+        directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
     }),
     get_asset_dependencies: z.object({
-        urlOrUUID: z.string().describe('Asset URL or UUID'),
-        direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction'),
+        urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
+        direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
     }),
     get_unused_assets: z.object({
-        directory: z.string().default('db://assets').describe('Directory to scan (default: entire project)'),
-        excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from scan'),
+        directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
+        excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
     }),
     compress_textures: z.object({
-        directory: z.string().default('db://assets').describe('Directory containing textures'),
-        format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Compression format'),
-        quality: z.number().min(0.1).max(1.0).default(0.8).describe('Compression quality (0.1-1.0)'),
+        directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
+        format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
+        quality: z.number().min(0.1).max(1.0).default(0.8).describe('Requested compression quality from 0.1 to 1.0. Current implementation reports unsupported.'),
     }),
     export_asset_manifest: z.object({
-        directory: z.string().default('db://assets').describe('Directory to export manifest for'),
-        format: z.enum(['json', 'csv', 'xml']).default('json').describe('Export format'),
-        includeMetadata: z.boolean().default(true).describe('Include asset metadata'),
+        directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
+        format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
+        includeMetadata: z.boolean().default(true).describe('Try to include asset metadata when available.'),
     }),
 } as const;
 
 const assetAdvancedToolMeta: Record<keyof typeof assetAdvancedSchemas, string> = {
-    save_asset_meta: 'Save asset meta information',
-    generate_available_url: 'Generate an available URL based on input URL',
-    query_asset_db_ready: 'Check if asset database is ready',
-    open_asset_external: 'Open asset with external program',
-    batch_import_assets: 'Import multiple assets in batch',
-    batch_delete_assets: 'Delete multiple assets in batch',
-    validate_asset_references: 'Validate asset references and find broken links',
-    get_asset_dependencies: 'Get asset dependency tree',
-    get_unused_assets: 'Find unused assets in project',
-    compress_textures: 'Batch compress texture assets',
-    export_asset_manifest: 'Export asset manifest/inventory',
+    save_asset_meta: 'Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
+    generate_available_url: 'Return a collision-free asset URL derived from the requested URL.',
+    query_asset_db_ready: 'Check whether asset-db reports ready before batch operations.',
+    open_asset_external: 'Open an asset through the editor/OS external handler; does not edit content.',
+    batch_import_assets: 'Import files from a disk directory into asset-db; mutates project assets.',
+    batch_delete_assets: 'Delete multiple asset-db URLs; mutates project assets.',
+    validate_asset_references: 'Lightly scan assets under a directory for broken asset-info references.',
+    get_asset_dependencies: 'Unsupported dependency-analysis placeholder; always reports unsupported.',
+    get_unused_assets: 'Unsupported unused-asset placeholder; always reports unsupported.',
+    compress_textures: 'Unsupported texture-compression placeholder; always reports unsupported.',
+    export_asset_manifest: 'Return asset inventory for a directory as json/csv/xml text; does not write a file.',
 };
 
 export class AssetAdvancedTools implements ToolExecutor {

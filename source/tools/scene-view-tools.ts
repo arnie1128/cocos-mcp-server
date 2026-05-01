@@ -3,36 +3,36 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const sceneViewSchemas = {
     change_gizmo_tool: z.object({
-        name: z.enum(['position', 'rotation', 'scale', 'rect']).describe('Tool name'),
+        name: z.enum(['position', 'rotation', 'scale', 'rect']).describe('Scene view gizmo tool to activate.'),
     }),
     query_gizmo_tool_name: z.object({}),
     change_gizmo_pivot: z.object({
-        name: z.enum(['pivot', 'center']).describe('Pivot point'),
+        name: z.enum(['pivot', 'center']).describe('Transform pivot mode: pivot or center.'),
     }),
     query_gizmo_pivot: z.object({}),
     query_gizmo_view_mode: z.object({}),
     change_gizmo_coordinate: z.object({
-        type: z.enum(['local', 'global']).describe('Coordinate system'),
+        type: z.enum(['local', 'global']).describe('Transform coordinate system for the scene view gizmo.'),
     }),
     query_gizmo_coordinate: z.object({}),
     change_view_mode_2d_3d: z.object({
-        is2D: z.boolean().describe('2D/3D view mode (true for 2D, false for 3D)'),
+        is2D: z.boolean().describe('true switches scene view to 2D mode; false switches to 3D mode.'),
     }),
     query_view_mode_2d_3d: z.object({}),
     set_grid_visible: z.object({
-        visible: z.boolean().describe('Grid visibility'),
+        visible: z.boolean().describe('Whether the scene view grid should be visible.'),
     }),
     query_grid_visible: z.object({}),
     set_icon_gizmo_3d: z.object({
-        is3D: z.boolean().describe('3D/2D IconGizmo (true for 3D, false for 2D)'),
+        is3D: z.boolean().describe('true sets IconGizmo to 3D mode; false sets 2D mode.'),
     }),
     query_icon_gizmo_3d: z.object({}),
     set_icon_gizmo_size: z.object({
-        size: z.number().min(10).max(100).describe('IconGizmo size'),
+        size: z.number().min(10).max(100).describe('IconGizmo size from 10 to 100.'),
     }),
     query_icon_gizmo_size: z.object({}),
     focus_camera_on_nodes: z.object({
-        uuids: z.array(z.string()).nullable().describe('Node UUIDs to focus on (null for all)'),
+        uuids: z.array(z.string()).nullable().describe('Node UUIDs to focus the scene camera on. null focuses all nodes.'),
     }),
     align_camera_with_view: z.object({}),
     align_view_with_node: z.object({}),
@@ -41,26 +41,26 @@ const sceneViewSchemas = {
 } as const;
 
 const sceneViewToolMeta: Record<keyof typeof sceneViewSchemas, string> = {
-    change_gizmo_tool: 'Change Gizmo tool',
-    query_gizmo_tool_name: 'Get current Gizmo tool name',
-    change_gizmo_pivot: 'Change transform pivot point',
-    query_gizmo_pivot: 'Get current Gizmo pivot point',
-    query_gizmo_view_mode: 'Query view mode (view/select)',
-    change_gizmo_coordinate: 'Change coordinate system',
-    query_gizmo_coordinate: 'Get current coordinate system',
-    change_view_mode_2d_3d: 'Change 2D/3D view mode',
-    query_view_mode_2d_3d: 'Get current view mode',
-    set_grid_visible: 'Show/hide grid',
-    query_grid_visible: 'Query grid visibility status',
-    set_icon_gizmo_3d: 'Set IconGizmo to 3D or 2D mode',
-    query_icon_gizmo_3d: 'Query IconGizmo mode',
-    set_icon_gizmo_size: 'Set IconGizmo size',
-    query_icon_gizmo_size: 'Query IconGizmo size',
-    focus_camera_on_nodes: 'Focus scene camera on nodes',
-    align_camera_with_view: 'Apply scene camera position and angle to selected node',
-    align_view_with_node: 'Apply selected node position and angle to current view',
-    get_scene_view_status: 'Get comprehensive scene view status',
-    reset_scene_view: 'Reset scene view to default settings',
+    change_gizmo_tool: 'Change active scene view gizmo tool; UI side effect only.',
+    query_gizmo_tool_name: 'Read active scene view gizmo tool.',
+    change_gizmo_pivot: 'Change scene view transform pivot mode; UI side effect only.',
+    query_gizmo_pivot: 'Read current scene view pivot mode.',
+    query_gizmo_view_mode: 'Read current scene view/select mode.',
+    change_gizmo_coordinate: 'Change scene view coordinate system to local/global; UI side effect only.',
+    query_gizmo_coordinate: 'Read current scene view coordinate system.',
+    change_view_mode_2d_3d: 'Switch scene view between 2D and 3D; UI side effect only.',
+    query_view_mode_2d_3d: 'Read whether scene view is in 2D or 3D mode.',
+    set_grid_visible: 'Show or hide scene view grid; UI side effect only.',
+    query_grid_visible: 'Read scene view grid visibility.',
+    set_icon_gizmo_3d: 'Switch IconGizmo between 3D and 2D mode; UI side effect only.',
+    query_icon_gizmo_3d: 'Read current IconGizmo 3D/2D mode.',
+    set_icon_gizmo_size: 'Set IconGizmo display size; UI side effect only.',
+    query_icon_gizmo_size: 'Read current IconGizmo display size.',
+    focus_camera_on_nodes: 'Focus scene view camera on nodes or all nodes; camera UI side effect only.',
+    align_camera_with_view: 'Apply scene view camera transform to selected camera/node; may mutate selection.',
+    align_view_with_node: 'Align scene view to selected node; camera UI side effect only.',
+    get_scene_view_status: 'Read combined scene view status snapshot.',
+    reset_scene_view: 'Reset scene view UI settings to defaults; UI side effects only.',
 };
 
 export class SceneViewTools implements ToolExecutor {

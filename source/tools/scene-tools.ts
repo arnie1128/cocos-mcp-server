@@ -10,12 +10,12 @@ const sceneSchemas = {
     get_current_scene: z.object({}),
     get_scene_list: z.object({}),
     open_scene: z.object({
-        scenePath: z.string().describe('The scene file path'),
+        scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
     }),
     save_scene: z.object({}),
     create_scene: z.object({
-        sceneName: z.string().describe('Name of the new scene'),
-        savePath: z.string().describe('Path to save the scene (e.g., db://assets/scenes/NewScene.scene)'),
+        sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
+        savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
         template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
             'Built-in scaffolding for the new scene. ' +
             '"empty" (default): bare scene root only — current behavior. ' +
@@ -31,19 +31,19 @@ const sceneSchemas = {
     }),
     close_scene: z.object({}),
     get_scene_hierarchy: z.object({
-        includeComponents: z.boolean().default(false).describe('Include component information'),
+        includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
     }),
 } as const;
 
 const sceneToolMeta: Record<keyof typeof sceneSchemas, string> = {
-    get_current_scene: 'Get current scene information',
-    get_scene_list: 'Get all scenes in the project',
-    open_scene: 'Open a scene by path',
-    save_scene: 'Save current scene',
-    create_scene: 'Create a new scene asset',
-    save_scene_as: 'Save scene as new file',
-    close_scene: 'Close current scene',
-    get_scene_hierarchy: 'Get the complete hierarchy of current scene',
+    get_current_scene: 'Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID.',
+    get_scene_list: 'List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets.',
+    open_scene: 'Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
+    save_scene: 'Save the currently open scene back to its scene asset. Mutates the project file on disk.',
+    create_scene: 'Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
+    save_scene_as: 'Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
+    close_scene: 'Close the current scene. Editor state side effect; save first if unsaved changes matter.',
+    get_scene_hierarchy: 'Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries.',
 };
 
 export class SceneTools implements ToolExecutor {

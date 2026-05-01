@@ -3,50 +3,50 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const referenceImageSchemas = {
     add_reference_image: z.object({
-        paths: z.array(z.string()).describe('Array of reference image absolute paths'),
+        paths: z.array(z.string()).describe('Absolute image file paths to add as scene reference images.'),
     }),
     remove_reference_image: z.object({
-        paths: z.array(z.string()).optional().describe('Array of reference image paths to remove (optional, removes current if empty)'),
+        paths: z.array(z.string()).optional().describe('Reference image paths to remove. Omit/empty removes the current image.'),
     }),
     switch_reference_image: z.object({
-        path: z.string().describe('Reference image absolute path'),
-        sceneUUID: z.string().optional().describe('Specific scene UUID (optional)'),
+        path: z.string().describe('Absolute reference image path to make current.'),
+        sceneUUID: z.string().optional().describe('Optional scene UUID scope for the switch.'),
     }),
     set_reference_image_data: z.object({
-        key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).describe('Property key'),
-        value: z.any().describe('Property value (path: string, x/y/sx/sy: number, opacity: number 0-1)'),
+        key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).describe('Reference image property key to set.'),
+        value: z.any().describe('Property value: path string, x/y/sx/sy number, or opacity 0-1.'),
     }),
     query_reference_image_config: z.object({}),
     query_current_reference_image: z.object({}),
     refresh_reference_image: z.object({}),
     set_reference_image_position: z.object({
-        x: z.number().describe('X offset'),
-        y: z.number().describe('Y offset'),
+        x: z.number().describe('Reference image X offset.'),
+        y: z.number().describe('Reference image Y offset.'),
     }),
     set_reference_image_scale: z.object({
-        sx: z.number().min(0.1).max(10).describe('X scale'),
-        sy: z.number().min(0.1).max(10).describe('Y scale'),
+        sx: z.number().min(0.1).max(10).describe('Reference image X scale, 0.1-10.'),
+        sy: z.number().min(0.1).max(10).describe('Reference image Y scale, 0.1-10.'),
     }),
     set_reference_image_opacity: z.object({
-        opacity: z.number().min(0).max(1).describe('Opacity (0.0 to 1.0)'),
+        opacity: z.number().min(0).max(1).describe('Reference image opacity from 0.0 to 1.0.'),
     }),
     list_reference_images: z.object({}),
     clear_all_reference_images: z.object({}),
 } as const;
 
 const referenceImageToolMeta: Record<keyof typeof referenceImageSchemas, string> = {
-    add_reference_image: 'Add reference image(s) to scene',
-    remove_reference_image: 'Remove reference image(s)',
-    switch_reference_image: 'Switch to specific reference image',
-    set_reference_image_data: 'Set reference image transform and display properties',
-    query_reference_image_config: 'Query reference image configuration',
-    query_current_reference_image: 'Query current reference image data',
-    refresh_reference_image: 'Refresh reference image display',
-    set_reference_image_position: 'Set reference image position',
-    set_reference_image_scale: 'Set reference image scale',
-    set_reference_image_opacity: 'Set reference image opacity',
-    list_reference_images: 'List all available reference images',
-    clear_all_reference_images: 'Clear all reference images',
+    add_reference_image: 'Add absolute image paths to the reference-image module; does not create assets.',
+    remove_reference_image: 'Remove specific reference images, or current image when paths are omitted.',
+    switch_reference_image: 'Switch active reference image by absolute path, optionally scoped to scene UUID.',
+    set_reference_image_data: 'Set one raw reference-image display property: path/x/y/sx/sy/opacity.',
+    query_reference_image_config: 'Read reference-image module configuration.',
+    query_current_reference_image: 'Read current reference-image state.',
+    refresh_reference_image: 'Refresh reference-image display without changing image data.',
+    set_reference_image_position: 'Set current reference image x/y offsets.',
+    set_reference_image_scale: 'Set current reference image x/y scale.',
+    set_reference_image_opacity: 'Set current reference image opacity.',
+    list_reference_images: 'Read reference-image config plus current image data.',
+    clear_all_reference_images: 'Remove reference images from the module; does not delete files/assets.',
 };
 
 export class ReferenceImageTools implements ToolExecutor {

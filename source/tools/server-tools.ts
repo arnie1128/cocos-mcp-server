@@ -7,18 +7,18 @@ const serverSchemas = {
     query_server_port: z.object({}),
     get_server_status: z.object({}),
     check_server_connectivity: z.object({
-        timeout: z.number().default(5000).describe('Timeout in milliseconds'),
+        timeout: z.number().default(5000).describe('Editor server response timeout in milliseconds. Default 5000.'),
     }),
     get_network_interfaces: z.object({}),
 } as const;
 
 const serverToolMeta: Record<keyof typeof serverSchemas, string> = {
-    query_server_ip_list: 'Query server IP list',
-    query_sorted_server_ip_list: 'Get sorted server IP list',
-    query_server_port: 'Query editor server current port',
-    get_server_status: 'Get comprehensive server status information',
-    check_server_connectivity: 'Check server connectivity and network status',
-    get_network_interfaces: 'Get available network interfaces',
+    query_server_ip_list: 'Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.',
+    query_sorted_server_ip_list: 'Read the Editor server IP list in preferred order. No project side effects.',
+    query_server_port: 'Read the current Cocos Editor server port. Does not start or stop any server.',
+    get_server_status: 'Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.',
+    check_server_connectivity: 'Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.',
+    get_network_interfaces: 'Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.',
 };
 
 export class ServerTools implements ToolExecutor {

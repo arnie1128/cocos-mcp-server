@@ -3,22 +3,22 @@ import { z, toInputSchema, validateArgs } from '../lib/schema';
 
 const validationSchemas = {
     validate_json_params: z.object({
-        jsonString: z.string().describe('JSON string to validate and fix'),
-        expectedSchema: z.object({}).passthrough().optional().describe('Expected parameter schema (optional)'),
+        jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
+        expectedSchema: z.object({}).passthrough().optional().describe('Optional simple JSON schema; checks only basic type and required fields.'),
     }),
     safe_string_value: z.object({
-        value: z.string().describe('String value to make safe'),
+        value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
     }),
     format_mcp_request: z.object({
-        toolName: z.string().describe('Tool name to call'),
-        arguments: z.object({}).passthrough().describe('Tool arguments'),
+        toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),
+        arguments: z.object({}).passthrough().describe('Arguments object for the target tool. This helper formats only; it does not execute the tool.'),
     }),
 } as const;
 
 const validationToolMeta: Record<keyof typeof validationSchemas, string> = {
-    validate_json_params: 'Validate and fix JSON parameters before sending to other tools',
-    safe_string_value: "Create a safe string value that won't cause JSON parsing issues",
-    format_mcp_request: 'Format a complete MCP request with proper JSON escaping',
+    validate_json_params: 'Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
+    safe_string_value: 'Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
+    format_mcp_request: 'Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
 };
 
 export class ValidationTools implements ToolExecutor {

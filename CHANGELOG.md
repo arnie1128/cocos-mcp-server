@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.1.7 — 2026-05-02
+
+B1 description sweep for the full 160-tool registry.
+
+### Documentation / metadata
+
+- Rewrote tool and parameter descriptions across all 14 categories to make
+  side effects, unsupported placeholders, preflight lookups, and similar-tool
+  differences clearer.
+- Regenerated `docs/tools.md` from the built registry.
+- Kept the sweep schema-only: no tool names, zod shapes, defaults, or runtime
+  behavior changed.
+
+### Verification
+
+- `npm.cmd run build`
+- `node scripts/generate-tools-doc.js`
+- `node scripts/smoke-mcp-sdk.js`
+- `node scripts/measure-tool-tokens.js`
+
+---
+
 ## v2.1.1 — 2026-05-01
 
 Real-editor verification of v2.1.0 P4 work surfaced four issues; this
