@@ -232,6 +232,43 @@ project + reload extension panel，`/health` 回 `tools: 170`。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
 
+### v2.5.1 reload 後實機測試紀錄
+
+**環境**：v2.5.1 已同步到 `cocos_cs_349/extensions/cocos-mcp-server`，
+Cocos Creator reload 後 `/health` 回 `tools: 181`，
+`serverInfo.version: "2.5.1"`，`capabilities.resources.subscribe: true`，
+`capabilities.prompts.listChanged: false`。
+
+| 測項 | 結果 |
+|---|---|
+| `/health` 181 tools / 18 categories | ✅ |
+| `serverInfo.version` = 2.5.1（round-1 fix #1 SERVER_VERSION） | ✅ |
+| `capabilities.resources.subscribe` = true | ✅ |
+| `capabilities.prompts.listChanged` = false | ✅ |
+| **A4 Prompts** — `prompts/list` 4 templates | ✅ |
+| **A4** `prompts/get fix_script_errors` 帶 baked project context（"Target Cocos project: cocos_cs_349 / Project path: D:\1_dev\cocos_cs\cocos_cs_349"） | ✅ |
+| **A4** `prompts/get` unknown name → JSON-RPC -32603（round-1 fix #3）| ✅ `Unknown prompt: ... Available: fix_script_errors, ...` |
+| **T-V25-1 fileEditor** `query_text` 偵測 `eol:CRLF` | ✅ |
+| **T-V25-1** `insert_text` 寫入後實際 disk bytes 仍為 CRLF（round-1 fix #7）| ✅ `od -c` 確認 |
+| **T-V25-1** empty search 在 zod 層 reject（round-1 fix #5） | ✅ `Invalid arguments: search: search must be non-empty` |
+| **T-V25-1** regex backreference `$1` 展開（round-1 fix #4）| ✅ `(\w+) line` → `[first]/[second]/[third]` 3 replacements |
+| **T-V25-1** regex DoS guard — 1.5 MB 檔在 regex mode reject（round-1 fix #6）| ✅ `regex mode refuses files > 1048576 bytes` |
+| **T-V25-1** plain mode 5MB cap — 1.5MB query_text 通過 | ✅ |
+| **T-V25-1** path-safety — 真存在的 outside-project 檔（C:/Windows/.../hosts）reject | ✅ `resolves outside the project root (symlink-aware check)` |
+| **T-V25-1** delete_lines past EOF reject | ✅ `range 100-200 is past EOF (file has 6 lines)` |
+| **T-V25-3 Notifications** subscribe `cocos://scene/hierarchy` → create_node → SSE delivery | ✅ 收到 `notifications/resources/updated` |
+| **T-V25-3** delete_node 再次觸發 → 第二次 notification 約 1500ms 後到 | ✅ debounce 1s/URI 生效 |
+| **T-V25-3** unsubscribe 後不再收 | ✅ |
+
+**實機觀察**：
+- Notifications subscribe 路徑端到端整通：cocos broadcast `scene:change-node`
+  → broadcast-bridge addBroadcastListener → per-URI 1s debounce →
+  notifyResourceUpdated → sdkServer.notification SSE 推送。對 AI 而言
+  代表 scene 變更後不必再主動 poll。
+- prompts/get 的 lazy `ProjectContext` 解析正確抓到當前 cocos_cs_349
+  project name + path。Editor.Project.path 在 prompts/get 觸發時已 ready。
+- A1/A2/A3/A4 + T-V25-1..4 reload 全綠，無新 landmine。
+
 ### v2.4.11 → v2.4.12 reload 後實機測試紀錄
 
 **環境**：v2.4.11 reload 通過後跑 retest，A1 在 Node 22 Windows .cmd
