@@ -5,30 +5,39 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.6.0 → v2.6.2 三方 round-2 ship-it → next: v2.7.0 / live-test / 收尾）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.6.2 + reload-retested → next: v2.7.0）
 
-**當下版本**：v2.6.2（origin/main HEAD = `27e7716`，已 push）。v2.6.0
-落地 cross-LLM 兼容 + runtime QA + UUID 兼容；v2.6.1 三方 round-1 patch
-（5 🔴 + 6 🟡 全清）；v2.6.2 round-2 一個 doc-only fix；round-3
-三方一致 🟢 ship-it。**18 categories / 183 tools**（+2 vs v2.5.x：
-`debug_game_command` / `debug_game_client_status`）。
+**當下版本**：v2.6.2（origin/main HEAD = `3f1bc2e` doc wrap，
+v2.6.2 release commit = `27e7716`，已 push、**已同步到
+`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.6.0
+gemini-compat + GameDebugClient bridge + decodeUuid 落地 + 2 輪三方
+review patch（v2.6.1 / v2.6.2）。Round 3 三方一致 🟢 ship-it。
+Reload 後實機 retest 22 條全綠，包含 `/game/*` 三 endpoint 端到端、
+debug_game_command 完整 round-trip（simulated client poll+post，
+1186ms latency、structuredContent 結構正確）、timeout 路徑 + slot
+釋放、decodeUuid base64 sub-asset uuid decode 路徑（error message
+回傳 decoded form 證明 decode 已執行）等 round-1/2 fix verified。
+**18 categories / 183 tools**。
 
-**下一個動工**：**選項 A v2.7.0 spillover** 或 **選項 B v2.6.x 實機 reload retest**。
+**下一個動工**：**v2.7.0** — spillover buffer（無強制必做的單一主題；
+candidate 清單視用戶優先級）。
 
-> **建議**：先做選項 B（reload retest）— v2.6.0 的 GameDebugClient bridge
-> 沒在實機跑過，HTTP queue / screenshot 落盤 / single-flight claim 等
-> 都只跑了 smoke。需要 user 把 v2.6.2 同步到 `cocos_cs_349` extension
-> path，reload，跑 health 確認 `tools: 183`，然後丟一個簡單 game project
-> 試 `debug_game_command(type='inspect', args={name:'Canvas'})`。如果
-> 通過就動 v2.7.0；若有 bug 發 v2.6.3 patch。
-
-**v2.7.0 候選清單**（不保證全做，視 v2.6 reload-retest 結果 + 用戶優先級）：
-- 把 W7 CORS scoping for `/game/*` endpoints 補上（Claude r1 提）
-- `capture_preview_screenshot` — preview-window 截圖（Electron capturePage on Preview-in-Editor window，跟 game canvas 截圖層級不同）
-- `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有部分 code 註解）
-- RomaRogov macro-tool enum routing 模式
-- harady `debug_preview` 程式化啟停 preview + `debug_query_devices`
-- decorator 全面捨棄 `reflect-metadata` 路線檢討
+**v2.7.0 候選清單**：
+- W7（Claude r1）把 CORS scoping for `/game/*` endpoints 補上 —
+  非 wildcard，限 `null` / `file://` / `devtools://`，避免本機瀏覽
+  器 tab 攻擊面。1 天。
+- `capture_preview_screenshot` — preview-window 截圖（Electron
+  capturePage on Preview-in-Editor window，跟 game canvas 截圖層級
+  不同）。配合 v2.6.0 已落地的 `debug_screenshot` 編輯器截圖三件
+  組成完整覆蓋。0.5 天。
+- `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
+  部分 code 註解可移植）。1.5 天。
+- RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
+  `reference_image({op,...})` 等收斂）。1-2 天。
+- harady `debug_preview` 程式化啟停 preview + `debug_query_devices`。
+  0.5 天。
+- decorator 全面捨棄 `reflect-metadata` 路線檢討（v2.4.0 step 5
+  已不依賴；可清除 tsconfig flag）。0.2 天 doc only。
 
 **v2.6.0 → v2.6.2 階段**：
 - **v2.6.0**：T-V26-Gemini-guard（`scripts/check-gemini-compat.js` —
@@ -284,6 +293,56 @@ project + reload extension panel，`/health` 回 `tools: 170`。
   的 walker 沒有 — 下次 patch 可整合，但只是 nice-to-have。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
+
+### v2.6.2 reload 後實機測試紀錄
+
+**環境**：v2.6.2 已同步到 `cocos_cs_349/extensions/cocos-mcp-server`
+（dist + package.json + CHANGELOG.md + 新 client/ 範本），Cocos Creator
+reload 後 `/health` 回 `tools: 183`、`gameClient: {connected: false,
+lastPollAt: null}`，`serverInfo.version: "2.6.2"`。Project = cocos_cs_349
+v1.0.0、active scene = `a-test`（uuid b8131213-da3...）。
+
+| 測項 | 結果 |
+|---|---|
+| `/health` 183 tools / 18 categories / gameClient block | ✅ |
+| `serverInfo.version` = 2.6.2（v2.5.1 round-1 fix #1 仍有效） | ✅ |
+| `capabilities.resources.subscribe: true` / `prompts.listChanged: false` | ✅ |
+| **T-V26-1 game/* endpoints** `/game/status` idle 初始狀態 | ✅ `connected:false, lastPollAt:null, queued:false` |
+| `/game/command` 空 poll → null + flips `lastPollAt` | ✅ poll 後 `connected:true` |
+| `/game/result` no pending → 409 | ✅ `no command pending` |
+| `/game/result` missing `success:boolean` → 400（v2.6.1 W2 fix） | ✅ shape error 訊息正確 |
+| `/game/result` 非 JSON body → 400 | ✅ `Invalid JSON: Unexpected token...` |
+| **T-V26-1 tools** `debug_game_client_status` | ✅ structuredContent 含 lastPollAt |
+| `debug_game_command` 無 client 觸發 timeout（2s cap） | ✅ 2229ms close to cap，error msg 含 GameDebugClient 提示 |
+| timeout 後 single-flight slot 釋放（v2.6.1 W3 fix） | ✅ `/game/status queued:false` |
+| `debug_game_command` 完整 round-trip — simulated client poll + post inspect result | ✅ 1186ms，structuredContent 帶 type/name/active/layer/components |
+| Drain 後 queue idle | ✅ `queued:false` |
+| **T-V26-decodeUuid** raw uuid 走 `assetMeta_get_properties`（no-op） | ✅ importer=image，9 properties |
+| 純 uuid 經 base64 → 不被 decode（v2.6.1 fix #4 false-positive 防護） | ✅ pass-through，到 query-asset-info 後 `Asset not found` 對 base64 字串 |
+| `<uuid>@texture` 經 base64 → decode 後到 query-asset-info | ✅ error 訊息回傳 **decoded** form `c7655a0e-...@texture` 證明 decode 已執行 |
+| **regression** `scene_get_current_scene` | ✅ 抓到 `a-test` |
+| `assetMeta_list_interpreters` 8 importer types | ✅ `*, effect, fbx, image, material, particle, sprite-frame, texture` |
+| `project_get_project_info` | ✅ `cocos_cs_349 / 1.0.0` |
+| `project_get_assets folder=db://assets type=all` | ✅ 1279 items；types breakdown 正常 |
+| `prompts/get fix_script_errors` 帶 baked project context | ✅ 1003 chars，含 `Target Cocos project` |
+| `prompts/get` unknown name → JSON-RPC -32603（v2.5.1 round-1 fix #3） | ✅ `Unknown prompt: nope. Available: ...` |
+| `resources/list` 9 static resources | ✅ scene/current, hierarchy, list, prefabs, project/info, assets, docs/{landmines,tools,handoff} |
+
+**實機觀察**：
+- GameDebugClient bridge 端到端 verified — host queue 收命令、外部
+  client 透過 HTTP polling 領、執行、POST 結果，host 把 dataUrl 落
+  到 capture dir 的完整 pipeline 都通；smoke step 20 驗 claim guard
+  + 400/409 邊界，實機驗 round-trip latency + structuredContent shape。
+- decodeUuid 實機驗證 v2.6.1 fix #4 兩個方向：(a) 不誤觸發（純 uuid
+  base64 後不被 decode）(b) 真實使用（`<uuid>@<sub>` base64 後正確
+  decode 到 query-asset-info）。Error message 回傳 decoded form 是
+  最強證據——若 decodeUuid 沒跑，error 應是 base64 字串不是 UUID 形式。
+- cocos-cs-349 ImageAsset 在 `query-asset-info` 不暴露 `@texture`/
+  `@spriteFrame` sub-asset record（types breakdown 顯示 SpriteFrame
+  679 個是獨立 asset，非 sub-meta）。這是 cocos asset-db 的 import
+  策略而非 v2.6.x bug。decode 路徑本身 verified。
+- 所有 v2.5.x / v2.4.x reload-tested tool 在 v2.6.2 仍綠（regression
+  通過）。
 
 ### v2.5.1 reload 後實機測試紀錄
 
@@ -560,6 +619,7 @@ v2.5.1 ✅ done（三方 review patch round 1 — 4 must-fix（SERVER_VERSION st
 v2.6.0 ✅ done（cross-LLM compat + runtime QA — gemini-compat smoke guard + debug_game_command + GameDebugClient bridge + decodeUuid 兼容層，18 categories / 183 tools，commit 4ce04cd）
 v2.6.1 ✅ done（三方 review patch round 1 — 5 must-fix（consume re-delivery race + body unbounded DoS + screenshot size DoS + decodeUuid false-positive + symlink check broken）+ 6 polish，commit 7614497）
 v2.6.2 ✅ done（三方 review patch round 2 — 1 doc fix（CLAUDE.md landmine #15 stale "181 v2.6.0" → "183 v2.6.1"），commit 27e7716；round 3 三方一致 🟢 ship-it）
+v2.6.2 reload-tested ✅（22 條全綠：/game/* 三 endpoint + debug_game_command timeout/round-trip + decodeUuid no-op/decode-and-use + regression all v2.5.x/v2.4.x）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
