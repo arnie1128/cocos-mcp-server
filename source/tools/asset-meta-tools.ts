@@ -31,6 +31,9 @@ import {
     ImageInterpreter, TextureInterpreter, SpriteFrameInterpreter,
     FbxInterpreter, MaterialInterpreter, EffectInterpreter,
     ParticleInterpreter, UnknownInterpreter,
+    AnimationClipInterpreter, AudioClipInterpreter, PrefabInterpreter,
+    SceneInterpreter, LabelAtlasInterpreter, SpineInterpreter,
+    JsonInterpreter
 } from '../asset-interpreters/specialized';
 import { PropertySetSpec } from '../asset-interpreters/interface';
 
@@ -45,6 +48,13 @@ function buildManager(): AssetInterpreterManager {
             new MaterialInterpreter(),
             new EffectInterpreter(),
             new ParticleInterpreter(),
+            new AnimationClipInterpreter(),
+            new AudioClipInterpreter(),
+            new PrefabInterpreter(),
+            new SceneInterpreter(),
+            new LabelAtlasInterpreter(),
+            new SpineInterpreter(),
+            new JsonInterpreter(),
         ],
         fallback,
     );

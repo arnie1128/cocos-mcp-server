@@ -194,6 +194,35 @@ export class ParticleInterpreter extends BaseAssetInterpreter {
     get importerType(): string { return 'particle'; }
 }
 
+export class AnimationClipInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'animation-clip'; }
+}
+
+export class AudioClipInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'audio-clip'; }
+}
+
+export class PrefabInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'prefab'; }
+}
+
+export class SceneInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'scene'; }
+}
+
+export class LabelAtlasInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'label-atlas'; }
+}
+
+export class SpineInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'spine'; }
+}
+
+export class JsonInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'json'; }
+}
+
+
 /**
  * Catch-all for importer strings we don't have a specialized handler
  * for. Reads work via the base class (best-effort dump of userData +
