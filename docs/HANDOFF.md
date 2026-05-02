@@ -5,24 +5,29 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.12 — A1-A4 reload-retest passed, v2.5.0 in progress）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.5.1 — multi-client breadth done, ship-it from 3 reviewers × 2 rounds）
 
-**當下版本**：v2.4.12（origin/main HEAD = `185f98c`，已 push、**已同步到
-`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.4.8 收 v2.4.0
-同梱失蹤的 A1-A4 四件 + 4 輪三方 review patch（v2.4.9 / v2.4.10 / v2.4.11）+
-v2.4.12 reload retest fix（Node 22 .cmd shim）。
+**當下版本**：v2.5.1（origin/main HEAD = `1aa1120`，已 push、**已同步到
+`cocos_cs_349` extension path**，等 user reload retest）。v2.5.0
+file-editor + Notifications + Prompts 落地 + 1 輪三方 review patch（v2.5.1）。
+Round 2 三方一致 🟢 ship-it。**18 categories / 181 tools**。
 
-**動工中**：**v2.5.0** — file-editor + Notifications + Prompts（5 天）。
-細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.5.0](roadmap/06-version-plan-v23-v27.md)。
-- T-V25-1: file-editor 4 tool（insert_text / delete_lines / replace_text /
-  query_text + path-safety guard + asset-db refresh hook）
-- T-V25-2: T-P3-3 Notifications — 前置 probe-broadcast.js 量實機事件密度
-- T-V25-3: T-P3-3 Notifications 落地（debounce + capability 補
-  `resources.subscribe: true` + main.ts broadcast listener
-  load/unload + sdkServer.notification 推送）
-- T-V25-4: T-P3-2 Prompts — `prompts/list` + `prompts/get` handler + 4
-  template (fix_script_errors / create_playable_prototype /
-  scene_validation / auto_wire_scene)
+下一個 session 可以動工 **v2.6.0**（Gemini-compat schema + debug_game_command，
+4-5 天）或先做實機 live-test 驗證 v2.5.0 / v2.5.1 新 tool（fileEditor 4 件 +
+Notifications subscribe path + 4 個 prompts）。
+
+**v2.5.0 → v2.5.1 階段**：
+- **v2.5.0**：T-V25-1 fileEditor 4 tools（path-safety realpathSync + asset-db
+  refresh hook）+ T-V25-2 probe-broadcast.js（編輯器內 30s 事件密度量測）+
+  T-V25-3 Notifications（resources.subscribe:true + broadcast-bridge 1s/URI
+  debounce + per-session subscriptions）+ T-V25-4 Prompts（4 templates with
+  baked project context）。
+- **v2.5.1**：round 1 — 4 🔴（SERVER_VERSION '2.0.0' stale / sdkServer.notification
+  unhandled rejection / prompts/get unknown returned success body /
+  replace_text $1 backreferences silently broken）+ 5 ≥2-reviewer 🟡（empty
+  search reject / regex DoS 1MB cap / CRLF preservation / realpathSync.native
+  fallback / probe partial-cleanup）。
+- **Round 2** confirms ship-it from all three reviewers, no must-fix.
 
 **v2.4.8 — v2.4.12 階段**：
 - **v2.4.8**：A1 TS diagnostics（debug_wait_compile + debug_run_script_diagnostics
@@ -43,22 +48,21 @@ v2.4.12 reload retest fix（Node 22 .cmd shim）。
   + cmd.exe-style `quoteForCmd` + sync-throw try/catch in execAsync.
   POSIX path unchanged（`isWindowsShim` 雙閘）。
 
-**最近 commit**（最新到舊，僅列 v2.4.8 cycle 後）：
+**最近 commit**（最新到舊，僅列 v2.5.0 cycle 後）：
 
 | SHA | 內容 |
 |---|---|
+| `1aa1120` | fix(v2.5.1): three-way review patch round 1 on v2.5.0 — 4 must-fix + 5 polish |
+| `543c06a` | release: v2.5.0 — multi-client breadth (file-editor + Notifications + Prompts) |
+| `e56b22c` | feat(T-V25-4): Prompts T-P3-2 — 4 templates with project-context baking |
+| `9534305` | feat(T-V25-3): Notifications T-P3-3 — wire cocos broadcasts → resources/updated |
+| `5a6719b` | feat(T-V25-2): probe-broadcast.js script for broadcast event density sampling |
+| `e324c30` | feat(T-V25-1): file-editor 4 tools — insert/delete/replace/query lines |
+| `b090e4d` | docs: schedule v2.5.0 — file-editor + Notifications + Prompts (T-V25-1..4) |
 | `185f98c` | docs(handoff): v2.4.11 → v2.4.12 reload retest results + cross-platform note |
 | `acfb930` | fix(v2.4.12): A1 debug_run_script_diagnostics spawn EINVAL on Node 22+ Windows .cmd |
 | `8bb46e8` | docs(handoff): v2.4.8-v2.4.11 wrap — 4-round three-way review converged 🟢 |
 | `a5c7c0e` | fix(v2.4.11): three-way review patch round 3 on v2.4.10 — 1 must-fix |
-| `8dfd500` | chore: untrack .claude/settings.local.json (per-machine overlay) |
-| `52bad57` | fix(v2.4.10): three-way review patch round 2 on v2.4.9 — 1 must-fix + 2 polish |
-| `15b6a8e` | fix(v2.4.9): three-way review patch round 1 on v2.4.8 — 2 must-fix + 4 polish |
-| `a953e6e` | release: v2.4.8 — recover v2.4.0 同梱 leftovers (TS diagnostics + animation + scene-log capture) |
-| `395413f` | feat(v2.4.8 A1): TS diagnostics — wait_compile, run_script_diagnostics, get_script_diagnostic_context |
-| `5cd723f` | feat(v2.4.8 A2): animation tools category — list_clips/play/stop/set_clip |
-| `c92319d` | feat(v2.4.8 A3): scene-script log capture in scene-bridge |
-| `bb02c67` | docs(v2.4.8 A4): clarify resources.templates is implicit, not a capability flag |
 
 **v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
 行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
@@ -324,6 +328,8 @@ disposable asset 才能跑。
 
 **回滾錨點**：
 - v2.4.6 改動前（v2.4.5 release 點）→ `git reset --hard c4a759d`
+- v2.6.0 改動前（v2.5.1 release 點 + 三方 ship-it round 2）→ `git reset --hard 1aa1120`
+- v2.5.1 改動前（v2.5.0 release 點）→ `git reset --hard 543c06a`
 - v2.5.0 改動前（v2.4.12 release 點 + reload-retested）→ `git reset --hard 185f98c`
 - v2.4.12 改動前（v2.4.11 release 點 + 三方 ship-it round 4）→ `git reset --hard 8bb46e8`
 - v2.4.11 改動前（v2.4.10 release 點）→ `git reset --hard 52bad57`
@@ -337,9 +343,36 @@ disposable asset 才能跑。
 - v2.4.1 改動前（v2.4.0 release 點）→ `git reset --hard 0231b10`
 - v2.4.0 改動前（v2.3.1 release 點）→ `git reset --hard 351023b`
 
-**動工建議**：v2.4.8 — v2.4.11 stack 已穩定（三方 4 輪、3 輪反修），下個
-版本（v2.5.0 或 live-test）直接動工不需先驗證 v2.4.x；新功能落地後同樣走
+**動工建議**：v2.5.0 — v2.5.1 stack 已穩定（三方 2 輪、1 輪反修），下個
+版本（v2.6.0 或 live-test）直接動工不需先驗證 v2.5.x；新功能落地後同樣走
 主 commit + 三方 review + 反修流程。
+
+### v2.5.0 → v2.5.1 三方 review 紀錄（2 輪）
+
+走「主 commit + 三方 review + 反修 patch」流程。**2 輪 review，1 輪反修**。
+
+#### Round 1 — v2.5.0 commit `543c06a`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | mcp-server-sdk.ts SERVER_VERSION '2.0.0' 自 v2.0 起未更新 | Gemini |
+| 2 | 🔴 must-fix | notifyResourceUpdated 未 await/catch sdkServer.notification → unhandled rejection | Codex (+ Claude 🟡) |
+| 3 | 🔴 must-fix | prompts/get unknown name 回成功內容應拋 JSON-RPC error | Codex (+ Claude 🟡) |
+| 4 | 🔴 must-fix | replace_text useRegex callback form 讓 $1/$&/etc backreferences 永遠不展開 | Codex |
+| 5 | 🟡 worth | search 允許空字串：replaceAll 在每字元間插入 / first-only 插在 byte 0 | Claude + Codex |
+| 6 | 🟡 worth | regex mode 無 size cap → catastrophic backtracking 風險 | Claude + Codex + Gemini |
+| 7 | 🟡 worth | CRLF 寫入時被默默轉成 LF（Windows project silent corruption）| Claude |
+| 8 | 🟡 worth | fs.realpathSync.native 不一定存在於 cocos 內建 Node | Codex |
+| 9 | 🟡 worth | probe-broadcast.js partial registration 可能洩漏 listeners | Codex |
+
+v2.5.1 commit `1aa1120` 全部反修。
+
+#### Round 2 — v2.5.1 commit `1aa1120`
+
+三方 🟢 ship-it 一致通過。Codex/Gemini/Claude 三方各有單人 🟡 觀察（output-size
+bomb on zero-width regex / replacement-string EOL normalization /
+realpathSync `as any` type narrowing），無 ≥2-reviewer 重疊也無 🔴，全
+deferred 為觀察項。
 
 ---
 
@@ -368,7 +401,9 @@ disposable asset 才能跑。
 | **v2.4.10** | 三方 review patch round 2 on v2.4.9（1 must-fix + 2 polish — AsyncLocalStorage 收 capture interleave） | 0.3 天 | ✅ done |
 | **v2.4.11** | 三方 review patch round 3 on v2.4.10（1 must-fix — refcount leak path） | 0.1 天 | ✅ done |
 | **v2.4.12** | reload retest fix — Node 22+ Windows .cmd shim spawn EINVAL on A1 | 0.1 天 | ✅ done |
-| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ in-progress |
+| **v2.5.0** | file-editor + Notifications + Prompts (T-V25-1..4) | 5 天 | ✅ done |
+| **v2.5.1** | 三方 review patch round 1 on v2.5.0 (4 must-fix + 5 polish) | 0.5 天 | ✅ done |
+| **v2.6.0** | 跨 LLM 兼容 + runtime QA（Gemini-compat + debug_game_command） | 4-5 天 | ⏳ next |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
 
@@ -427,7 +462,8 @@ v2.4.9 ✅ done（三方 review patch round 1 — 2 must-fix（ENOENT silent + s
 v2.4.10 ✅ done（三方 review patch round 2 — 1 must-fix（_topSlot interleave → AsyncLocalStorage） + 2 polish，commit 52bad57）
 v2.4.11 ✅ done（三方 review patch round 3 — 1 must-fix（refcount leak path），commit a5c7c0e）
 v2.4.12 ✅ done（reload retest fix — Node 22+ Windows .cmd shim 透過 shell:true + quoteForCmd + sync-throw try/catch，commit acfb930；retest doc 185f98c）
-v2.5.0 ⏳ in-progress（file-editor + Notifications + Prompts，5 天）
+v2.5.0 ✅ done（multi-client breadth — fileEditor 4 tools + probe-broadcast + Notifications subscribe + Prompts 4 templates，18 categories / 181 tools，commit 543c06a）
+v2.5.1 ✅ done（三方 review patch round 1 — 4 must-fix（SERVER_VERSION stale + notification unhandled rejection + prompts/get error envelope + replace_text $1 backreferences）+ 5 polish，commit 1aa1120）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
