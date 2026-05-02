@@ -121,6 +121,15 @@ export class DebugTools implements ToolExecutor {
                 handler: () => this.getPreviewMode(),
             },
             {
+                name: 'set_preview_mode',
+                description: 'Switch cocos preview mode programmatically via the typed Editor.Message preferences/set-config channel. Writes to preview.current.platform with the requested value. **This modifies the user\'s editor preferences** — by default requires confirm=true to avoid altering preferences accidentally. Pair with debug_get_preview_mode to read current value, switch, run a workflow, and (optionally) restore. Useful for AI-driven retest flows that need to validate behaviour across browser / gameView (embedded) / simulator destinations. Returns { previousMode, newMode, confirmed }.',
+                inputSchema: z.object({
+                    mode: z.enum(['browser', 'gameView', 'simulator']).describe('Target preview platform. "browser" opens preview in the user default browser. "gameView" embeds the gameview in the main editor (in-editor preview). "simulator" launches the cocos simulator. Maps directly to the cocos preview.current.platform value.'),
+                    confirm: z.boolean().default(false).describe('Required to commit the change. Default false returns the current value plus a hint, without modifying preferences. Set true to actually write.'),
+                }),
+                handler: a => this.setPreviewMode(a.mode, a.confirm ?? false),
+            },
+            {
                 name: 'batch_screenshot',
                 description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
                 inputSchema: z.object({
@@ -175,6 +184,14 @@ export class DebugTools implements ToolExecutor {
                 description: 'Read GameDebugClient connection status: connected (polled within 2s), last poll timestamp, whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
                 handler: () => this.gameClientStatus(),
+            },
+            {
+                name: 'check_editor_health',
+                description: 'Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy: run two probes in parallel — (1) a fast non-scene channel (device/query, goes to main process) confirms the editor host is alive; (2) a scene-script eval (1+1 trivial expression via execute-scene-script) with a short timeout (default 1500ms) confirms the scene renderer is responsive. Returns { hostAlive, sceneAlive, sceneLatencyMs, suggestion }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls that would hang.',
+                inputSchema: z.object({
+                    sceneTimeoutMs: z.number().min(200).max(10000).default(1500).describe('Timeout for the scene-script probe in ms. Below this scene is considered frozen. Default 1500ms.'),
+                }),
+                handler: a => this.checkEditorHealth(a.sceneTimeoutMs ?? 1500),
             },
             {
                 name: 'preview_control',
@@ -1089,6 +1106,52 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
+    // v2.9.0 T-V29-2: counterpart to getPreviewMode. Writes
+    // preview.current.platform via the typed
+    // Editor.Message.request('preferences', 'set-config', 'preview',
+    // 'current.platform', value) channel.
+    //
+    // Confirm gate: `confirm=false` (default) is a dry-run that returns
+    // the current value + suggested call. `confirm=true` actually
+    // writes. This avoids AI-induced preference drift when the LLM is
+    // exploring tool capabilities.
+    private async setPreviewMode(mode: 'browser' | 'gameView' | 'simulator', confirm: boolean): Promise<ToolResponse> {
+        try {
+            // Read previous value first so we can include it in the
+            // response (and the AI can decide whether to restore later).
+            const cfg: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
+            const previousMode: string | null = cfg?.preview?.current?.platform ?? null;
+            if (!confirm) {
+                return {
+                    success: true,
+                    data: { previousMode, requestedMode: mode, confirmed: false },
+                    message: `Dry run only — current cocos preview mode is "${previousMode ?? 'unknown'}", requested "${mode}". Re-call with confirm=true to actually switch. Caller is responsible for restoring the original mode when done if appropriate.`,
+                };
+            }
+            if (previousMode === mode) {
+                return {
+                    success: true,
+                    data: { previousMode, newMode: mode, confirmed: true, noOp: true },
+                    message: `cocos preview already set to "${mode}"; no change applied.`,
+                };
+            }
+            const ok: boolean = await Editor.Message.request(
+                'preferences', 'set-config' as any, 'preview' as any,
+                'current.platform' as any, mode as any,
+            ) as any;
+            if (ok === false) {
+                return { success: false, error: 'preferences/set-config returned false; cocos refused the write. Check that "current.platform" is the right key for this cocos version (3.8.7 verified).' };
+            }
+            return {
+                success: true,
+                data: { previousMode, newMode: mode, confirmed: true },
+                message: `cocos preview switched: "${previousMode ?? 'unknown'}" → "${mode}". Restore via debug_set_preview_mode(mode="${previousMode ?? 'browser'}", confirm=true) when done if needed.`,
+            };
+        } catch (err: any) {
+            return { success: false, error: `preferences/set-config 'preview' failed: ${err?.message ?? String(err)}` };
+        }
+    }
+
     private async batchScreenshot(savePathPrefix?: string, delaysMs: number[] = [0], windowTitle?: string): Promise<ToolResponse> {
         try {
             let prefix = savePathPrefix;
@@ -1189,6 +1252,67 @@ export class DebugTools implements ToolExecutor {
     // changes incompletely. We now SCAN the captured scene-script logs
     // for that error string and surface it to the AI as a structured
     // warning instead of letting it hide inside data.capturedLogs.
+    // v2.9.0 T-V29-1: editor-health probe. Detects scene-script freeze
+    // by running two probes in parallel:
+    //   - host probe: Editor.Message.request('device', 'query') — goes
+    //     to the editor main process, NOT the scene-script renderer.
+    //     This stays responsive even when scene is wedged.
+    //   - scene probe: execute-scene-script invocation with a trivial
+    //     `evalEcho` test (uses an existing safe scene method, with
+    //     wrapping timeout). Times out → scene-script frozen.
+    //
+    // Designed for the post-preview_control(start) freeze pattern in
+    // landmine #16: AI calls preview_control(start), then
+    // check_editor_health, and if sceneAlive=false stops issuing more
+    // scene calls and surfaces the recovery hint instead of hanging.
+    private async checkEditorHealth(sceneTimeoutMs: number = 1500): Promise<ToolResponse> {
+        const t0 = Date.now();
+        // Host probe — should always resolve fast.
+        let hostAlive = false;
+        let hostError: string | null = null;
+        try {
+            await Editor.Message.request('device', 'query');
+            hostAlive = true;
+        } catch (err: any) {
+            hostError = err?.message ?? String(err);
+        }
+        // Scene probe — wrap in a hard timeout. We deliberately pick a
+        // method that exists on the scene-script side AND does the
+        // minimum work: getCurrentSceneInfo just reads director state.
+        const scenePromise = runSceneMethodAsToolResponse('getCurrentSceneInfo', [], { capture: false });
+        const timeoutPromise = new Promise<{ timedOut: true }>(resolve =>
+            setTimeout(() => resolve({ timedOut: true }), sceneTimeoutMs),
+        );
+        const sceneStart = Date.now();
+        const sceneResult: any = await Promise.race([scenePromise, timeoutPromise]);
+        const sceneLatencyMs = Date.now() - sceneStart;
+        const sceneAlive = !!sceneResult && !sceneResult.timedOut && sceneResult.success !== false;
+        let sceneError: string | null = null;
+        if (sceneResult?.timedOut) {
+            sceneError = `scene-script probe timed out after ${sceneTimeoutMs}ms — scene renderer likely frozen`;
+        } else if (sceneResult?.success === false) {
+            sceneError = sceneResult.error ?? 'scene-script probe returned success=false';
+        }
+        const suggestion = !hostAlive
+            ? 'cocos editor host process unresponsive — verify the editor is running and the cocos-mcp-server extension is loaded.'
+            : !sceneAlive
+                ? 'cocos editor scene-script is frozen (likely landmine #16 after preview_control(start)). Press Ctrl+R in the cocos editor to reload the scene-script renderer; do not issue more scene/* tool calls until recovered.'
+                : 'editor healthy; scene-script and host both responsive.';
+        return {
+            success: true,
+            data: {
+                hostAlive,
+                sceneAlive,
+                sceneLatencyMs,
+                sceneTimeoutMs,
+                hostError,
+                sceneError,
+                totalProbeMs: Date.now() - t0,
+            },
+            message: suggestion,
+        };
+    }
+
     private async previewControl(op: 'start' | 'stop'): Promise<ToolResponse> {
         const state = op === 'start';
         const result: ToolResponse = await runSceneMethodAsToolResponse('changePreviewPlayState', [state]);

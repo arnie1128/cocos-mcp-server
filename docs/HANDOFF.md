@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.4 — browser-mode retest fixes → next: live retest + 三方 review）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.0 開卷 — T-V29-1/2 落地 → next: T-V29-3..6 + cumulative 三方 review）
 
 **當下版本**：v2.8.2（v2.8.0 spillover + 三方 round-1 patch + reload-
 retest 修補）。v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary on deny
@@ -18,7 +18,14 @@ via typed `cce.SceneFacade.changePreviewPlayState`）；v2.8.1 round-1 補強
 project root → 已修，commit 5725f09 + 40ad5b7 push origin/main。
 **18 categories / 187 tools**（v2.8.0 +1）。
 
-**v2.8.4 完成**（main commits landed，dist synced，retest 全綠，三方 review 暫緩到 v2.9 batch）：
+**v2.9.0 開卷**（T-V29-1 + T-V29-2 落地、commit 待打、三方 review 延後到全 v2.9 完成後 cumulative）：
+- T-V29-1 `debug_check_editor_health` — 平行 probe `device/query` + scene `getCurrentSceneInfo`，timeout 1500ms 命中視為 scene 凍結。直接對應 landmine #16 的 freeze 偵測需求。
+- T-V29-2 `debug_set_preview_mode` — 配對 v2.8.3 getter，`preferences/set-config 'preview' 'current.platform' <value>`。confirm gate（default false 是 dry-run）+ no-op 偵測。
+
+剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing。
+**18 categories / 190 tools**（v2.9.0 +2）。
+
+**v2.8.4 完成**（已 push origin/main，三方 review 一起放到 v2.9 cumulative）：
 - v2.8.3 base：T-V283-1 capture mode arg + T-V283-2 get_preview_mode + T-V283-3 capturedLogs warning + #4 heuristic fix（cocos 真實鍵 `preview.current.platform`）+ #5 landmine #16
 - v2.8.4 patch：browser-mode retest 抓到 race 不限 preview 模式（landmine #16 改寫）+ auto fallback hint 改為 host-side probe + mode-aware 4 種文案 + 版本管理實務調整（每個 reload cycle 必 bump）。
 **18 categories / 188 tools**（v2.8.0 +1 / v2.8.3 +1）。
@@ -688,6 +695,7 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.9.0 改動前（v2.8.4 release 點）→ `git reset --hard 843fe73`
 - v2.8.4 改動前（v2.8.3 #5 landmine + sharper warning 點）→ `git reset --hard ce6825f`
 - v2.8.3 改動前（v2.8.2 reload-retest doc 點）→ `git reset --hard 40ad5b7`
 - v2.8.2 改動前（v2.8.1 release 點 + round-2 ship-it）→ `git reset --hard 03568fc`
@@ -849,7 +857,8 @@ v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anch
 v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname，commit 5725f09）
 v2.8.2 reload-tested ✅（11 條 live-test 全綠 + 1 觀察：cocos preview 設成「編輯器內預覽 (embedded)」時 `preview_control(start)` facade 通但 `capture_preview_screenshot` 用 Preview-title 濾抓不到視窗，因 embedded 模式 gameview 嵌在主編輯器、不開新 window）
 v2.8.3 ✅ done（embedded-mode PIE 補完 — 5 件子任務，commits 48d11ec / 71c4868 / ce6825f）
-v2.8.4 ✅ done（browser-mode retest 又抓到 2 件 — (1) softReloadScene race 在 browser 模式同樣發生，landmine #16 改寫成「不限 preview 模式」；(2) auto fallback hint 過去寫死 "embedded preview mode"，在 browser 設定下誤導 → 改為 host-side probe `preferences/query-config preview.current.platform` 後依 mode 客製 hint（browser/gameView/其它/unknown 四種文案）。retest 全綠（7 條）。版本實務調整：今後每個 reload cycle 必 bump，不再 batch — cocos 面板版本字串是 user 驗 reload 是否真載到的唯一信號。三方 review 暫緩到 v2.9 一起處理）
+v2.8.4 ✅ done（browser-mode retest 又抓到 2 件 — landmine #16 廣域化 + auto fallback hint mode-aware；commit 843fe73，已 push origin/main）
+v2.9.0 ⏳ in-progress（T-V29-1 check_editor_health + T-V29-2 set_preview_mode 落地 → 188 → 190 tools；剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing；三方 review batch 收尾在最後）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

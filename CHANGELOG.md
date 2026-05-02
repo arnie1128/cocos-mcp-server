@@ -1,5 +1,75 @@
 # Changelog
 
+## v2.9.0 — 2026-05-02
+
+Opens with two PIE-related tools that close the v2.8.x retest gaps.
+**18 categories / 190 tools** (debug 22 → 24).
+
+Three-way review deferred per user direction until the v2.9 work is
+fully landed; this CHANGELOG is appended incrementally as each
+T-V29-* item ships, then the cumulative review covers the whole
+v2.8.4 → v2.9.x range.
+
+### #1 — `debug_check_editor_health` (T-V29-1)
+
+New tool for detecting cocos editor scene-script freeze. Critical
+companion for `debug_preview_control(start)` per landmine #16: the
+cocos 3.8.7 softReloadScene race may freeze the scene-script
+renderer (spinning indicator, Ctrl+R required). Without a way to
+detect this, AI workflows would issue more scene-bound calls that
+just hang.
+
+Strategy: parallel probe with bounded timeout.
+- **Host probe** — `Editor.Message.request('device', 'query')`.
+  This goes to the editor main process, NOT the scene-script
+  renderer, so it stays responsive even when the scene is wedged.
+- **Scene probe** — `runSceneMethodAsToolResponse('getCurrentSceneInfo',
+  [], { capture: false })` wrapped in `Promise.race` against a
+  user-tunable timeout (default 1500ms). If the timeout fires, the
+  scene renderer is considered frozen.
+
+Returns `{ hostAlive, sceneAlive, sceneLatencyMs, sceneTimeoutMs,
+hostError, sceneError, totalProbeMs }` plus a top-level message
+that surfaces the appropriate recovery hint:
+- both alive → "editor healthy"
+- scene-only frozen → "press Ctrl+R in the cocos editor; do not
+  issue more scene/* tool calls until recovered"
+- host unresponsive → "verify cocos is running and the extension
+  is loaded"
+
+Recommended AI usage pattern:
+```
+preview_control(start) → check_editor_health(sceneTimeoutMs=2000)
+  if !sceneAlive → stop, surface recovery hint to human
+  else proceed with capture
+```
+
+### #2 — `debug_set_preview_mode` (T-V29-2)
+
+Counterpart to v2.8.3's `debug_get_preview_mode`. Writes
+`preview.current.platform` via the typed
+`Editor.Message.request('preferences', 'set-config', 'preview',
+'current.platform', value)` channel.
+
+Args: `{ mode: 'browser' | 'gameView' | 'simulator', confirm?: boolean }`.
+
+**Confirm gate** — `confirm` defaults to `false`, which makes the
+tool a dry run that returns the current `previousMode` and the
+suggested call shape. `confirm=true` actually writes. This protects
+against AI exploring tool capabilities and accidentally rewriting
+user preferences. The dry run also lets AI build a "save → switch
+→ run → restore" workflow safely:
+1. `set_preview_mode(mode='browser')` → returns `previousMode`
+2. `set_preview_mode(mode='browser', confirm=true)` → switches
+3. ... run capture / verification flow ...
+4. `set_preview_mode(mode=<previousMode>, confirm=true)` → restore
+
+No-op detection: when `previousMode === requestedMode` the tool
+returns `{ noOp: true, confirmed: true }` without re-issuing the
+write. Failure of the underlying `set-config` (cocos returns
+`false` on key validation failure) is surfaced as `success: false`
+with the suggestion to verify the key for this cocos version.
+
 ## v2.8.4 — 2026-05-02
 
 Browser-mode reload retest exposed two issues missed in v2.8.3:
