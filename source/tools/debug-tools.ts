@@ -223,11 +223,12 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'preview_control',
-                description: 'Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacade.changePreviewPlayState method (documented on SceneFacadeManager in @cocos/creator-types). preview_control(op="stop") returns to scene mode and is reliable. **WARNING — cocos 3.8.7 has an internal race in softReloadScene that fires regardless of preview mode** (verified embedded + browser; treat as engine-wide bug). The call returns success but cocos logs "Failed to refresh the current scene", PIE does NOT actually start, and the editor can freeze (spinning indicator) requiring user Ctrl+R recovery. See landmine #16 in CLAUDE.md. **Recommended alternatives**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE start needed) — captures the editor gameview directly; (b) debug_game_command(type="screenshot") via GameDebugClient running in browser preview — uses runtime canvas, bypasses the engine race entirely. Use preview_control only when the start/stop side effect itself is the goal (and accept the freeze risk).',
+                description: '⚠ PARKED — known to freeze cocos 3.8.7 (landmine #16). Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacadeManager.changePreviewPlayState method. **start hits a cocos 3.8.7 softReloadScene race** that returns success but freezes the editor (spinning indicator, Ctrl+R required to recover). Verified in both embedded and browser preview modes. **stop is safe** and reliable. To prevent accidental triggering, start now requires explicit `acknowledgeFreezeRisk: true`. **Recommended alternatives instead of start**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode — no PIE needed; (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview. Pending v2.9 reference-project comparison to find a safer call path.',
                 inputSchema: z.object({
-                    op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button). "stop" exits PIE play and returns to scene mode.'),
+                    op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button) — REQUIRES acknowledgeFreezeRisk=true on cocos 3.8.7 due to landmine #16. "stop" exits PIE play and returns to scene mode (always safe).'),
+                    acknowledgeFreezeRisk: z.boolean().default(false).describe('Required to be true for op="start" on cocos 3.8.7 due to landmine #16 (softReloadScene race that freezes the editor). Set true ONLY when the human user has explicitly accepted the risk and is prepared to press Ctrl+R if the editor freezes. Ignored for op="stop" which is reliable.'),
                 }),
-                handler: a => this.previewControl(a.op),
+                handler: a => this.previewControl(a.op, a.acknowledgeFreezeRisk ?? false),
             },
             {
                 name: 'get_script_diagnostic_context',
@@ -1413,7 +1414,17 @@ export class DebugTools implements ToolExecutor {
     // a partially-initialised PreviewSceneFacade. Reject overlap.
     private static previewControlInFlight = false;
 
-    private async previewControl(op: 'start' | 'stop'): Promise<ToolResponse> {
+    private async previewControl(op: 'start' | 'stop', acknowledgeFreezeRisk: boolean = false): Promise<ToolResponse> {
+        // v2.9.x park gate: op="start" is known to freeze cocos 3.8.7
+        // (landmine #16). Refuse unless the caller has explicitly
+        // acknowledged the risk. op="stop" is always safe — bypass the
+        // gate so callers can recover from a half-applied state.
+        if (op === 'start' && !acknowledgeFreezeRisk) {
+            return {
+                success: false,
+                error: 'debug_preview_control(op="start") is parked due to landmine #16 — the cocos 3.8.7 softReloadScene race freezes the editor regardless of preview mode (verified embedded + browser). To proceed anyway, re-call with acknowledgeFreezeRisk=true AND ensure the human user is prepared to press Ctrl+R in cocos if the editor freezes. **Strongly preferred alternatives**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE needed); (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview. Pending v2.9 reference-project comparison.',
+            };
+        }
         if (DebugTools.previewControlInFlight) {
             return {
                 success: false,

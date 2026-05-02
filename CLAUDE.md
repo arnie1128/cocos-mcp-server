@@ -52,7 +52,7 @@ source/
 │   ├── preferences-tools.ts       #   7 tools
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools
-│   ├── reference-image-tools.ts   #  12 tools
+│   ├── reference-image-tools.ts   #   1 tool   (v2.9.x macro-routing collapse: 12 → 1, single op-router referenceImage_manage)
 │   ├── asset-advanced-tools.ts    #  11 tools
 │   ├── validation-tools.ts        #   3 tools
 │   ├── inspector-tools.ts         #   2 tools  (v2.4.0 step 6 — get_instance_definition / get_common_types_definition)
@@ -78,9 +78,10 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 190 (v2.9.0 added 2: `debug_check_editor_health`
-+ `debug_set_preview_mode`; v2.8.3 added 1: `debug_get_preview_mode`;
-v2.8.0 added 1: `debug_preview_control`;
+Total tool count today: 179 (v2.9.x collapsed 12 referenceImage_* tools
+into 1 op-router `referenceImage_manage`; v2.9.0 added 2:
+`debug_check_editor_health` + `debug_set_preview_mode`; v2.8.3 added 1:
+`debug_get_preview_mode`; v2.8.0 added 1: `debug_preview_control`;
 v2.7.0 added 3: `debug_preview_url` / `debug_query_devices` /
 `debug_capture_preview_screenshot`; v2.6.0 added 2 debug tools —
 `debug_game_command` and `debug_game_client_status`; v2.5.0 added
@@ -393,7 +394,7 @@ v2.1.6 after measure showed lossy-only gains).
     `z.toJSONSchema(schema, { target: 'draft-7' })`, which inlines
     reused subschemas (verified empirically: same `vec3` instance used
     3× in `position`/`rotation`/`scale` produces three full inline
-    copies, no `$ref`). All 190 v2.9.0 tool schemas are confirmed
+    copies, no `$ref`). All 179 v2.9.x tool schemas are confirmed
     inline.
 
     Regression guard: `node scripts/check-gemini-compat.js` walks

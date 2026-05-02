@@ -1,5 +1,69 @@
 # Changelog
 
+## v2.9.3 — 2026-05-02
+
+T-V29-6 RomaRogov macro-tool enum routing + preview-tools park gates.
+
+### #1 — `referenceImage_manage` macro tool (T-V29-6)
+
+12 flat reference-image tools collapsed into 1 op-router. **18
+categories / 179 tools** (was 190).
+
+**Removed**: `referenceImage_add_reference_image` /
+`remove_reference_image` / `switch_reference_image` /
+`set_reference_image_data` / `query_reference_image_config` /
+`query_current_reference_image` / `refresh_reference_image` /
+`set_reference_image_position` / `set_reference_image_scale` /
+`set_reference_image_opacity` / `list_reference_images` /
+`clear_all_reference_images`.
+
+**Added**: `referenceImage_manage({ op, ... })` with 12 ops:
+`add` / `remove` / `switch` / `set_data` / `query_config` /
+`query_current` / `refresh` / `set_position` / `set_scale` /
+`set_opacity` / `list` / `clear_all`. Per-op required fields
+validated at dispatch (paths / path / key+value / x+y / sx+sy /
+opacity).
+
+Why flat optional schema vs `z.discriminatedUnion`: simpler for
+every LLM tool-call parser, easier to extend, and the gemini-compat
+regression script confirms all 179 schemas remain inline.
+
+**Breaking change**: any caller addressing the old flat tool names
+must migrate to `referenceImage_manage(op=…)`. Migration window is
+v2.9.x; CHANGELOG / HANDOFF / CLAUDE.md documents the new shape.
+
+Net effect: -11 tools / smaller `tools/list` payload (token cost
+reduction was the original P2 motivation in 2026-04 spec — see ADR
+0001 for the historical scope discussion).
+
+### #2 — `debug_preview_control` park gate (acknowledgeFreezeRisk)
+
+Following landmine #16 (cocos 3.8.7 softReloadScene race on
+`changePreviewPlayState(true)` regardless of preview mode) and
+v2.9.x parking decision, `debug_preview_control(op="start")` now
+requires explicit `acknowledgeFreezeRisk: true` to actually fire.
+Default `false` returns a structured error pointing at the safer
+alternatives:
+- `debug_capture_preview_screenshot(mode="embedded")` in EDIT mode
+- `debug_game_command(type="screenshot")` via GameDebugClient on
+  browser preview
+
+`op="stop"` bypasses the gate (always safe and reliable for
+recovering from a half-applied state). Tool description updated
+to ⚠ PARKED. Pending v2.9 reference-project comparison to find a
+working call path.
+
+`debug_set_preview_mode` already has a `confirm` gate (v2.9.0) and
+the description is already ⚠ EXPERIMENTAL after v2.9.1 retest
+confirmed all 4 set-config shapes silently no-op on cocos 3.8.7.
+
+### Tool registry status
+
+`registry.ts` `referenceImage` category remains the same (same
+`ReferenceImageTools` class, same constructor). MCP `tools/list`
+clients should treat this as a v2.9.x major-revision migration
+within the v2.x line.
+
 ## v2.9.2 — 2026-05-02
 
 T-V29-3 polish batch — lands the 8 deferred single-reviewer 🟡

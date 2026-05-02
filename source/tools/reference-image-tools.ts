@@ -2,100 +2,56 @@ import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 
+// v2.9.0 T-V29-6 (RomaRogov macro-tool enum routing): collapse 12 flat
+// reference-image tools into a single `reference_image({op, ...})` macro
+// tool. Reasons:
+//   - Token cost: 12 separate tool schemas vs 1 union saves ~kb on every
+//     tools/list response.
+//   - Coherence: all ops share the same domain (cocos reference-image
+//     module) and dispatch to the same Editor.Message channel; flat
+//     collapse keeps the dispatch trivial.
+//   - LLM ergonomics: a single tool with `op` enum is easier for AI to
+//     pick than 12 near-identically-named flat tools.
+//
+// Schema shape: flat optional fields per op (NOT z.discriminatedUnion).
+// discriminatedUnion compiles to JSON Schema `oneOf` with per-branch
+// required arrays — gemini-compat works in zod 4 / draft-7, but the
+// flat schema is simpler for every LLM tool-call parser and easier to
+// extend when new ops are added.
+//
+// Backward compatibility: this is a BREAKING change for callers that
+// addressed individual `reference_image_<verb>` tool names. We
+// intentionally don't ship compat aliases — that would defeat the
+// token-cost reduction. v2.9.x is the migration window; CHANGELOG +
+// HANDOFF document the new shape so external clients can update.
 export class ReferenceImageTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
         const defs: ToolDef[] = [
             {
-                name: 'add_reference_image',
-                description: 'Add absolute image paths to the reference-image module; does not create assets.',
+                name: 'manage',
+                description: 'Reference-image module operations (cocos editor scene reference images). Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).',
                 inputSchema: z.object({
-                    paths: z.array(z.string()).describe('Absolute image file paths to add as scene reference images.'),
+                    op: z.enum([
+                        'add', 'remove', 'switch', 'set_data', 'query_config',
+                        'query_current', 'refresh', 'set_position', 'set_scale',
+                        'set_opacity', 'list', 'clear_all',
+                    ]).describe(
+                        'Op selector. "add" — register absolute image paths (paths required). "remove" — remove specific paths or current image when omitted. "switch" — switch active image (path required, sceneUUID optional). "set_data" — set raw display property (key + value required). "query_config" — read module config. "query_current" — read current image state. "refresh" — refresh display without changing data. "set_position" — set x/y offsets. "set_scale" — set sx/sy scale 0.1-10. "set_opacity" — set opacity 0-1. "list" — read config + current data. "clear_all" — remove all reference images.'
+                    ),
+                    paths: z.array(z.string()).optional().describe('For op="add" (required) or op="remove" (optional — omit to remove current).'),
+                    path: z.string().optional().describe('For op="switch" (required).'),
+                    sceneUUID: z.string().optional().describe('For op="switch" (optional scene UUID scope).'),
+                    key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).optional().describe('For op="set_data" (required) — property key.'),
+                    value: z.any().optional().describe('For op="set_data" (required) — property value.'),
+                    x: z.number().optional().describe('For op="set_position" (required).'),
+                    y: z.number().optional().describe('For op="set_position" (required).'),
+                    sx: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
+                    sy: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
+                    opacity: z.number().min(0).max(1).optional().describe('For op="set_opacity" (required), 0-1.'),
                 }),
-                handler: a => this.addReferenceImage(a.paths),
-            },
-            {
-                name: 'remove_reference_image',
-                description: 'Remove specific reference images, or current image when paths are omitted.',
-                inputSchema: z.object({
-                    paths: z.array(z.string()).optional().describe('Reference image paths to remove. Omit/empty removes the current image.'),
-                }),
-                handler: a => this.removeReferenceImage(a.paths),
-            },
-            {
-                name: 'switch_reference_image',
-                description: 'Switch active reference image by absolute path, optionally scoped to scene UUID.',
-                inputSchema: z.object({
-                    path: z.string().describe('Absolute reference image path to make current.'),
-                    sceneUUID: z.string().optional().describe('Optional scene UUID scope for the switch.'),
-                }),
-                handler: a => this.switchReferenceImage(a.path, a.sceneUUID),
-            },
-            {
-                name: 'set_reference_image_data',
-                description: 'Set one raw reference-image display property: path/x/y/sx/sy/opacity.',
-                inputSchema: z.object({
-                    key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).describe('Reference image property key to set.'),
-                    value: z.any().describe('Property value: path string, x/y/sx/sy number, or opacity 0-1.'),
-                }),
-                handler: a => this.setReferenceImageData(a.key, a.value),
-            },
-            {
-                name: 'query_reference_image_config',
-                description: 'Read reference-image module configuration.',
-                inputSchema: z.object({}),
-                handler: () => this.queryReferenceImageConfig(),
-            },
-            {
-                name: 'query_current_reference_image',
-                description: 'Read current reference-image state.',
-                inputSchema: z.object({}),
-                handler: () => this.queryCurrentReferenceImage(),
-            },
-            {
-                name: 'refresh_reference_image',
-                description: 'Refresh reference-image display without changing image data.',
-                inputSchema: z.object({}),
-                handler: () => this.refreshReferenceImage(),
-            },
-            {
-                name: 'set_reference_image_position',
-                description: 'Set current reference image x/y offsets.',
-                inputSchema: z.object({
-                    x: z.number().describe('Reference image X offset.'),
-                    y: z.number().describe('Reference image Y offset.'),
-                }),
-                handler: a => this.setReferenceImagePosition(a.x, a.y),
-            },
-            {
-                name: 'set_reference_image_scale',
-                description: 'Set current reference image x/y scale.',
-                inputSchema: z.object({
-                    sx: z.number().min(0.1).max(10).describe('Reference image X scale, 0.1-10.'),
-                    sy: z.number().min(0.1).max(10).describe('Reference image Y scale, 0.1-10.'),
-                }),
-                handler: a => this.setReferenceImageScale(a.sx, a.sy),
-            },
-            {
-                name: 'set_reference_image_opacity',
-                description: 'Set current reference image opacity.',
-                inputSchema: z.object({
-                    opacity: z.number().min(0).max(1).describe('Reference image opacity from 0.0 to 1.0.'),
-                }),
-                handler: a => this.setReferenceImageOpacity(a.opacity),
-            },
-            {
-                name: 'list_reference_images',
-                description: 'Read reference-image config plus current image data.',
-                inputSchema: z.object({}),
-                handler: () => this.listReferenceImages(),
-            },
-            {
-                name: 'clear_all_reference_images',
-                description: 'Remove reference images from the module; does not delete files/assets.',
-                inputSchema: z.object({}),
-                handler: () => this.clearAllReferenceImages(),
+                handler: a => this.dispatch(a),
             },
         ];
         this.exec = defineTools(defs);
@@ -104,202 +60,122 @@ export class ReferenceImageTools implements ToolExecutor {
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async addReferenceImage(paths: string[]): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'add-image', paths).then(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        addedPaths: paths,
-                        count: paths.length,
-                        message: `Added ${paths.length} reference image(s)`
-                    }
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async removeReferenceImage(paths?: string[]): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'remove-image', paths).then(() => {
-                const message = paths && paths.length > 0 ? 
-                    `Removed ${paths.length} reference image(s)` : 
-                    'Removed current reference image';
-                resolve({
-                    success: true,
-                    message: message
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async switchReferenceImage(path: string, sceneUUID?: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            const args = sceneUUID ? [path, sceneUUID] : [path];
-            Editor.Message.request('reference-image', 'switch-image', ...args).then(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        path: path,
-                        sceneUUID: sceneUUID,
-                        message: `Switched to reference image: ${path}`
-                    }
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async setReferenceImageData(key: string, value: any): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'set-image-data', key, value).then(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        key: key,
-                        value: value,
-                        message: `Reference image ${key} set to ${value}`
-                    }
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async queryReferenceImageConfig(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'query-config').then((config: any) => {
-                resolve({
-                    success: true,
-                    data: config
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async queryCurrentReferenceImage(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'query-current').then((current: any) => {
-                resolve({
-                    success: true,
-                    data: current
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async refreshReferenceImage(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'refresh').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Reference image refreshed'
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async setReferenceImagePosition(x: number, y: number): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                await Editor.Message.request('reference-image', 'set-image-data', 'x', x);
-                await Editor.Message.request('reference-image', 'set-image-data', 'y', y);
-                
-                resolve({
-                    success: true,
-                    data: {
-                        x: x,
-                        y: y,
-                        message: `Reference image position set to (${x}, ${y})`
-                    }
-                });
-            } catch (err: any) {
-                resolve({ success: false, error: err.message });
+    // Per-op required-field validation. Each op's required args are
+    // reasserted here because the flat zod schema marks them all
+    // optional for surface simplicity. Failure returns a clear
+    // structured error so AI can correct the call.
+    private requireFields(op: string, args: any, ...keys: string[]): string | null {
+        for (const k of keys) {
+            if (args[k] === undefined || args[k] === null) {
+                return `reference_image(op="${op}") requires ${k}; got ${JSON.stringify(args)}.`;
             }
-        });
+        }
+        return null;
     }
 
-    private async setReferenceImageScale(sx: number, sy: number): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                await Editor.Message.request('reference-image', 'set-image-data', 'sx', sx);
-                await Editor.Message.request('reference-image', 'set-image-data', 'sy', sy);
-                
-                resolve({
-                    success: true,
-                    data: {
-                        sx: sx,
-                        sy: sy,
-                        message: `Reference image scale set to (${sx}, ${sy})`
-                    }
-                });
-            } catch (err: any) {
-                resolve({ success: false, error: err.message });
+    private async dispatch(args: any): Promise<ToolResponse> {
+        const op = args.op as string;
+        try {
+            switch (op) {
+                case 'add': {
+                    const err = this.requireFields(op, args, 'paths');
+                    if (err) return { success: false, error: err };
+                    await Editor.Message.request('reference-image', 'add-image', args.paths);
+                    return {
+                        success: true,
+                        data: { op, addedPaths: args.paths, count: args.paths.length },
+                        message: `Added ${args.paths.length} reference image(s)`,
+                    };
+                }
+                case 'remove': {
+                    await Editor.Message.request('reference-image', 'remove-image', args.paths);
+                    return {
+                        success: true,
+                        data: { op, removedPaths: args.paths ?? null },
+                        message: args.paths && args.paths.length > 0
+                            ? `Removed ${args.paths.length} reference image(s)`
+                            : 'Removed current reference image',
+                    };
+                }
+                case 'switch': {
+                    const err = this.requireFields(op, args, 'path');
+                    if (err) return { success: false, error: err };
+                    const callArgs = args.sceneUUID ? [args.path, args.sceneUUID] : [args.path];
+                    await Editor.Message.request('reference-image', 'switch-image', ...callArgs);
+                    return {
+                        success: true,
+                        data: { op, path: args.path, sceneUUID: args.sceneUUID ?? null },
+                        message: `Switched to reference image: ${args.path}`,
+                    };
+                }
+                case 'set_data': {
+                    const err = this.requireFields(op, args, 'key', 'value');
+                    if (err) return { success: false, error: err };
+                    await Editor.Message.request('reference-image', 'set-image-data', args.key, args.value);
+                    return {
+                        success: true,
+                        data: { op, key: args.key, value: args.value },
+                        message: `Reference image ${args.key} set to ${args.value}`,
+                    };
+                }
+                case 'query_config': {
+                    const config: any = await Editor.Message.request('reference-image', 'query-config');
+                    return { success: true, data: { op, config } };
+                }
+                case 'query_current': {
+                    const current: any = await Editor.Message.request('reference-image', 'query-current');
+                    return { success: true, data: { op, current } };
+                }
+                case 'refresh': {
+                    await Editor.Message.request('reference-image', 'refresh');
+                    return { success: true, data: { op }, message: 'Reference image refreshed' };
+                }
+                case 'set_position': {
+                    const err = this.requireFields(op, args, 'x', 'y');
+                    if (err) return { success: false, error: err };
+                    await Editor.Message.request('reference-image', 'set-image-data', 'x', args.x);
+                    await Editor.Message.request('reference-image', 'set-image-data', 'y', args.y);
+                    return {
+                        success: true,
+                        data: { op, x: args.x, y: args.y },
+                        message: `Reference image position set to (${args.x}, ${args.y})`,
+                    };
+                }
+                case 'set_scale': {
+                    const err = this.requireFields(op, args, 'sx', 'sy');
+                    if (err) return { success: false, error: err };
+                    await Editor.Message.request('reference-image', 'set-image-data', 'sx', args.sx);
+                    await Editor.Message.request('reference-image', 'set-image-data', 'sy', args.sy);
+                    return {
+                        success: true,
+                        data: { op, sx: args.sx, sy: args.sy },
+                        message: `Reference image scale set to (${args.sx}, ${args.sy})`,
+                    };
+                }
+                case 'set_opacity': {
+                    const err = this.requireFields(op, args, 'opacity');
+                    if (err) return { success: false, error: err };
+                    await Editor.Message.request('reference-image', 'set-image-data', 'opacity', args.opacity);
+                    return {
+                        success: true,
+                        data: { op, opacity: args.opacity },
+                        message: `Reference image opacity set to ${args.opacity}`,
+                    };
+                }
+                case 'list': {
+                    const config: any = await Editor.Message.request('reference-image', 'query-config');
+                    const current: any = await Editor.Message.request('reference-image', 'query-current');
+                    return { success: true, data: { op, config, current } };
+                }
+                case 'clear_all': {
+                    await Editor.Message.request('reference-image', 'remove-image');
+                    return { success: true, data: { op }, message: 'All reference images cleared' };
+                }
+                default:
+                    return { success: false, error: `Unknown reference_image op: ${op}` };
             }
-        });
-    }
-
-    private async setReferenceImageOpacity(opacity: number): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('reference-image', 'set-image-data', 'opacity', opacity).then(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        opacity: opacity,
-                        message: `Reference image opacity set to ${opacity}`
-                    }
-                });
-            }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
-            });
-        });
-    }
-
-    private async listReferenceImages(): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                const config = await Editor.Message.request('reference-image', 'query-config');
-                const current = await Editor.Message.request('reference-image', 'query-current');
-                
-                resolve({
-                    success: true,
-                    data: {
-                        config: config,
-                        current: current,
-                        message: 'Reference image information retrieved'
-                    }
-                });
-            } catch (err: any) {
-                resolve({ success: false, error: err.message });
-            }
-        });
-    }
-
-    private async clearAllReferenceImages(): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                // Remove all reference images by calling remove-image without paths
-                await Editor.Message.request('reference-image', 'remove-image');
-                
-                resolve({
-                    success: true,
-                    message: 'All reference images cleared'
-                });
-            } catch (err: any) {
-                resolve({ success: false, error: err.message });
-            }
-        });
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
     }
 }
