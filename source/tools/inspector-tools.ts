@@ -3,21 +3,18 @@
  * cocos `scene/query-node` dumps.
  *
  * Two MCP tools:
- *   - inspector_get_instance_definition  — for a **node** reference
- *     (component / asset references are deferred to v2.5+ pending a
- *     verified Cocos query-component channel), walk the cocos dump
- *     and emit a TypeScript class declaration AI can read before
- *     changing properties. Avoids the "AI guesses property name"
- *     failure mode.
+ *   - inspector_get_instance_definition  — for a **node** or
+ *     component reference, walk the cocos dump and emit a TypeScript
+ *     class declaration AI can read before changing properties. Avoids
+ *     the "AI guesses property name" failure mode.
  *   - inspector_get_common_types_definition — return hardcoded
  *     definitions for cocos value types (Vec2/3/4, Color, Rect, etc.)
  *     that the instance definition references but doesn't inline.
  *
  * Reference: cocos-code-mode (RomaRogov)
  * `D:/1_dev/cocos-mcp-references/cocos-code-mode/source/utcp/tools/typescript-defenition.ts`.
- * Our impl is intentionally a basic walk — handles property name + type
- * + array + reference; defers enum/struct hoisting and per-attribute
- * decorators to later patches.
+ * Our impl walks property dumps, decorators, enum/BitMask metadata,
+ * nested structs, arrays, and references.
  *
  * Demonstrates the @mcpTool decorator (v2.4.0 step 5).
  */
@@ -52,10 +49,9 @@ class Mat4 { m00: number; m01: number; m02: number; m03: number;
 // that AI shouldn't try to mutate.
 //
 // v2.4.2 review fix (codex+claude+gemini): COMPONENT_INTERNAL_KEYS was
-// kept in v2.4.1 in anticipation of a v2.5+ component-shaped path, but
-// renderTsClass currently only ever runs for nodes. Removed for now;
-// when component support comes back, restore from git history rather
-// than carry dead code that drifts out of sync with cocos editor.
+// removed after drifting out of sync with cocos editor. The shared
+// renderer keeps this conservative node metadata filter for both node
+// and component-shaped dumps.
 const NODE_DUMP_INTERNAL_KEYS = new Set([
     '__type__', '__comps__', '__prefab__', '__editorExtras__',
     '_objFlags', '_id', 'uuid',
@@ -77,7 +73,7 @@ export class InspectorTools implements ToolExecutor {
     @mcpTool({
         name: 'get_common_types_definition',
         title: 'Read cocos common types',
-        description: 'Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query.',
+        description: 'Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query. Supports both node and component instance dumps including @property decorators and enum types.',
         inputSchema: z.object({}),
     })
     async getCommonTypesDefinition(): Promise<ToolResponse> {
@@ -90,9 +86,9 @@ export class InspectorTools implements ToolExecutor {
     @mcpTool({
         name: 'get_instance_definition',
         title: 'Read instance TS definition',
-        description: 'Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. v2.4.1 note: only node-shaped references are inspected here — component/asset definition support is deferred until a verified Cocos query-component channel is wired.',
+        description: 'Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. Supports both node and component instance dumps including @property decorators and enum types.',
         inputSchema: z.object({
-            reference: instanceReferenceSchema.describe('Target node. {id} = node UUID, {type} optional cc class label. Component or asset references will return an error in v2.4.1.'),
+            reference: instanceReferenceSchema.describe('Target node or component. {id} = instance UUID, {type} optional cc class label.'),
         }),
     })
     async getInstanceDefinition(args: { reference: InstanceReference }): Promise<ToolResponse> {
@@ -103,7 +99,7 @@ export class InspectorTools implements ToolExecutor {
         try {
             const dump: any = await Editor.Message.request('scene', 'query-node', reference.id);
             if (!dump) {
-                return { success: false, error: `inspector: query-node returned no dump for ${reference.id}. If this is a component or asset UUID, v2.4.1 does not support it; pass the host node UUID instead.` };
+                return { success: false, error: `inspector: query-node returned no dump for ${reference.id}.` };
             }
             // v2.4.2 review fix (codex): trust the dump's __type__, not
             // the caller-supplied reference.type. A caller passing
@@ -117,7 +113,7 @@ export class InspectorTools implements ToolExecutor {
             const referenceTypeMismatch = reference.type
                 && reference.type !== dumpType
                 && reference.type.replace(/^cc\./, '') !== className;
-            const ts = renderTsClass(className, dump, /* isComponent */ false);
+            const ts = renderTsClass(className, dump, isComponentDump(dump));
             const response: ToolResponse = {
                 success: true,
                 data: {
@@ -142,37 +138,57 @@ export class InspectorTools implements ToolExecutor {
  * require a separate get_instance_definition call by component
  * UUID).
  */
-function renderTsClass(className: string, dump: any, _isComponent: boolean): string {
-    // v2.4.2: _isComponent kept for forward-compat signature stability;
-    // currently always false. v2.5+ will reintroduce a component branch.
+function renderTsClass(className: string, dump: any, isComponent: boolean): string {
+    const ctx: RenderContext = { definitions: [], definedNames: new Set<string>() };
+    processTsClass(ctx, className, dump, isComponent);
+    return ctx.definitions.join('\n\n');
+}
+
+interface RenderContext {
+    definitions: string[];
+    definedNames: Set<string>;
+}
+
+interface ResolvedPropertyType {
+    tsType: string;
+    decoratorType?: string;
+}
+
+function processTsClass(ctx: RenderContext, className: string, dump: any, isComponent: boolean): void {
+    const safeClassName = sanitizeTsName(String(className ?? '').replace(/^cc\./, ''));
+    if (ctx.definedNames.has(safeClassName)) return;
+    ctx.definedNames.add(safeClassName);
+
     const lines: string[] = [];
-    lines.push(`class ${sanitizeTsName(className)} {`);
+    lines.push(`class ${safeClassName}${isComponent ? ' extends Component' : ''} {`);
 
-    for (const propName of Object.keys(dump)) {
-        if (NODE_DUMP_INTERNAL_KEYS.has(propName)) continue;
-        const propEntry = dump[propName];
-        if (propEntry === undefined || propEntry === null) continue;
-        // Cocos dump entries are typically `{type, value, visible?, readonly?, ...}`.
-        // Skip explicitly-hidden inspector fields; they're not user-facing.
-        if (typeof propEntry === 'object' && propEntry.visible === false) continue;
+    if (dump && typeof dump === 'object') {
+        for (const propName of Object.keys(dump)) {
+            if (NODE_DUMP_INTERNAL_KEYS.has(propName)) continue;
+            const propEntry = dump[propName];
+            if (propEntry === undefined || propEntry === null) continue;
+            // Cocos dump entries are typically `{type, value, visible?, readonly?, ...}`.
+            // Skip explicitly-hidden inspector fields; they're not user-facing.
+            if (typeof propEntry === 'object' && propEntry.visible === false) continue;
 
-        const tsType = resolveTsType(propEntry);
-        const readonly = propEntry?.readonly ? 'readonly ' : '';
-        const enumHint = enumCommentHint(propEntry);
-        const tooltipSrc: string | undefined = propEntry?.tooltip;
-        if (tooltipSrc && typeof tooltipSrc === 'string') {
-            lines.push(`    /** ${sanitizeForComment(tooltipSrc)} */`);
+            const resolved = resolveTsPropertyType(ctx, safeClassName, propName, propEntry);
+            const readonly = propEntry?.readonly ? 'readonly ' : '';
+            const tooltipSrc: string | undefined = propEntry?.tooltip;
+            if (tooltipSrc && typeof tooltipSrc === 'string') {
+                lines.push(`    /** ${sanitizeForComment(tooltipSrc)} */`);
+            }
+            const decorator = renderPropertyDecorator(propEntry, resolved.decoratorType);
+            if (decorator) {
+                lines.push(`    ${decorator}`);
+            }
+            const safePropName = isSafeTsIdentifier(propName) ? propName : JSON.stringify(propName);
+            lines.push(`    ${readonly}${safePropName}: ${resolved.tsType};`);
         }
-        if (enumHint) {
-            lines.push(`    /** ${enumHint} */`);
-        }
-        const safePropName = isSafeTsIdentifier(propName) ? propName : JSON.stringify(propName);
-        lines.push(`    ${readonly}${safePropName}: ${tsType};`);
     }
 
-    if (Array.isArray(dump.__comps__) && dump.__comps__.length > 0) {
+    if (!isComponent && Array.isArray(dump?.__comps__) && dump.__comps__.length > 0) {
         lines.push('');
-        lines.push('    // Components on this node (inspect each separately via get_instance_definition with the host node UUID first; component-specific dump access is v2.5+):');
+        lines.push('    // Components on this node (inspect each separately via get_instance_definition with the host node UUID first):');
         for (const comp of dump.__comps__) {
             const cType = sanitizeForComment(String(comp?.__type__ ?? comp?.type ?? 'unknown'));
             const cUuid = sanitizeForComment(String(comp?.value?.uuid?.value ?? comp?.uuid?.value ?? comp?.uuid ?? '?'));
@@ -181,7 +197,7 @@ function renderTsClass(className: string, dump: any, _isComponent: boolean): str
     }
 
     lines.push('}');
-    return lines.join('\n');
+    ctx.definitions.push(lines.join('\n'));
 }
 
 // v2.4.1 review fix (claude): tooltips and component metadata can
@@ -202,41 +218,31 @@ function isSafeTsIdentifier(name: string): boolean {
     return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name);
 }
 
-// v2.4.1 review fix (gemini): Enum/BitMask were emitted as bare
-// `number`. Surface the enum class via comment so AI can look it up
-// rather than guess.
-function enumCommentHint(entry: any): string | null {
-    if (!entry || typeof entry !== 'object') return null;
-    const t: string = entry.type ?? '';
-    if (t !== 'Enum' && t !== 'BitMask') return null;
-    // v2.4.2 review fix (claude): the v2.4.1 fallback included
-    // `userData.enumList[0].name` which is the *first enum value's*
-    // name, not the enum class name — produced misleading comments.
-    // Drop that path; only use explicit enumName fields.
-    const enumName: string | undefined = entry?.userData?.enumName
-        ?? entry?.enumName;
-    // v2.4.2 review fix (codex): cocos sometimes nests enumList /
-    // bitmaskList under userData, sometimes at the top level. Check
-    // both before giving up.
-    const list = Array.isArray(entry.enumList) ? entry.enumList
-        : Array.isArray(entry.bitmaskList) ? entry.bitmaskList
-        : Array.isArray(entry?.userData?.enumList) ? entry.userData.enumList
-        : Array.isArray(entry?.userData?.bitmaskList) ? entry.userData.bitmaskList
-        : null;
-    const sample = list && list.length > 0
-        ? list.slice(0, 8).map((it: any) => {
-            const n = it?.name ?? '?';
-            const v = it?.value ?? '?';
-            return `${n}=${v}`;
-        }).join(', ')
-        : null;
-    if (enumName) {
-        return sanitizeForComment(`${t}: ${enumName}${sample ? ` — ${sample}` : ''}`);
+function resolveTsPropertyType(ctx: RenderContext, ownerClassName: string, propName: string, entry: any): ResolvedPropertyType {
+    const isArray = !!entry?.isArray;
+    const itemEntry = isArray ? arrayItemEntry(entry) : entry;
+    const enumList = enumOrBitmaskList(itemEntry) ?? enumOrBitmaskList(entry);
+    if (enumList) {
+        const enumName = pascalCaseName(propName);
+        generateConstEnumDefinition(ctx, enumName, enumList);
+        return {
+            tsType: isArray ? `Array<${enumName}>` : enumName,
+            decoratorType: isArray ? `[${enumName}]` : enumName,
+        };
     }
-    if (sample) {
-        return sanitizeForComment(`${t} values: ${sample}`);
+
+    const structValue = nestedStructValue(itemEntry);
+    if (structValue && !isCommonValueType(itemEntry?.type) && !isReferenceEntry(itemEntry)) {
+        const structName = nestedStructClassName(ownerClassName, propName, structValue, isArray);
+        processTsClass(ctx, structName, structValue, false);
+        return {
+            tsType: isArray ? `Array<${structName}>` : structName,
+            decoratorType: isArray ? `[${structName}]` : structName,
+        };
     }
-    return null;
+
+    const tsType = resolveTsType(itemEntry);
+    return { tsType: isArray ? `Array<${tsType}>` : tsType };
 }
 
 function resolveTsType(entry: any): string {
@@ -248,7 +254,6 @@ function resolveTsType(entry: any): string {
     if (tt === 'boolean') return 'boolean';
 
     const rawType: string = entry.type ?? entry.__type__ ?? '';
-    const isArray = !!entry.isArray;
 
     let ts: string;
     switch (rawType) {
@@ -284,7 +289,158 @@ function resolveTsType(entry: any): string {
             ts = isReference ? `InstanceReference<${strippedType}>` : strippedType;
         }
     }
-    return isArray ? `Array<${ts}>` : ts;
+    return ts;
+}
+
+function renderPropertyDecorator(entry: any, resolvedType?: string): string | null {
+    if (!entry || typeof entry !== 'object') return null;
+
+    const parts: string[] = [];
+    const typeExpr = resolvedType ?? decoratorTypeExpression(entry);
+    const hasEnumOrBitmaskList = enumOrBitmaskList(entry) !== null
+        || enumOrBitmaskList(arrayItemEntry(entry)) !== null;
+    if ((entry.type !== undefined || hasEnumOrBitmaskList) && typeExpr) {
+        parts.push(`type: ${typeExpr}`);
+    }
+
+    for (const attr of ['min', 'max', 'step', 'unit', 'radian', 'multiline', 'tooltip']) {
+        const value = entry[attr];
+        if (value !== undefined && value !== null) {
+            parts.push(`${attr}: ${decoratorValue(value)}`);
+        }
+    }
+
+    if (parts.length === 0) return null;
+    return `@property({ ${parts.join(', ')} })`;
+}
+
+function decoratorTypeExpression(entry: any): string | null {
+    const isArray = !!entry?.isArray;
+    const itemEntry = isArray ? arrayItemEntry(entry) : entry;
+    const rawType: string | undefined = itemEntry?.type;
+    if (!rawType) return null;
+
+    let expr: string | null;
+    switch (rawType) {
+        case 'Integer': expr = 'CCInteger'; break;
+        case 'Float':
+        case 'Number': expr = 'CCFloat'; break;
+        case 'String': expr = 'String'; break;
+        case 'Boolean': expr = 'Boolean'; break;
+        case 'Enum':
+        case 'BitMask': expr = 'Number'; break;
+        default: expr = sanitizeTsName(rawType.replace(/^cc\./, ''));
+    }
+    if (!expr) return null;
+    return isArray ? `[${expr}]` : expr;
+}
+
+function decoratorValue(value: any): string {
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return JSON.stringify(value);
+}
+
+function arrayItemEntry(entry: any): any {
+    if (entry?.elementTypeData) return entry.elementTypeData;
+    if (Array.isArray(entry?.value) && entry.value.length > 0) return entry.value[0];
+    return entry;
+}
+
+function enumOrBitmaskList(entry: any): any[] | null {
+    if (!entry || typeof entry !== 'object') return null;
+    return Array.isArray(entry.enumList) ? entry.enumList
+        : Array.isArray(entry.bitmaskList) ? entry.bitmaskList
+        : Array.isArray(entry?.userData?.enumList) ? entry.userData.enumList
+        : Array.isArray(entry?.userData?.bitmaskList) ? entry.userData.bitmaskList
+        : null;
+}
+
+function generateConstEnumDefinition(ctx: RenderContext, enumName: string, items: any[]): void {
+    const safeEnumName = sanitizeTsName(enumName);
+    if (ctx.definedNames.has(safeEnumName)) return;
+    ctx.definedNames.add(safeEnumName);
+
+    const usedMemberNames = new Set<string>();
+    const lines: string[] = [`const enum ${safeEnumName} {`];
+    items.forEach((item, index) => {
+        const rawName = item?.name ?? item?.displayName ?? item?.value ?? `Value${index}`;
+        let memberName = sanitizeTsName(String(rawName));
+        if (usedMemberNames.has(memberName)) {
+            memberName = `${memberName}_${index}`;
+        }
+        usedMemberNames.add(memberName);
+        const value = item?.value;
+        const initializer = typeof value === 'string'
+            ? JSON.stringify(value)
+            : typeof value === 'number'
+                ? String(value)
+                : String(index);
+        lines.push(`    ${memberName} = ${initializer},`);
+    });
+    lines.push('}');
+    ctx.definitions.push(lines.join('\n'));
+}
+
+function nestedStructValue(entry: any): any | null {
+    if (!entry || typeof entry !== 'object') return null;
+    const value = entry.value;
+    if (value && typeof value === 'object' && !Array.isArray(value) && '__type__' in value) {
+        return value;
+    }
+    if ('__type__' in entry && !('type' in entry)) {
+        return entry;
+    }
+    return null;
+}
+
+function nestedStructClassName(ownerClassName: string, propName: string, value: any, isArray: boolean): string {
+    const typeName = sanitizeTsName(String(value?.__type__ ?? '').replace(/^cc\./, ''));
+    if (typeName && typeName !== '_Unknown' && typeName !== 'Object') {
+        return typeName;
+    }
+    return sanitizeTsName(`${ownerClassName}${pascalCaseName(propName)}${isArray ? 'Item' : 'Type'}`);
+}
+
+function isCommonValueType(type: string | undefined): boolean {
+    return type === 'cc.Vec2'
+        || type === 'cc.Vec3'
+        || type === 'cc.Vec4'
+        || type === 'cc.Color'
+        || type === 'cc.Rect'
+        || type === 'cc.Size'
+        || type === 'cc.Quat'
+        || type === 'cc.Mat3'
+        || type === 'cc.Mat4';
+}
+
+function isReferenceEntry(entry: any): boolean {
+    if (!entry || typeof entry !== 'object') return false;
+    const rawType: string = entry.type ?? entry.__type__ ?? '';
+    const extendsList: string[] = Array.isArray(entry.extends) ? entry.extends : [];
+    return extendsList.includes('cc.Object')
+        || rawType === 'Node'
+        || rawType === 'Component'
+        || rawType === 'cc.Node'
+        || rawType === 'cc.Component'
+        || (rawType.startsWith('cc.') && !isCommonValueType(rawType));
+}
+
+function pascalCaseName(name: string): string {
+    const words = String(name ?? '')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .split(/[^A-Za-z0-9]+/)
+        .filter(Boolean);
+    const pascal = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join('');
+    return sanitizeTsName(pascal || name || 'Value');
+}
+
+function isComponentDump(dump: any): boolean {
+    if (!dump || typeof dump !== 'object') return false;
+    const rawType = String(dump.__type__ ?? dump.type ?? '');
+    if (rawType === 'Node' || rawType === 'cc.Node') return false;
+    const extendsList: string[] = Array.isArray(dump.extends) ? dump.extends : [];
+    return extendsList.includes('cc.Component') || !Array.isArray(dump.__comps__);
 }
 
 // v2.4.2 review fix (codex): the v2.4.1 implementation only stripped
