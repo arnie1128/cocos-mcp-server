@@ -1,5 +1,82 @@
 # Changelog
 
+## v2.4.4 — 2026-05-03
+
+Three-way review fixes on v2.4.3 (round 1). Two 🔴 must-fix from
+3-way consensus + five 🟡 polish items. No new tools, no API
+removals.
+
+### Must-fix
+
+- **Prototype-pollution guard in `BaseAssetInterpreter.setProperty`**
+  (Gemini + Claude + Codex 3-way consensus). v2.4.3's
+  `VALID_META_PATTERNS` checked only the root prefix; paths like
+  `userData.__proto__.polluted` passed validation and the walk
+  descended through `Object.prototype`, producing process-wide
+  pollution observable from every other tool. New `isPathSafe()`
+  helper rejects `__proto__` / `constructor` / `prototype` segments
+  anywhere in the path, plus empty segments (`userData..foo`).
+  Same guard inlined into `ImageInterpreter.setProperty`'s sub-asset
+  inner walk. Fix at `source/asset-interpreters/base.ts` +
+  `specialized.ts`.
+- **`ImageInterpreter` sub-asset routing**: v2.4.3 wrote into the
+  FIRST `meta.subMetas` value found, ignoring whether the path
+  mentioned `texture` or `spriteFrame`. Cocos image assets typically
+  have BOTH sub-metas, so writes silently corrupted the wrong
+  sub-asset. Now matches by either declared `name` field or by
+  importer string (`texture` vs `sprite-frame`); errors clearly when
+  no match. (Gemini + Claude + Codex 3-way consensus.) Fix at
+  `source/asset-interpreters/specialized.ts:ImageInterpreter`.
+
+### Worth-considering
+
+- **Removed `importer` / `importerVersion` / `sourceUuid` /
+  `isGroup` / `folder` from the writable allow-list**. Letting AI
+  flip an asset's importer string asks asset-db to re-import as a
+  different importer; best case the import fails, worst case the
+  asset is corrupted. (Claude.)
+- **`resolveAssetInfo` symmetric malformed-reference check**.
+  `reference: {}` (no id) plus a valid `assetUuid` no longer falls
+  through silently — explicit error matching the v2.4.1/v2.4.2
+  `resolveReference` fix. (Gemini + Claude.)
+- **Save vs refresh failure handling split**. v2.4.3 lumped both
+  errors together which mislabelled state on disk: if save succeeded
+  but refresh threw, every successful entry was flipped to failure
+  even though the disk meta was updated. Now refresh failures
+  attach a `warning` to each successful entry without reversing the
+  success status. (Claude + Codex.)
+- **Boolean / Number / Integer coercion validates input**.
+  `Boolean("false")` would have returned `true` (truthy string);
+  `parseFloat("foo")` would have written `NaN`. Now `"false"`,
+  `"true"`, `"0"`, `"1"` are explicit branches; non-numeric strings
+  for Number/Integer throw. (Codex.)
+- **Tool descriptions / file JSDoc use correct prefixed names**.
+  v2.4.3 referred to `asset_get_properties` etc., but the actual
+  MCP names are `assetMeta_get_properties` (the `assetMeta`
+  category prefix). Clients following the description would call a
+  missing name. (Codex.)
+- **`useAdvancedInspection` field documented as reserved**. The
+  schema field exists but no interpreter currently acts on it; the
+  description now explicitly says "v2.4.x has no effect" so AI
+  doesn't expect material advanced inspection until v2.5+. (Codex.)
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 16 categories / 170 tools (unchanged from v2.4.3)
+
+### Security note
+
+The prototype-pollution issue is the highest-severity bug v2.4.x has
+shipped to date (process-wide impact, AI-controllable input as
+attack vector). The guard added in this patch is defensive at the
+walker level so future asset-meta paths can't reintroduce it without
+explicitly bypassing `isPathSafe()`. Adding this to CLAUDE.md
+landmines is recommended next session.
+
+---
+
 ## v2.4.3 — 2026-05-03
 
 Asset interpreters system — fills the gap left by `set_component_property`

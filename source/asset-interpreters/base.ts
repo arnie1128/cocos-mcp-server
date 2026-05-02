@@ -31,16 +31,50 @@ import {
     PropertySetResult,
 } from './interface';
 
+// v2.4.4 review fix (claude): removed importer / importerVersion /
+// sourceUuid / isGroup / folder from the writable allow-list. Letting
+// AI flip an asset's importer string asks asset-db to re-import as a
+// different importer; best case the import fails, worst case the
+// asset is corrupted. None of these fields have a documented
+// AI-driven use case yet — re-add when one shows up.
 const VALID_META_PATTERNS: RegExp[] = [
     /^userData\./,
     /^subMetas\./,
     /^platformSettings\./,
-    /^importer$/,
-    /^importerVersion$/,
-    /^sourceUuid$/,
-    /^isGroup$/,
-    /^folder$/,
 ];
+
+// v2.4.4 review fix (gemini + claude + codex): VALID_META_PATTERNS
+// only checks the root prefix. Without this hard-stop list, paths
+// like `userData.__proto__.polluted` pass the regex AND the walk
+// descends through Object.prototype, producing process-wide
+// prototype pollution observable from every other tool / scene
+// script. Reject any of these segments anywhere in the path.
+const FORBIDDEN_PATH_SEGMENTS = new Set([
+    '__proto__', 'constructor', 'prototype',
+]);
+
+export function isPathSafe(propertyPath: string): { ok: true } | { ok: false; reason: string } {
+    if (!propertyPath || typeof propertyPath !== 'string') {
+        return { ok: false, reason: 'propertyPath must be a non-empty string' };
+    }
+    const isValidRoot = VALID_META_PATTERNS.some(re => re.test(propertyPath));
+    if (!isValidRoot) {
+        return {
+            ok: false,
+            reason: `Invalid asset-meta path '${propertyPath}'. Allowed roots: userData.*, subMetas.*, platformSettings.*`,
+        };
+    }
+    const parts = propertyPath.split('.');
+    for (const part of parts) {
+        if (part === '') {
+            return { ok: false, reason: `Empty path segment in '${propertyPath}' (consecutive dots)` };
+        }
+        if (FORBIDDEN_PATH_SEGMENTS.has(part)) {
+            return { ok: false, reason: `Forbidden path segment '${part}' in '${propertyPath}' (prototype-pollution guard)` };
+        }
+    }
+    return { ok: true };
+}
 
 const SIMPLE_TYPES = new Set(['String', 'Number', 'Boolean', 'cc.ValueType', 'cc.Object']);
 
@@ -122,20 +156,45 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
                 });
             }
         }
+        // v2.4.4 review fix (claude + codex): split save vs refresh
+        // failure handling. v2.4.3 lumped both errors together which
+        // mislabelled the state on disk: if save succeeded but
+        // refresh threw, the disk meta IS updated and only the
+        // re-import is stale — flipping every successful entry to
+        // failure was wrong.
+        let saveStatus: 'ok' | 'save-failed' | 'refresh-failed' = 'ok';
+        let saveError: string | undefined;
         if (results.some(r => r.success)) {
             try {
                 await Editor.Message.request('asset-db', 'save-asset-meta', assetInfo.uuid, JSON.stringify(meta));
-                // refresh-asset triggers re-import with the new settings;
-                // without it, the disk meta is updated but cocos keeps
-                // the old imported asset until next manual refresh.
-                await Editor.Message.request('asset-db', 'refresh-asset', assetInfo.url);
             } catch (err: any) {
-                // Annotate every successful set with the persistence
-                // failure so the caller sees the partial outcome.
+                saveStatus = 'save-failed';
+                saveError = `save-asset-meta failed: ${err?.message ?? String(err)}`;
+            }
+            if (saveStatus === 'ok') {
+                try {
+                    await Editor.Message.request('asset-db', 'refresh-asset', assetInfo.url);
+                } catch (err: any) {
+                    saveStatus = 'refresh-failed';
+                    saveError = `save-asset-meta succeeded but refresh-asset failed: ${err?.message ?? String(err)}. Disk meta IS updated; cocos will pick up the change on next manual refresh.`;
+                }
+            }
+            if (saveStatus === 'save-failed') {
+                // Disk write never happened; flip in-memory successes
+                // to failed so the caller knows nothing persisted.
                 for (const r of results) {
                     if (r.success) {
                         r.success = false;
-                        r.error = `set succeeded in-memory but save-asset-meta/refresh failed: ${err?.message ?? String(err)}`;
+                        r.error = saveError;
+                    }
+                }
+            } else if (saveStatus === 'refresh-failed') {
+                // Disk write happened but re-import is stale; flag
+                // each successful entry with a warning that doesn't
+                // reverse the write status.
+                for (const r of results) {
+                    if (r.success) {
+                        (r as any).warning = saveError;
                     }
                 }
             }
@@ -238,20 +297,20 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
     }
 
     /**
-     * Default setter — validates path against VALID_META_PATTERNS,
-     * walks the dotted path creating only allowed intermediate
-     * containers, and writes the coerced value at the leaf.
-     * Specialized interpreters override this when their meta layout
-     * needs custom routing (e.g. ImageInterpreter's main vs
-     * sub-asset split).
+     * Default setter — validates path through `isPathSafe` (root +
+     * forbidden-segment guard), walks the dotted path creating only
+     * allowed intermediate containers, and writes the coerced value
+     * at the leaf. Specialized interpreters override this when their
+     * meta layout needs custom routing (e.g. ImageInterpreter's main
+     * vs sub-asset split).
+     *
+     * Uses Object.create(null) for auto-created intermediate
+     * containers so even if a future change introduces another
+     * walk site, the new objects don't carry Object.prototype.
      */
     protected async setProperty(meta: any, prop: PropertySetSpec): Promise<boolean> {
-        const isValid = VALID_META_PATTERNS.some(re => re.test(prop.propertyPath));
-        if (!isValid) {
-            throw new Error(
-                `Invalid asset-meta path '${prop.propertyPath}'. Allowed roots: userData.*, subMetas.*, platformSettings.*, importer, importerVersion, sourceUuid, isGroup, folder.`
-            );
-        }
+        const safe = isPathSafe(prop.propertyPath);
+        if (!safe.ok) throw new Error(safe.reason);
         const pathParts = prop.propertyPath.split('.');
         let current = meta;
         for (let i = 0; i < pathParts.length - 1; i++) {
@@ -260,7 +319,7 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
                 if (part === 'userData' || part === 'subMetas' || part === 'platformSettings') {
                     current[part] = {};
                 } else if (i > 0) {
-                    // Allow auto-create inside an already-allowed root.
+                    // Auto-create inside an already-allowed root.
                     current[part] = {};
                 } else {
                     throw new Error(`Cannot create top-level meta field '${part}' (path: ${prop.propertyPath})`);
@@ -276,14 +335,34 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
     protected convertPropertyValue(value: any, type: string): any {
         switch (type) {
             case 'Boolean':
+                // v2.4.4 review fix (codex): Boolean("false") === true
+                // would silently flip the meaning of an AI-supplied
+                // string. Treat the textual variants explicitly; only
+                // truly empty / null / 0 are falsy.
+                if (typeof value === 'string') {
+                    const lower = value.trim().toLowerCase();
+                    if (lower === 'false' || lower === '0' || lower === '') return false;
+                    if (lower === 'true' || lower === '1') return true;
+                    throw new Error(`Cannot coerce string '${value}' to Boolean (use true/false/1/0)`);
+                }
                 return Boolean(value);
             case 'Number':
-            case 'Float':
-                return parseFloat(String(value));
+            case 'Float': {
+                const n = parseFloat(String(value));
+                if (Number.isNaN(n)) {
+                    throw new Error(`Cannot coerce '${value}' to ${type} (parseFloat -> NaN)`);
+                }
+                return n;
+            }
             case 'String':
                 return String(value);
-            case 'Integer':
-                return parseInt(String(value), 10);
+            case 'Integer': {
+                const n = parseInt(String(value), 10);
+                if (Number.isNaN(n)) {
+                    throw new Error(`Cannot coerce '${value}' to Integer (parseInt -> NaN)`);
+                }
+                return n;
+            }
             case 'Enum':
             case 'cc.ValueType':
             case 'cc.Object':

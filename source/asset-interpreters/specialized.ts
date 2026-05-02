@@ -36,7 +36,7 @@
  */
 
 import type { AssetInfo } from '@cocos/creator-types/editor/packages/asset-db/@types/public';
-import { BaseAssetInterpreter } from './base';
+import { BaseAssetInterpreter, isPathSafe } from './base';
 import { PropertySetSpec, PropertySetResult } from './interface';
 
 export class ImageInterpreter extends BaseAssetInterpreter {
@@ -60,28 +60,54 @@ export class ImageInterpreter extends BaseAssetInterpreter {
         }
 
         // Sub-asset shorthand: `texture.<prop>` or `spriteFrame.<prop>`.
-        // Find the matching sub-meta by name and write into its userData.
+        // v2.4.4 review fix (gemini + claude + codex): the v2.4.3
+        // implementation iterated `Object.values(meta.subMetas)` and
+        // wrote into the FIRST sub-meta found, ignoring whether the
+        // path mentioned `texture` or `spriteFrame`. Cocos image
+        // assets typically have BOTH, so writes silently corrupted
+        // the wrong sub-asset. Now match each sub-meta by either its
+        // declared `name` field or by the importer string (image's
+        // sub-metas are themselves importers `texture` and
+        // `sprite-frame`).
         if (parts.length > 1 && (parts[0] === 'texture' || parts[0] === 'spriteFrame')) {
             const subAssetName = parts[0];
+            const subImporterTag = subAssetName === 'spriteFrame' ? 'sprite-frame' : 'texture';
             const propertyName = parts.slice(1).join('.');
-            if (!meta.subMetas) meta.subMetas = {};
-            for (const subMeta of Object.values(meta.subMetas) as any[]) {
-                if (!subMeta || typeof subMeta !== 'object') continue;
-                // RomaRogov treats either uuid match or the literal name
-                // as a hit; we keep the literal-name behaviour since
-                // image sub-metas are conventionally keyed by name.
-                if (!subMeta.userData) subMeta.userData = {};
-                const inner = propertyName.split('.');
-                let cursor = subMeta.userData;
-                for (let i = 0; i < inner.length - 1; i++) {
-                    if (cursor[inner[i]] === undefined || cursor[inner[i]] === null) cursor[inner[i]] = {};
-                    cursor = cursor[inner[i]];
+
+            // Re-validate the inner path through the same proto-pollution
+            // guard the base class uses — `texture.__proto__.x` would
+            // otherwise bypass the base validator entirely.
+            const inner = propertyName.split('.');
+            for (const seg of inner) {
+                if (seg === '' || seg === '__proto__' || seg === 'constructor' || seg === 'prototype') {
+                    throw new Error(`Forbidden / empty path segment in image sub-asset path '${prop.propertyPath}'`);
                 }
-                cursor[inner[inner.length - 1]] = this.convertPropertyValue(prop.propertyValue, prop.propertyType);
-                return true;
             }
-            // No sub-meta matched — fall through to generic handler so
-            // path-validation kicks in.
+
+            if (!meta.subMetas) meta.subMetas = {};
+            let target: any = null;
+            for (const sub of Object.values(meta.subMetas) as any[]) {
+                if (!sub || typeof sub !== 'object') continue;
+                const subName = (sub as any).name;
+                const subImporter = (sub as any).importer;
+                if (subName === subAssetName || subImporter === subImporterTag) {
+                    target = sub;
+                    break;
+                }
+            }
+            if (!target) {
+                throw new Error(
+                    `Image asset has no '${subAssetName}' sub-meta to write to (looked for name='${subAssetName}' or importer='${subImporterTag}')`
+                );
+            }
+            if (!target.userData) target.userData = {};
+            let cursor = target.userData;
+            for (let i = 0; i < inner.length - 1; i++) {
+                if (cursor[inner[i]] === undefined || cursor[inner[i]] === null) cursor[inner[i]] = {};
+                cursor = cursor[inner[i]];
+            }
+            cursor[inner[inner.length - 1]] = this.convertPropertyValue(prop.propertyValue, prop.propertyType);
+            return true;
         }
 
         return super.setProperty(meta, prop);
