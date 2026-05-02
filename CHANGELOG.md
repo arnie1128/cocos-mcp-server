@@ -1,5 +1,51 @@
 # Changelog
 
+## v2.4.12 — 2026-05-03
+
+Live-retest patch on v2.4.11. Reload-tested A4 (templates handler),
+A3 (capturedLogs envelope), A2 (animation_* full flow with
+playOnLoad scalar set-property persistence). A1
+`debug_run_script_diagnostics` failed in real cocos editor — Node
+22+'s CVE-2024-27980 patch refuses to spawn .cmd / .bat files via
+execFile without `shell: true`. The validation throws SYNCHRONOUSLY
+inside the executor, before the callback can run, so the Promise
+rejected and the caller's outer catch surfaced a generic
+"spawn EINVAL" instead of our structured spawnFailed envelope.
+
+### live-retest fix — A1 spawn EINVAL on Windows .cmd
+
+`source/lib/ts-diagnostics.ts:execAsync`:
+
+1. Detect `.cmd` / `.bat` on Windows; pass `shell: true` so the
+   binary routes through cmd.exe (allowed under the CVE patch).
+2. With `shell: true`, Node does NOT auto-quote args, so we
+   manually wrap any arg containing whitespace or shell-special
+   characters (`& < > | ^ "`) in double quotes, doubling internal
+   `"` per cmd.exe escape rules. Only the file string and tsconfig
+   path can have spaces in our usage; both go through `quoteForCmd`.
+3. Wrap the `execFile` call in `try/catch` so synchronous validation
+   throws (EINVAL etc.) still reach our `onResult` handler instead
+   of rejecting the outer promise. The structured `spawnFailed:
+   true` envelope is preserved.
+
+### Live-retest summary (v2.4.11 reload, before this patch)
+
+| 測項 | 結果 |
+|---|---|
+| `/health` reports 177 tools / 17 categories | ✅ |
+| A4 `resources/templates/list` returns 2 templates | ✅ |
+| A3 `capturedLogs` field present on scene-bridge tool results (`prefab_get_prefab_data`, `animation_*`) | ✅ |
+| A2 `animation_list_clips` on cc.Animation node — empty clips, defaultClip null, playOnLoad false | ✅ |
+| A2 `animation_play` without defaultClip → friendly error | ✅ |
+| A2 `animation_set_clip {playOnLoad:true}` → set-property writes scalar | ✅ |
+| A2 `animation_list_clips` re-read shows playOnLoad=true persisted | ✅ Landmine #11 scalar path verified |
+| A2 `animation_stop` no-op when nothing playing | ✅ |
+| A2 `nodeName` fallback resolves to same uuid | ✅ |
+| A2 `set_clip` with both fields undefined → reject | ✅ |
+| A1 `debug_run_script_diagnostics` | 🔴 spawn EINVAL — fix in this patch |
+
+A1 will be retested after user reload to v2.4.12.
+
 ## v2.4.11 — 2026-05-03
 
 Three-way review patch round 3 on v2.4.10. Codex elevated one round-3

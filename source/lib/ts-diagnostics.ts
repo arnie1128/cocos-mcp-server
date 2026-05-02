@@ -124,14 +124,15 @@ interface ExecResult { code: number; stdout: string; stderr: string; error: stri
 
 function execAsync(file: string, args: string[], cwd: string): Promise<ExecResult> {
     return new Promise((resolve) => {
-        execFile(file, args, { cwd, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+        const onResult = (error: any, stdout: any, stderr: any) => {
             // v2.4.9 review fix (claude + codex 🔴): a non-numeric error.code
-            // (e.g. 'ENOENT' when the resolved tsc binary doesn't exist) was
-            // previously coerced to 0 → ok:true with empty diagnostics → AI
-            // falsely sees "no errors" when tsc never ran. Treat any error
-            // with a non-numeric code as a spawn failure (code=-1) and force
-            // the caller to surface it.
-            const rawCode = (error as any)?.code;
+            // (e.g. 'ENOENT' when the resolved tsc binary doesn't exist, or
+            // 'EINVAL' on Node 22+ when execFile is called against a .cmd
+            // shim without shell:true) was previously coerced to 0 → ok:true
+            // with empty diagnostics → AI falsely sees "no errors" when tsc
+            // never ran. Treat any error with a non-numeric code as a spawn
+            // failure (code=-1) and force the caller to surface it.
+            const rawCode = error?.code;
             const numericCode = typeof rawCode === 'number' ? rawCode : (error ? -1 : 0);
             const spawnFailed = !!error && typeof rawCode !== 'number';
             resolve({
@@ -141,7 +142,37 @@ function execAsync(file: string, args: string[], cwd: string): Promise<ExecResul
                 error: error ? error.message : '',
                 spawnFailed,
             });
-        });
+        };
+        // v2.4.12 live-retest fix: Node 22+ refuses to spawn .cmd / .bat
+        // files via execFile without shell:true (CVE-2024-27980 patch).
+        // The validation throws SYNCHRONOUSLY inside the executor before
+        // the callback can run, so without try/catch the Promise rejects
+        // and the caller's outer catch returns a generic "spawn EINVAL"
+        // error instead of our structured spawnFailed envelope. On
+        // Windows .cmd/.bat we use shell:true to route through cmd.exe;
+        // shell:true requires us to quote args manually because Node
+        // doesn't auto-quote when the shell option is on.
+        const isWindowsShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file);
+        const quoteForCmd = (s: string): string => {
+            // Quote only if the arg contains whitespace or shell-special
+            // characters; double internal quotes per cmd.exe escape rules.
+            if (!/[\s"&<>|^]/.test(s)) return s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        };
+        const fileArg = isWindowsShim ? quoteForCmd(file) : file;
+        const argsArg = isWindowsShim ? args.map(quoteForCmd) : args;
+        try {
+            execFile(fileArg, argsArg, {
+                cwd,
+                maxBuffer: 8 * 1024 * 1024,
+                windowsHide: true,
+                shell: isWindowsShim,
+            }, onResult);
+        } catch (err: any) {
+            // Catch synchronous validation errors (EINVAL etc.) so the
+            // caller still gets the structured spawnFailed envelope.
+            onResult(err, '', '');
+        }
     });
 }
 
