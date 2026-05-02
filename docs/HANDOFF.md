@@ -5,35 +5,47 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.7 + live-tested → next: v2.4.8）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.11 — v2.4.8 cycle done, ship-it from 3 reviewers × 4 rounds）
 
-**當下版本**：v2.4.7（origin/main HEAD = `6e63bbd`，已 push、無 in-flight
-任務、**已同步到 `cocos_cs_349` extension path 並實機 reload 通過**）。
-v2.4.3 asset interpreters 落地 + **三輪**三方 review patch（v2.4.4 / v2.4.5
-/ v2.4.6）+ v2.4.7 landmine doc + live-test cleanup fix bump + 實機 reload
-測試所有 v2.4.0 / v2.4.3 新 tool。
+**當下版本**：v2.4.11（origin/main HEAD = `a5c7c0e` + comment-clarify
+follow-up，已 push、無 in-flight 任務、**已同步到 `cocos_cs_349`
+extension path**）。v2.4.8 收 v2.4.0 同梱失蹤的 A1-A4 四件 + 4 輪三方
+review patch（v2.4.9 / v2.4.10 / v2.4.11）。Round 4 三方一致 🟢 ship-it。
 
-**下一步定為 v2.4.8**（不是 v2.5.0）—— 收 v2.4.0 §同梱小項當時失蹤的 4 件
-（TS diagnostics / animation tools / scene-script log capture / capability
-flag）。詳見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.8](roadmap/06-version-plan-v23-v27.md#v248--收-v240-同梱失蹤項補欠款)。
-v2.4.0 commit 當時只落地 6-step + 4 inspector tool，§同梱小項列的 4 件未進；
-v2.4.7 cycle 結束時盤點發現失蹤，重排成獨立 patch。
+下個 session 可以動工 **v2.5.0**（file-editor + Notifications + Prompts，
+5 天）或 v2.4.8 / v2.4.11 落地後的實機 live-test 驗證。
 
-**最近 commit**（最新到舊，僅列 v2.4.3 cycle 後）：
+**v2.4.8 — v2.4.11 階段**：
+- **v2.4.8**：A1 TS diagnostics（debug_wait_compile + debug_run_script_diagnostics
+  + debug_get_script_diagnostic_context）+ A2 animation tools 4 件 + A3
+  scene-script log capture（runWithCapture / capturedLogs）+ A4 capability
+  no-op clarification。Tool count 170 → **177**（+1 category, +7 tools）。
+- **v2.4.9**：round 1 — 2 🔴（execAsync ENOENT silent, symlink escape）+
+  4 🟡（concurrent capture leak, unbounded capture, animation
+  component lookup metadata fragility, TSC regex completeness）。
+- **v2.4.10**：round 2 — 1 🔴（Codex 升等：_topSlot() interleave still
+  broken）+ 2 🟡（warnings-only ok=false, marker bytes uncounted）。Adopt
+  AsyncLocalStorage for capture isolation。
+- **v2.4.11**：round 3 — 1 🔴（_ensureConsoleHook outside try → refcount
+  leak path）。單行 try-block 重排。
+- **Round 4** confirms ship-it from all three reviewers, no must-fix.
+
+**最近 commit**（最新到舊，僅列 v2.4.8 cycle 後）：
 
 | SHA | 內容 |
 |---|---|
+| `a5c7c0e` | fix(v2.4.11): three-way review patch round 3 on v2.4.10 — 1 must-fix |
+| `8dfd500` | chore: untrack .claude/settings.local.json (per-machine overlay) |
+| `52bad57` | fix(v2.4.10): three-way review patch round 2 on v2.4.9 — 1 must-fix + 2 polish |
+| `15b6a8e` | fix(v2.4.9): three-way review patch round 1 on v2.4.8 — 2 must-fix + 4 polish |
+| `a953e6e` | release: v2.4.8 — recover v2.4.0 同梱 leftovers (TS diagnostics + animation + scene-log capture) |
+| `395413f` | feat(v2.4.8 A1): TS diagnostics — wait_compile, run_script_diagnostics, get_script_diagnostic_context |
+| `5cd723f` | feat(v2.4.8 A2): animation tools category — list_clips/play/stop/set_clip |
+| `c92319d` | feat(v2.4.8 A3): scene-script log capture in scene-bridge |
+| `bb02c67` | docs(v2.4.8 A4): clarify resources.templates is implicit, not a capability flag |
+| `84061a9` | docs(roadmap): schedule v2.4.8 to recover v2.4.0 shipping-with leftovers |
 | `6e63bbd` | docs(roadmap): renumber v2.4.1 → v2.4.3 (asset interpreters slot shift) |
 | `acdfac1` | release: v2.4.7 — landmine #14 (cocos cumulative dirty flag) + bump for live-test fix sync |
-| `ebab029` | fix(live-test): cleanup orphans + skip scene-switch when dirty |
-| `15e585b` | docs(handoff): v2.4.3-v2.4.6 wrap |
-| `ac0539f` | fix(v2.4.6): round-3 review fixes on v2.4.5 (1 must-fix + 1 polish) |
-| `c4a759d` | fix(v2.4.5): round-2 review polish on v2.4.4 (7 worth-considering) |
-| `ba6e39e` | fix(v2.4.4): three-way review fixes on v2.4.3 (2 must-fix + 5 polish) |
-| `aa95e53` | feat(v2.4.3 step C): wire 3 asset-meta MCP tools + bump v2.4.3 |
-| `c928769` | feat(v2.4.3 step B): 8 specialized asset interpreters |
-| `1c92f1a` | feat(v2.4.3 step A): asset-interpreter scaffold (interface + base + manager) |
-| `5c4907b` | docs(handoff): v2.4.0/2.4.1/2.4.2 wrap |
 
 **v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
 行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
@@ -203,19 +215,57 @@ project + reload extension panel，`/health` 回 `tools: 170`。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
 
+### v2.4.8 — v2.4.11 三方 review 紀錄（4 輪）
+
+走「主 commit + 三方 review + 反修 patch」流程。**4 輪 review，3 輪反修**。
+
+#### Round 1 — v2.4.8 commit `a953e6e`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `ts-diagnostics.ts` `execAsync` ENOENT/字串 error.code 被當 0 → 假 ok:true | Claude + Codex (+Gemini 🟡) |
+| 2 | 🔴 must-fix | `debug-tools.ts:736` symlink 可逃出 project root | Codex |
+| 3 | 🟡 worth | scene.ts 並發 capture cross-contamination | Claude + Codex |
+| 4 | 🟡 worth | scene.ts 無上限 capture → memory 風險 | Claude + Codex |
+| 5 | 🟡 worth | `queryAnimationSetTargets` 用 `constructor.name` 對 cc.Animation 不可靠 → `components.indexOf(anim)` | Claude + Codex |
+| 6 | 🟡 worth | TSC regex 不全 — multi-line / warning / project-scope | Claude + Codex + Gemini |
+
+v2.4.9 commit `15b6a8e` 全部反修。
+
+#### Round 2 — v2.4.9 commit `15b6a8e`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | scene.ts `_topSlot()` 仍對 interleaved async 誤歸屬（codex 升 🟡 → 🔴）→ 改用 AsyncLocalStorage | Codex 🔴 + Claude 🟡 + Gemini 🟡 |
+| 2 | 🟡 worth | warnings-only run 仍 ok=false（severity-aware ok）| Claude + Codex + Gemini |
+| 3 | 🟡 worth | truncation marker bytes 未計入 slot.bytes | Codex + Claude |
+
+v2.4.10 commit `52bad57` 全部反修。
+
+#### Round 3 — v2.4.10 commit `52bad57`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | scene.ts `_activeSlotCount += 1` 在 try 外，`_ensureConsoleHook` throw → refcount 洩漏 | Codex 🔴 + Claude 🟡 + Gemini 🟡 |
+
+v2.4.11 commit `a5c7c0e` 反修（單行重排 + comment）。
+
+#### Round 4 — v2.4.11 commit `a5c7c0e`
+
+三方 🟢 ship-it 一致通過。Gemini 留一個 comment 用詞精準度 🟡（「increment INSIDE the try」應為「_ensureConsoleHook INSIDE the try」），用 follow-up 文件 commit 清掉。
+
 ### 下一個動工
 
-**選項 A（即將動工）**：**v2.4.8 — 收 v2.4.0 同梱失蹤項**（3 天）。
-細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.8](roadmap/06-version-plan-v23-v27.md#v248--收-v240-同梱失蹤項補欠款)。
-- A1: TS diagnostics 系列（debug_wait_compile + debug_run_script_diagnostics + debug_get_script_diagnostic_context）
-- A2: animation tools 4 件（list_clips / play / stop / set_clip）
-- A3: Scene-script log capture 整合進 scene-bridge
-- A4: capability `resources.templates: true`
-
-**選項 B（v2.4.8 之後）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
+**選項 A（推薦）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
+細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.5.0](roadmap/06-version-plan-v23-v27.md)。
 - file-editor 4 tool（Spaydo 路線 + path-safety guard + asset-db refresh hook）
 - T-P3-3 Notifications（resources/updated subscribe；前置：先寫 probe-broadcast script 量實機事件密度）
 - T-P3-2 Prompts capability（FunplayAI 路線，4 個 template）
+
+**選項 B**：實機 live-test v2.4.8 新 tool — animation_*（需有 cc.Animation
+clips 的測試 prefab）+ debug_run_script_diagnostics（在真 cocos project 跑
+tsc）+ debug_wait_compile（改一個 .ts 觀察 packer-driver log 行為）+
+capturedLogs 在 ToolResponse 真的有內容。Reload 後測。
 
 **選項 C（live-test 補洞，平行可做）**：實機 live-test `assetMeta_*` 三個 tool 真正
 set_properties path（v2.4.7 的 reload 測試只驗了 read + guard rejection；真正寫
@@ -232,6 +282,9 @@ disposable asset 才能跑。
 
 **回滾錨點**：
 - v2.4.6 改動前（v2.4.5 release 點）→ `git reset --hard c4a759d`
+- v2.4.10 改動前（v2.4.9 release 點 + 三方 ship-it round 2）→ `git reset --hard 15b6a8e`
+- v2.4.9 改動前（v2.4.8 release 點）→ `git reset --hard a953e6e`
+- v2.4.8 改動前（v2.4.7 release 點 + reload-tested）→ `git reset --hard acdfac1`
 - v2.4.5 改動前（v2.4.4 release 點）→ `git reset --hard ba6e39e`
 - v2.4.4 改動前（v2.4.3 release 點）→ `git reset --hard aa95e53`
 - v2.4.3 全部改動前（v2.4.2 release 點）→ `git reset --hard 2b5c1f2`
@@ -239,8 +292,9 @@ disposable asset 才能跑。
 - v2.4.1 改動前（v2.4.0 release 點）→ `git reset --hard 0231b10`
 - v2.4.0 改動前（v2.3.1 release 點）→ `git reset --hard 351023b`
 
-**動工建議**：v2.4.3 — v2.4.6 stack 已穩定（三方四輪），下個版本直接動工不
-需先驗證 v2.4.x；新功能落地後同樣走主 commit + 三方 review + 反修流程。
+**動工建議**：v2.4.8 — v2.4.11 stack 已穩定（三方 4 輪、3 輪反修），下個
+版本（v2.5.0 或 live-test）直接動工不需先驗證 v2.4.x；新功能落地後同樣走
+主 commit + 三方 review + 反修流程。
 
 ---
 
@@ -264,8 +318,11 @@ disposable asset 才能跑。
 | **v2.4.5** | 三方 review patch round 2 on v2.4.4（7 worth-considering） | 0.3 天 | ✅ done |
 | **v2.4.6** | 三方 review patch round 3 on v2.4.5（1 must-fix + 1 polish） | 0.1 天 | ✅ done |
 | **v2.4.7** | landmine #14 + live-test cleanup fix bump + roadmap renumber + 實機 reload 測試 | 0.2 天 | ✅ done |
-| **v2.4.8** | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | ⏳ next |
-| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
+| **v2.4.8** | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | ✅ done |
+| **v2.4.9** | 三方 review patch round 1 on v2.4.8（2 must-fix + 4 polish） | 0.5 天 | ✅ done |
+| **v2.4.10** | 三方 review patch round 2 on v2.4.9（1 must-fix + 2 polish — AsyncLocalStorage 收 capture interleave） | 0.3 天 | ✅ done |
+| **v2.4.11** | 三方 review patch round 3 on v2.4.10（1 must-fix — refcount leak path） | 0.1 天 | ✅ done |
+| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ next |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
 
@@ -319,6 +376,10 @@ v2.4.4 ✅ done（三方 review patch round 1 — 2 must-fix（proto pollution +
 v2.4.5 ✅ done（三方 review patch round 2 — 7 polish 全清，commit c4a759d）
 v2.4.6 ✅ done（三方 review patch round 3 — 1 must-fix（Number('')→0） + 1 polish，commit ac0539f）
 v2.4.7 ✅ done（landmine #14 + live-test cleanup fix + roadmap renumber + 實機 reload 測試，commit 6e63bbd）
+v2.4.8 ✅ done（v2.4.0 同梱 leftover — A1 TS diagnostics + A2 animation + A3 scene-log capture + A4 capability noop，177 tools / 17 categories，commit a953e6e）
+v2.4.9 ✅ done（三方 review patch round 1 — 2 must-fix（ENOENT silent + symlink escape） + 4 polish，commit 15b6a8e）
+v2.4.10 ✅ done（三方 review patch round 2 — 1 must-fix（_topSlot interleave → AsyncLocalStorage） + 2 polish，commit 52bad57）
+v2.4.11 ✅ done（三方 review patch round 3 — 1 must-fix（refcount leak path），commit a5c7c0e）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

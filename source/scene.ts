@@ -207,10 +207,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
             bytes: 0,
             truncated: false,
         };
-        // v2.4.11 round-3 codex 🔴 + claude 🟡 + gemini 🟡: increment INSIDE
-        // the try so _ensureConsoleHook throwing (today: pure assignments,
-        // so safe; defensive against future growth) cannot leak the
-        // refcount and leave the console hook installed forever.
+        // v2.4.11 round-3 codex 🔴 + claude 🟡 + gemini 🟡: keep increment
+        // OUTSIDE the try (numeric `+= 1` is infallible, must pair 1:1 with
+        // finally decrement), but move _ensureConsoleHook INSIDE so a
+        // throw there (today: pure assignments, so safe; defensive against
+        // future growth) cannot leak the refcount and leave the console
+        // hook installed forever.
         _activeSlotCount += 1;
         try {
             _ensureConsoleHook();
