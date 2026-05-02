@@ -55,7 +55,7 @@ source/
 │   ├── reference-image-tools.ts   #   1 tool   (v2.9.x macro-routing collapse: 12 → 1, single op-router referenceImage_manage)
 │   ├── asset-advanced-tools.ts    #  11 tools
 │   ├── validation-tools.ts        #   3 tools
-│   ├── inspector-tools.ts         #   2 tools  (v2.4.0 step 6 — get_instance_definition / get_common_types_definition)
+│   ├── inspector-tools.ts         #   4 tools  (v2.4.0 step 6 — get_instance_definition / get_common_types_definition; v2.11.3 +get_settings_definition / +set_instance_properties)
 │   ├── asset-meta-tools.ts        #   3 tools  (v2.4.3 — list_interpreters / get_properties / set_properties)
 │   ├── animation-tools.ts         #   4 tools  (v2.4.8 A2)
 │   ├── file-editor-tools.ts       #   4 tools  (v2.5.0 — insert_text / delete_lines / replace_text / query_text)
@@ -78,10 +78,16 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 181 (v2.11.2 added 1: `component_resolve_script_class`
-— resolves a TS script asset URL/UUID to its `@ccclass()` class name(s) so AI
-can name custom-script componentType correctly before add_component;
-v2.10.4 collapsed preferences 7 tools into
+Total tool count today: 183 (v2.11.3 added 2 inspector tools:
+`inspector_get_settings_definition` (CommonTypes complete; ProjectSettings /
+CurrentSceneGlobals return `pending` until cocos channel verified) +
+`inspector_set_instance_properties` (generic batch writer that dispatches by
+reference type to existing assetMeta / component / node setters); v2.11.3
+also added `i18n:` tooltip resolution + Asset → Importer suffix branch in
+`inspector_get_instance_definition`; v2.11.2 added 1:
+`component_resolve_script_class` — resolves a TS script asset URL/UUID to
+its `@ccclass()` class name(s) so AI can name custom-script componentType
+correctly before add_component; v2.10.4 collapsed preferences 7 tools into
 1 macro `preferences_manage` op-router; v2.10.3 added 1:
 `assetAdvanced_get_users` asset reference lookup; v2.10.2 added 4
 animation-state tools: `animation_list_animation_states`,
