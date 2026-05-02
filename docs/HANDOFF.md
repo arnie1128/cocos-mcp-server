@@ -3,66 +3,54 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.10.0 partial — preview landmines closed, feature backlog open）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.10.5 done — v2.10.x cycle wrap, ready for v2.11）
 
-**當下版本**：v2.10.4（v2.10.x cycle 完）。**18 categories / 180 tools**（preferences 7→1 macro 收 6）。
+**當下版本**：v2.10.5（v2.10.x cycle 完整收尾 + audit gap-fill）。**18 categories / 180 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；下一步 v2.11。
 
-**v2.10.x 進度**：
-- v2.10.0 ✅ landmine #16/#17 closure + cross-repo refresh
-- v2.10.1 ✅ Stage 1 #10 — tool description/title infra（codex gpt-5.5 + 我手補 5 檔）
-- v2.10.2 ✅ Stage 2 #1/#2/#4/#11 — TS def expand / game_command sub-action / animation +4 / Polish A 助手 + 共用 schema + ok/fail 遷移 ~677 LOC 減
-- v2.10.3 ✅ Stage 3 #3/#5/#6/#7/#12 — interpreters 8→15 / record format/quality / priority labeling / get_users(uuid) / Polish B 3 lib 抽取（cors / log-parser / node-classifications）
-- v2.10.4 ✅ Stage 4 #8/#9/#13 — preferences 7→1 macro / discover_then_act prompt template / Polish C 移除冗餘 try/catch（codex CLI direct）+ scene.ts 54 leftover ok/fail sites 補完 + node-classifications partial-match 改嚴格 Set lookup
+**v2.10.x cycle 摘要**：cross-repo refresh + tool description/title 重構 + 13 項 backlog 中 11 ship + 2 延後。Tool count 181 → 180（淨 -1）。Source LOC 整體 -1500 行。委派軌跡：codex CLI（gpt-5.5 / codex-cli 0.128.0）+ gemini-3.1-pro-preview + 我手做。
 
-**v2.10.x cycle wrap**：tool count 181→180 (淨減 1，路徑：+4 anim / +1 get_users / -7 prefs / +1 prefs_manage)，LOC 整體淨減 ~1500（Polish A 677 + Polish B 42 + Polish C 150 + scene.ts ok/fail 約 30 + 各種冗餘移除）。
+完整 cycle 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 
-**v2.10.0 已 land**（本 session）：
-- Cross-repo survey 從 v2.2.0 baseline refresh 到 v2.9.7 baseline，產出 v2.10 推進清單（10 candidates）
-- **Landmine #16/#17 結案**（不靠抄參考專案解決，全業界都沒解）：
-  - `debug_preview_control(op="start")` description 與 parked-error 改為明確指向 embedded screenshot / game_command 兩條替代路徑，不再宣稱「pending future investigation」
-  - `debug_set_preview_mode` 從 ⚠ EXPERIMENTAL 改為 ❌ NOT_SUPPORTED 預設硬擋；`attemptAnyway: true` opt-in 才進 4-strategy 診斷探測
-  - CLAUDE.md landmine #16/#17 更新，記錄 v2.10 cross-repo 比對結論
-- LOC 重量檔案盤點（top 5 = 41.5% LOC，可省 ~520 LOC，文件記錄於 cross-repo-survey.md）
+**v2.10.x 已 ship**：
+- v2.10.0 — landmine #16/#17 文件級結案 + cross-repo refresh
+- v2.10.1 — Stage 1 — tool description/title infra（annotations.title）
+- v2.10.2 — Stage 2 — TS def expand / game_command / animation +4 / Polish A
+- v2.10.3 — Stage 3 — interpreters 8→15 / record format/quality / labeling / get_users / Polish B
+- v2.10.4 — Stage 4 — preferences 7→1 macro / discover_then_act prompt / Polish C + scene.ts 收尾
+- v2.10.5 — Audit gap-fill — TiledMap interpreter / referenceSchema / vec3Schema migration
 
-**v2.10.x 推進清單**（依優先序；明確要求項標 ⭐；完整版見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)）：
+**v2.11 候選清單**（兩項從 v2.10.x 延後，可直接動工）：
 
-功能擴充：
-1. ⭐ **完整 TS class 定義生成擴充**（= Discover-then-act 三步式 Step 2 補完）— component dump / `@property` / enum / ProjectSettings。1.5 天
-2. ⭐ **`debug_game_command` sub-action 補齊** — `state` / `navigate` / UI inspect 強化。1 天
-3. **asset-interpreters 擴充** — 8 → ≥15。2 天
-4. **animation-tools 補 4 個**。0.5 天
-5. **`debug_record_*` format/quality 控制**。0.3 天
-6. **Tool priority labeling**（[primary]/[specialist]）。0.3 天
-7. **`get_users(uuid)`** asset 被誰參考查詢。0.3 天
-8. **macro-tool enum routing 推廣** preferences-tools 13→1。1 天
-9. **Discover-then-act workflow prompt template**（optional，用 v2.5 已 ship 的 prompts framework）。0.3 天
+| # | 項目 | 估時 | 風險 | 備註 |
+|---|---|---|---|---|
+| 1 | **Decorator unification（16 檔轉 `@mcpTool`）** | 3-5 天 | 中 | inspector-tools / asset-meta 已用，其餘 16 檔 inline `defineTools(array)`。建議切成 4-5 支並行 codex / gemini 任務，每批 3-4 檔。預計省 150-250 LOC |
+| 2 | **中型檔案 narrative 外移** | 2-3 天 | 低 | project-tools (769) / scene-tools (625) / scene-advanced (483) / asset-advanced (481) / scene-view (421) / file-editor (385) — description 抽到 `source/data/<category>-docs.ts`。預計省 ~500 LOC |
 
-文件 / 描述重構：
-10. ⭐ **Tool description / title 重構**（codex 背景跑中）— `<details>` 摺疊 / 第一句 summary / `annotations.title` / 整體 trim。1.5 天
+完整 v2.10.x 推進清單與決策見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)。
 
-LOC 精簡（合計 ~950 LOC，分三批）：
-11. **Polish 批 A**（~300 LOC）— `ok()/fail()` helper / 共用 schema / narrative 外移。1 天
-12. **Polish 批 B**（~500 LOC）— top-5 餘額 + 中型檔案 narrative 外移。1.5 天
-13. **Polish 批 C**（~150 LOC，中風險）— 冗餘 try/catch 移除。1 天
+**未解 issues（不變）**：
+- landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（文件已記）
+- landmine #17 — set_preview_mode 不支援（文件已記）
+- pre-existing `node-tools.ts` query-current-scene fallback 收斂到 typed channel
+- MediaRecorder live-test 需 browser-preview 環境 + client wired into game
 
-**先前推進過項目實作狀態**（由 cocos-code-mode + RomaRogov 萃取）：
-- Discover-then-act 三步式：🟡 **部分落地**（三步 tool 都有，gap 在 Step 2，等同 #1）
-- InstanceReference {id, type}：✅ 已 ship（v2.4.0）
-- 動態 TS 定義生成：🟡 部分 → #1
-- Asset interpreters 系統：🟡 部分（8/21+） → #3
-- Prompts capability：✅ 已 ship（v2.5.0 T-V25-4，先前誤標為 spillover 已修正）
-
-**推薦執行順序**：
-- v2.10.1：#10（codex 跑中）+ tools.md 重生
-- v2.10.2（~3 天）：#1 + #2 + #4 + #11
-- v2.10.3（~3 天）：#3 + #5 + #6 + #7 + #12
-- v2.10.4 或 v2.11（~2-3 天）：#8 + #9 + #13
+**經驗教訓（新 session 必讀）**：詳見 [`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md) §經驗教訓段。摘要：
+- Codex 大 task 切多支並行（v2.10.1 整支灌 18 檔 hung context overflow）
+- 主動 log-tail 別等 status（rollout file size > 540KB 是 context warning）
+- gemini-3.1-pro-preview 200K context 邊界要意識
+- codex CLI 0.128.0 不需 `--dangerously-bypass`（舊 1.0.4 wrapper 才要）
+- schemas.ts 提取要含 consumer migration prompt（不然會像 vec3Schema 變孤兒）
+- Cycle wrap audit（user 主動列項目 verify）有效揪出漏網 task
 
 ## 最近 Commit
 
 | SHA | 內容 |
 |---|---|
-| `pending` | release: v2.10.0 — cross-repo refresh + landmine #16/#17 closure |
+| `61ceed3` | fix(v2.10.5): close v2.10.x backlog gaps — TiledMap interpreter + referenceSchema + lib/schemas migration |
+| `211bfb7` | release: v2.10.4 — Stage 4 wrap + #11/#12 quality polish |
+| `e596095` | release: v2.10.3 — Stage 3 wrap (interpreters/record/labeling/get_users/Polish B) |
+| `c2c2ef6` | release: v2.10.2 — Stage 2 wave 1 + Polish A wrap |
+| `4c8e232` | release: v2.10.1 — landmine #16/#17 closure + Stage 1 tool description/title infra |
 | `5573190` | release: v2.9.7 — cumulative review round-3 patch + cycle wrap |
 | `e9fd3c0` | fix(v2.9.6): cumulative review round-2 patch — 4 must-fix + 2 polish |
 | `e425aa7` | fix(v2.9.5): cumulative review round-1 patch — 5 must-fix + 4 polish |
@@ -87,12 +75,13 @@ LOC 精簡（合計 ~950 LOC，分三批）：
 | v2.7 | preview-QA + security hardening; 3 review rounds + re-attendance | [`docs/archive/handoff/v2.7.md`](archive/handoff/v2.7.md) |
 | v2.8 | CORS/capture/preview_control spillover; embedded/browser retests; landmine #16 | [`docs/archive/handoff/v2.8.md`](archive/handoff/v2.8.md) |
 | v2.9 | health/mode tools, macro routing, MediaRecorder, cumulative review wrap | [`docs/archive/handoff/v2.9.md`](archive/handoff/v2.9.md) |
+| v2.10 | cross-repo refresh + landmine 結案 + tool desc/title 重構 + 13 backlog ship + Polish A/B/C | [`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md) |
 
 ## 📋 待動工 Backlog 概覽
 
 ### B-2：擴充功能（active backlog）
 
-詳細規劃見 [`docs/roadmap/06-version-plan-v23-v27.md`](roadmap/06-version-plan-v23-v27.md)。v2.3 — v2.9 已 ship；下一個實際 work item 是 v2.10 reference-project comparison + simulator/MediaRecorder live-test。
+詳細規劃見 [`docs/roadmap/06-version-plan-v23-v27.md`](roadmap/06-version-plan-v23-v27.md)。v2.3 — v2.10 已 ship；v2.11 候選見 NEXT SESSION ENTRY POINT（decorator unification + 中型檔案 narrative 外移）。
 
 ### B-3：Prefab byte-level 比對（觸發再做）
 
@@ -105,11 +94,11 @@ P0 ✅ done
 P1 ✅ done
 P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
 v2.1.2 — v2.1.7 ✅ done（修補 + audit + P2 close + B-1 description sweep；見 docs/archive/handoff/v2.1.md）
-v2.2.0 — v2.9.7 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.9.md；release notes v2.7+ 見 docs/releases/）
+v2.2.0 — v2.10.5 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.10 reference-project comparison + simulator/MediaRecorder live-test
+B-2 ⏳ v2.11 — Decorator unification（16 檔）+ 中型檔案 narrative 外移（6 檔）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -127,7 +116,7 @@ node scripts/smoke-mcp-sdk.js
 
 # 工具數（v2.9.7）
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js'); const r=createToolRegistry(); let total=0; for (const c of Object.keys(r)) total += r[c].getTools().length; console.log('categories:', Object.keys(r).length, 'tools:', total);"
-# 預期：categories: 18 tools: 181
+# 預期：categories: 18 tools: 180
 
 # Resource registry 健檢（不需 cocos editor）
 node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'); const r=createResourceRegistry({}); console.log('static:', r.list().length, 'templates:', r.listTemplates().length);"
@@ -167,6 +156,11 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.10.5 改動前（v2.10.4 cycle wrap 點）→ `git reset --hard 211bfb7`
+- v2.10.4 改動前（v2.10.3 Stage 3 wrap 點）→ `git reset --hard e596095`
+- v2.10.3 改動前（v2.10.2 Stage 2 wrap 點）→ `git reset --hard c2c2ef6`
+- v2.10.2 改動前（v2.10.1 Stage 1 wrap 點）→ `git reset --hard 4c8e232`
+- v2.10.1 改動前（v2.9.7 release 點）→ `git reset --hard 5573190`
 - v2.9.7 改動前（v2.9.6 round-2 patch 點）→ `git reset --hard e9fd3c0`
 - v2.9.6 改動前（v2.9.5 round-1 patch 點）→ `git reset --hard e425aa7`
 - v2.9.5 改動前（v2.9.4 release 點）→ `git reset --hard 3bf839f`
