@@ -96,78 +96,8 @@ v2.1.6 after measure showed lossy-only gains).
 
 ## Landmines (read before editing)
 
-1. ~~**Hardcoded path `/Users/lizhiyong/NewProject_3`**~~ — fixed in P0
-   (2026-04-30). `debug-tools.ts` now uses `resolveProjectLogPath()`;
-   `prefab-tools.ts:readPrefabFile` uses `Editor.Project.path` directly.
-   Both fail loudly when the editor context is unavailable.
-2. ~~**`mcp-server.ts:fixCommonJsonIssues()`**~~ — removed in P0. Both
-   `handleMCPRequest` and `handleSimpleAPIRequest` now return standard
-   parse-error responses (`-32700` for MCP, 400 for REST) with the body
-   truncated to 200 chars.
-3. ~~**Prefab API guesswork**~~ — fixed in P1 T-P1-6 + extended in P4 T-P4-3.
-   Verified against
-   `node_modules/@cocos/creator-types/editor/packages/scene/@types/message.d.ts`:
-   the only prefab-related channel that actually exists on the `scene` module
-   is `restore-prefab`, taking `ResetComponentOptions = { uuid: string }`.
-   Both fallback ladders (`establishPrefabConnection` and
-   `applyPrefabToNode`) were dead code calling non-existent channels and have
-   been removed; three live tools that called bogus channels
-   (`load-asset` / `apply-prefab` / `revert-prefab`) have been rewritten or
-   marked unsupported, and the two existing `restore-prefab` callers now pass
-   the correct `{ uuid }` object instead of positional args.
+1-6. ~~**Resolved P0-P1 landmines**~~ — archived in [`docs/archive/landmines-resolved.md`](docs/archive/landmines-resolved.md).
 
-   **P4 T-P4-3 (2026-05-01)**: the rest of the prefab surface lives on the
-   scene facade (`scene-facade-interface.d.ts`) and is reachable only through
-   `Editor.Message.request('scene', 'execute-scene-script', …)`. New
-   facade-backed methods in `source/scene.ts`:
-   `createPrefabFromNode` (now real, was a stub),
-   `applyPrefab`, `linkPrefab`, `unlinkPrefab`, `getPrefabData`. The
-   editor-side `prefab-tools.ts` now uses `runSceneMethodAsToolResponse`
-   from `lib/scene-bridge.ts` for these. `update_prefab` no longer
-   fail-loudly — it routes to `applyPrefab`. New MCP tools:
-   `prefab_link_prefab`, `prefab_unlink_prefab`, `prefab_get_prefab_data`.
-
-   **v2.1.3 cleanup**: the legacy hand-rolled JSON fallback path
-   (`createPrefabWithAssetDB`, `createPrefabNative`, `createPrefabCustom` and
-   the helpers under `createStandardPrefabContent` / `createCompleteNodeTree`,
-   ~1000 lines) has been removed. The fallback was originally kept "in case
-   the facade path fails on some build", but every prefab form tested in
-   v2.1.1 / v2.1.2 went through the facade cleanly, and keeping a 1000-line
-   shadow path that is never exercised is a maintenance trap (dead code that
-   looks plausible). If the facade path turns out to fail on a specific build
-   in the future, restore the legacy code from git history — see commit
-   message of the removal commit for the exact pre-removal SHA.
-4. ~~**`console.log` is not gated**~~ — fixed in P0 + P1 T-P1-3.
-   `source/lib/log.ts` exposes `logger.{debug,info,warn,error}` plus a
-   backwards-compat `debugLog` alias. All 14 tool files, `mcp-server-sdk.ts`,
-   and `main.ts` now route through it; debug output gated by
-   `settings.enableDebugLog`, warn/error always emit, startup banners use
-   `logger.info`. Adding new logs in this codebase: prefer `logger.debug`
-   for traces, `logger.info` only for startup/shutdown state.
-   (P4 T-P4-2 [2026-05-01]: `source/panels/default/index.ts` was split into
-   composables and now routes through `logger`; raw `console.log` is gone
-   from the panel. The panel toggle for `enableDebugLog` also calls
-   `setDebugLogEnabled` so panel-side debug honours the same gate as the
-   host process.)
-5. ~~**Double-instantiation**~~ — fixed in P1 T-P1-2. `source/tools/registry.ts`
-   exposes `createToolRegistry()`; both `MCPServer` and `ToolManager`
-   accept the registry through their constructors and read from the same
-   ToolExecutor instances. Constructors should still stay side-effect
-   free in case the registry is rebuilt in tests.
-6. ~~**Hardcoded MCP protocol version `2024-11-05`**~~ — fixed in P1 T-P1-1.
-   `source/mcp-server-sdk.ts` now drives the `/mcp` endpoint with the
-   official `@modelcontextprotocol/sdk` low-level `Server` +
-   `StreamableHTTPServerTransport` (stateful mode keyed by `mcp-session-id`).
-   Protocol version is auto-negotiated; tested against `2025-06-18`.
-   `tools/call` responses use structured content (T-P1-5): success →
-   `structuredContent` + back-compat JSON text in `content`; failure →
-   `isError: true` + error message in `content[].text`. The hand-rolled
-   `mcp-server.ts` has been deleted; `source/main.ts` imports
-   `./mcp-server-sdk` directly.
-
-   Behavior change: callers must initialize before issuing other JSON-RPC
-   methods on `/mcp` (per Streamable HTTP spec). The REST short-circuit
-   `POST /api/{category}/{tool}` is unchanged for ad-hoc curl testing.
 7. **`cce.SceneFacade.applyPrefab` returns `false` even on success**
    (verified in v2.1.1 against Cocos Creator 3.8.x). Treating its return
    as a success/failure signal is wrong; `update_prefab` now uses
@@ -217,19 +147,7 @@ v2.1.6 after measure showed lossy-only gains).
    `set-property` with the entire new array as the dump value. That
    would require constructing the IProperty dump shape from host side.
 
-   **v2.1.2 fix (live-verified 2026-05-01)**: nudge has to run from
-   **host side**, NOT inside scene-script. Calling `set-property` from
-   inside scene-script doesn't propagate the model sync — the
-   scene-process IPC seems to short-circuit and skip whatever bookkeeping
-   is needed. The working pattern is implemented in
-   `source/tools/component-tools.ts:nudgeEditorModel(nodeUuid, componentType)`:
-
-   - keep scene-script `arr.push` / `arr.splice` (runtime instant change)
-   - after `runSceneMethodAsToolResponse` resolves, host issues
-     `Editor.Message.request('scene', 'set-property', { uuid: nodeUuid,
-     path: '__comps__.<idx>.enabled', dump: { value: <current> } })`
-   - that no-op set-property triggers layer (b) to re-pull the component
-     dump from layer (a)
+   Core nudge rule: mutate component array state from scene-script, then nudge from **host side** via `scene/set-property`; `snapshot` alone does not promote runtime mutations into the editor serialization model.
 
    Note the path shape: component property writes are addressed as
    `nodeUuid + __comps__.<idx>.<prop>`, **not** as `componentUuid +
@@ -237,22 +155,6 @@ v2.1.6 after measure showed lossy-only gains).
    the set-property target — that does NOT propagate. See how
    `setComponentProperty` resolves `rawComponentIndex` for the canonical
    pattern.
-
-   Verified empirically: disk goes from 4 → 6 cc.ClickEvent entries
-   after add+save (runtime had 6 because of an earlier orphaned
-   mutation; save caught both up). Without the nudge, save writes the
-   stale model state.
-
-   The `_componentName` workaround for cocos-engine #16517 was removed
-   in v2.1.3 after a clean A/B test (2026-05-01): with the line
-   `(eh as any)._componentName = componentName` deleted, a fresh
-   `add_event_handler` → `save_scene` → preview-click flow on a
-   `db://assets/test-mcp/a-test.scene` TestBtn still fired
-   `onClickFromMcp` (project.log: `[PreviewInEditor] [EhTest]
-   onClickFromMcp fired data=a-test`). The disk file never carried
-   `_componentName` anyway (the editor's serialization model rejects
-   it), so the in-memory assignment was always dropped on save+reload.
-   Don't re-introduce it.
 
    Rule of thumb when adding tools that mutate component runtime state:
    mutate from scene-script then nudge from **host side** via
@@ -279,7 +181,6 @@ v2.1.6 after measure showed lossy-only gains).
    from scene-script. Don't blanket-apply `nudgeEditorModel` to every
    write — it's only required when the layer (a) mutation is an array
    length change that the editor's set-property channel didn't see.
-
 12. **Asset-DB write channels can pop a confirmation dialog and ignore
    your `overwrite` flag** (verified v2.1.5 via `save_scene_as`). The
    `asset-db: copy-asset` / `move-asset` / `create-asset` channels each
@@ -418,41 +319,6 @@ v2.1.6 after measure showed lossy-only gains).
     affects ALL preview modes (embedded / browser / simulator)**
     (verified v2.8.4 / 2026-05-02 against cocos 3.8.7).
 
-    Originally identified in embedded mode during v2.8.3 retest;
-    v2.8.4 retest confirmed the same race fires in **browser
-    mode** too — same call stack, same "Failed to refresh"
-    warning, same Ctrl+R recovery requirement. The race is
-    inside `changePreviewPlayState` → `softReloadScene` itself,
-    not gated by preview destination. Treat as cocos-engine-wide
-    bug applicable to any `preview_control(start)` call.
-
-    Reproduced live during v2.8.3 retest (embedded mode) and
-    v2.8.4 retest (browser mode), both with identical stack:
-    ```
-    SceneFacadeManager.changePreviewPlayState
-     → SceneFacadeFSM.issueCommand
-      → PreviewSceneFacade.enter
-       → PreviewSceneFacade.enterGameview
-        → PreviewPlay.start
-         → SceneFacadeManager.softReloadScene (THROWS)
-         → "Failed to refresh the current scene"
-    ```
-
-    Immediately followed by:
-    ```
-    [Scene] The json file of asset 1777714366991.18521454594443276
-            is empty or missing.
-    ```
-
-    The placeholder asset name `Date.now() + '.' + Math.random()` is
-    cocos's own format for temporary serialization placeholders.
-    What appears to be happening: when in **embedded preview** mode
-    (`preview.current.platform === 'gameView'`), `enterGameview`
-    serializes the in-memory scene to a temp build artifact under
-    `<project>/build/preview/`, then `softReloadScene` reads it back —
-    but the writer hasn't finished, so the reader sees an empty file.
-    Race condition inside cocos's own preview pipeline.
-
     Symptoms the user sees:
     - `debug_preview_control(start)` returns `success: true` but
       `data.warnings[]` carries the "Failed to refresh" entry
@@ -462,16 +328,6 @@ v2.1.6 after measure showed lossy-only gains).
       `Node with UUID … is not exist!` from camera focus)
     - **Recovery requires Ctrl+R** in the cocos editor to restart
       the scene-script renderer process
-
-    What the tool layer does (v2.8.3):
-    - `debug_preview_control` scans capturedLogs for the warning,
-      lifts it to `data.warnings[]` and prepends ⚠ + recovery hint
-      ("Common workaround: ensure scene is saved via
-      `scene_save_scene` before calling preview_control(start);
-      if cocos editor freezes after this call, press Ctrl+R in the
-      editor to recover").
-    - The tool description points users at `debug_get_preview_mode`
-      so AI can detect embedded mode and weigh the freeze risk.
 
     What we cannot fix from outside cocos:
     - The race itself lives in `.ccc` bundle code under
@@ -512,7 +368,6 @@ v2.1.6 after measure showed lossy-only gains).
       The probe needs a different path that exercises whichever
       part of scene-script is actually hung. Pending reference-
       project comparison to identify a more sensitive probe.
-
 17. **`preferences/set-config 'preview' …'current.platform'`
     silently no-ops on cocos 3.8.7** (verified v2.9.1 retest /
     2026-05-02).
