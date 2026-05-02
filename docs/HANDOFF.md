@@ -5,38 +5,46 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.2 reload-retest patch + 11 live-test 全綠 → next: 三方 review v2.8.2 / v2.9.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.x cycle 進入 v2.8.3 — embedded-mode PIE 補完 → next: 完整 retest + 三方 review）
 
-**當下版本**：v2.8.1（v2.8.0 spillover + round-1 patch consolidated 落
-地）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.x cycle 三輪
-review patch 已收尾；v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary
-on deny / T-V28-2 resolveAutoCaptureFile helper / T-V28-3
-`debug_preview_control` via typed `cce.SceneFacade.changePreviewPlayState`）；
-v2.8.1 round-1 補強 4 must-fix（project-root anchored containment +
-SERVER_VERSION sync + explicit savePath containment + scene-method
-declaration）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA）。
-Round 2 三方 review（Claude 🟢 + Codex no 🔴 / 2 single-🟡 + Gemini 🟢 /
-2 single-🟡）一致 🟢 ship-it，無 ≥2-reviewer 🟡 重疊，所有 single 🟡
-deferred 至 v2.9.0 spillover。
+**當下版本**：v2.8.2（v2.8.0 spillover + 三方 round-1 patch + reload-
+retest 修補）。v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary on deny
+/ T-V28-2 resolveAutoCaptureFile helper / T-V28-3 `debug_preview_control`
+via typed `cce.SceneFacade.changePreviewPlayState`）；v2.8.1 round-1 補強
+4 must-fix + 2 polish；round-2 三方一致 🟢 ship-it（commit 769151b →
+03568fc）。**v2.8.2 reload-retest 又抓出 2 個 runtime-only bug 三方 review
+全部漏掉**：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` /
+`.instance`；(2) 相對 savePath 解析到 host cwd（CocosDashboard）而非
+project root → 已修，commit 5725f09 + 40ad5b7 push origin/main。
 **18 categories / 187 tools**（v2.8.0 +1）。
 
-**下一個動工**：**v2.9.0** — 候選清單見下方。建議先做 **v2.7.x +
-v2.8.x reload retest** 把 4 件新 tool（`debug_preview_url` /
-`debug_query_devices` / `debug_capture_preview_screenshot` /
-`debug_preview_control`）+ containment helper 在實機 cocos editor
-跑過，再決定 v2.9.0 主題。
+**未盡事項（v2.8.x 尚未完整 ship）**：12-row reload retest 第 9 條
+`preview_control(start)` facade call 雖然 `success:true`，但 cocos
+內部 capturedLogs 出現 `Failed to refresh the current scene`、且
+`capture_preview_screenshot` 找不到 `Preview` 標題視窗。User 確認
+cocos preview 設成「**編輯器內預覽（embedded）**」— `capture_preview_screenshot`
+的 `Preview`-title 視窗濾策略對 embedded 模式無效（gameview 嵌在主編輯器
+window 裡、不開新 BrowserWindow）。v2.8.0 CHANGELOG 親手寫的
+"Pairs with debug_capture_preview_screenshot: AI can now start PIE,
+wait for the preview window to appear, and capture without a human
+clicking the toolbar" 在 embedded 模式下不成立 → **v2.8.x 不算交付完成**，
+不能直接跳 v2.9.0。
 
-**v2.9.0 候選清單**（v2.7.0 spillover + v2.8.x single-reviewer 🟡
-deferrals）：
+**下一個動工**：**v2.8.3** — embedded-mode 補完，3 件子任務：
+1. T-V283-1 `capture_preview_screenshot` 加 `mode: "auto" | "window" | "embedded"`，auto 先試 window 找不到 fallback 主編輯器 + 加註 hint。
+2. T-V283-2 新工具 `debug_get_preview_mode` 透過 `Editor.Profile.getProject('preview', ...)` 讀 cocos 真實設定回 `embedded` / `browser` / `simulator`，給 AI 自動 routing。
+3. T-V283-3 探 `Failed to refresh the current scene` log — 是否是 cocos cumulative dirty / 缺前置 save / embedded 模式 timing race 副作用，根據結果決定加 hint / scene-save 前置 / 翻譯成清楚的 error envelope。
+
+After v2.8.3：完整 retest end-to-end PIE flow → 三方 review → push。
+
+**v2.9.0 候選清單**（v2.8.x 完整 ship 後再動）：
 - `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
-- 實機 reload-retest v2.7.x + v2.8.x — 把 `debug_preview_url` /
-  `debug_query_devices` / `debug_capture_preview_screenshot` /
-  `debug_preview_control` 在 cocos editor 跑過；live-test
-  containment helper 在 symlink temp dir 行為 + CORS scoping 在跨
-  瀏覽器 origin 行為。0.5 天。
+- 實機 reload-retest 跨機環境 — 在 cocos preview 設成 browser 與
+  simulator 模式下分別跑 v2.8.x preview 鏈（v2.8.2 retest 只覆蓋了
+  embedded 模式）。0.3 天。
 - v2.8.1 single-reviewer 🟡 polish：
   - `assertSavePathWithinProject` 相對路徑：先 `path.resolve(Editor.Project.path, savePath)` 再 dirname，或直接 reject 非 absolute（Codex r2）。
   - `realRootNormalized + path.sep` 換成 `path.relative(root, candidate)` 不以 `..` 開頭，避免 drive-root false-reject（Codex r2）。
