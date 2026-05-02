@@ -978,33 +978,74 @@ export class DebugTools implements ToolExecutor {
                     error: 'preferences/query-config returned null for "preview" — cocos may not expose this category, or your build differs from 3.8.x.',
                 };
             }
-            // Heuristic interpretation. Cocos has historically used keys
-            // like `open_preview_with` (3.8.x) or `preview_with`. The
-            // values observed: 'browser', 'simulator', 'window',
-            // 'embedded', sometimes the device name ('Apple iPhone 14').
-            const candidates = ['open_preview_with', 'preview_with', 'open_with', 'mode'];
+            // Heuristic interpretation.
+            // v2.8.3 retest finding: cocos 3.8.7 actually stores the
+            // active mode at `preview.current.platform` with value
+            // `"gameView"` (embedded), `"browser"`, or device names
+            // (simulator). The original heuristic only checked keys like
+            // `open_preview_with` / `preview_with` / `open_with` / `mode`
+            // and missed the live key. Probe `current.platform` first;
+            // keep the legacy keys as fallback for older cocos versions.
             const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '');
             let interpreted: 'browser' | 'window' | 'simulator' | 'embedded' | 'unknown' = 'unknown';
             let interpretedFromKey: string | null = null;
-            const dig = (obj: any, key: string): any => {
-                if (!obj || typeof obj !== 'object') return undefined;
-                if (key in obj) return obj[key];
-                // Sometimes the category dump nests under a default protocol.
-                for (const v of Object.values(obj)) {
-                    if (v && typeof v === 'object' && key in (v as any)) return (v as any)[key];
-                }
-                return undefined;
+            const classify = (v: string) => {
+                const lv = lower(v);
+                if (lv.includes('browser')) return 'browser';
+                if (lv.includes('simulator')) return 'simulator';
+                if (lv.includes('embed') || lv.includes('gameview') || lv.includes('game_view')) return 'embedded';
+                if (lv.includes('window')) return 'window';
+                return null;
             };
-            for (const k of candidates) {
+            const dig = (obj: any, path: string): any => {
+                if (!obj || typeof obj !== 'object') return undefined;
+                const parts = path.split('.');
+                let cur: any = obj;
+                for (const p of parts) {
+                    if (!cur || typeof cur !== 'object') return undefined;
+                    if (p in cur) {
+                        cur = cur[p];
+                        continue;
+                    }
+                    // Try one level of nest (sometimes the category dump
+                    // nests under a default-protocol bucket).
+                    let found = false;
+                    for (const v of Object.values(cur)) {
+                        if (v && typeof v === 'object' && p in (v as any)) {
+                            cur = (v as any)[p];
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) return undefined;
+                }
+                return cur;
+            };
+            const probeKeys = [
+                'preview.current.platform',
+                'current.platform',
+                'preview.open_preview_with',
+                'open_preview_with',
+                'preview_with',
+                'open_with',
+                'mode',
+            ];
+            for (const k of probeKeys) {
                 const v = dig(raw, k);
                 if (typeof v === 'string') {
-                    const lv = lower(v);
-                    if (lv.includes('browser')) interpreted = 'browser';
-                    else if (lv.includes('simulator')) interpreted = 'simulator';
-                    else if (lv.includes('embed')) interpreted = 'embedded';
-                    else if (lv.includes('window')) interpreted = 'window';
-                    if (interpreted !== 'unknown') {
-                        interpretedFromKey = k;
+                    const cls = classify(v);
+                    if (cls) {
+                        interpreted = cls;
+                        interpretedFromKey = `${k}=${v}`;
+                        break;
+                    }
+                    // Non-empty string that didn't match a known label →
+                    // record as 'simulator' candidate if it looks like a
+                    // device name (e.g. "Apple iPhone 14 Pro"), otherwise
+                    // keep searching.
+                    if (/iPhone|iPad|HUAWEI|Xiaomi|Sony|Asus|OPPO|Honor|Nokia|Lenovo|Samsung|Google|Pixel/i.test(v)) {
+                        interpreted = 'simulator';
+                        interpretedFromKey = `${k}=${v}`;
                         break;
                     }
                 }
