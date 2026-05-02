@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.x cycle wrap — round-2 三方一致 🟢 ship-it → next: v2.9.0 / live-reload-retest v2.8.x）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.2 reload-retest patch — 2 bugs 三方都漏的 runtime-only issues → next: 三方 review v2.8.2 / v2.9.0）
 
 **當下版本**：v2.8.1（v2.8.0 spillover + round-1 patch consolidated 落
 地）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.x cycle 三輪
@@ -597,6 +597,7 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.8.2 改動前（v2.8.1 release 點 + round-2 ship-it）→ `git reset --hard 03568fc`
 - v2.8.1 改動前（v2.8.0 release 點）→ `git reset --hard ddb6c77`
 - v2.8.0 改動前（v2.7.3 release 點 + 三方 ship-it round 3）→ `git reset --hard d1a868f`
 - v2.7.3 改動前（v2.7.2 release 點）→ `git reset --hard dd88952`
@@ -752,6 +753,7 @@ v2.7.2 ✅ done（三方 review patch round 2 — CLAUDE.md architecture map dri
 v2.7.3 ✅ done（Codex round-2 re-attendance — 2 must-fix（HANDOFF body 漏更新 v2.7.2 + v2.8.0 candidates 列已落地工具）+ 2 polish（smoke ACAO=* + CLAUDE.md v2.3.0 數學澄清），commit d1a868f；round 3 三方一致 🟢 ship-it）
 v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V28-2 resolveAutoCaptureFile helper for 4 capture paths + T-V28-3 debug_preview_control via typed cce.SceneFacade.changePreviewPlayState，18 categories / 187 tools，commits 39c0b36 / 80d722f / c4a4dc8 / ddb6c77）
 v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），commit 769151b；round 2 三方一致 🟢 ship-it — Claude / Codex 0🔴-2single🟡 / Gemini 0🔴-2single🟡，所有 single 🟡 deferred 至 v2.9.0 spillover）
+v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname。Live-test 紀錄：preview_url ✅ / query_devices ✅ / capture_preview_screenshot 預期失敗訊息 ✅ / screenshot auto-name ✅ / containment guard reject out-of-project ✅ / preview_control + relative savePath 修後待重 retest）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

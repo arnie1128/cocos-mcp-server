@@ -992,42 +992,59 @@ export const methods: { [key: string]: (...any: any) => any } = {
     },
 
     /**
-     * v2.8.0 T-V28-3: enter / exit Preview-in-Editor (PIE) play mode
-     * programmatically. Uses the documented (and typed) cce.SceneFacade
-     * method `changePreviewPlayState(state: boolean)` on
-     * SceneFacadeManager — see
+     * v2.8.0 T-V28-3 / v2.8.2 retest fix: enter / exit Preview-in-Editor
+     * (PIE) play mode programmatically. Uses the typed
+     * `changePreviewPlayState(state: boolean)` method declared on
+     * `SceneFacadeManager` —
      * `node_modules/@cocos/creator-types/editor/packages/scene/@types/cce/3d/facade/scene-facade-manager.d.ts:250`.
      *
      * Parameters:
      *   state — true to start PIE, false to stop and return to scene mode.
      *
-     * The HANDOFF originally noted `scene/editor-preview-set-play` as an
-     * undocumented Editor.Message channel; we found the typed facade
-     * method during T-V28-3 implementation and went with that instead so
-     * the call path is type-checked against creator-types and not subject
-     * to silent removal between cocos versions.
+     * **v2.8.2 retest finding**: v2.8.0 dispatched against `cce.SceneFacade`
+     * (matching the type-doc name) but live cocos editor 3.8.x exposes the
+     * runtime singleton at `cce.SceneFacadeManager` (and / or
+     * `.SceneFacadeManager.instance`), same convention as the prefab path
+     * uses (see `getPrefabFacade` above). Probing all three candidates
+     * keeps the code resilient across cocos builds where the namespace
+     * shape differs.
      *
-     * Returns the standard scene-script envelope. cce.SceneFacade is
-     * accessed via `(globalThis as any).cce` so static TS doesn't need
-     * a creator-types import for the editor namespace (cce types are
-     * editor-side, not exported through `cc`).
+     * The HANDOFF originally noted `scene/editor-preview-set-play` as an
+     * undocumented Editor.Message channel; we use the typed facade method
+     * instead so the call path is type-checked against creator-types and
+     * not subject to silent removal between cocos versions.
+     *
+     * Returns the standard scene-script envelope. References the
+     * top-level `cce` declaration (matching the prefab pattern) rather
+     * than reaching through `globalThis` so the resolution semantics
+     * match other scene-script methods in this file.
      */
     async changePreviewPlayState(state: boolean) {
         try {
-            const sceneFacade: any = (globalThis as any).cce?.SceneFacade;
-            if (!sceneFacade) {
+            if (typeof cce === 'undefined' || cce === null) {
                 return {
                     success: false,
-                    error: 'cce.SceneFacade is not available; this scene-script method must run inside the cocos editor scene process.',
+                    error: 'cce global is not available; this method must run in a scene-script context.',
                 };
             }
-            if (typeof sceneFacade.changePreviewPlayState !== 'function') {
+            // v2.8.2: probe the three candidate locations the SceneFacade
+            // singleton has been observed at across cocos builds. Same
+            // convention as getPrefabFacade.
+            const candidates: any[] = [
+                (cce as any).SceneFacade,
+                (cce as any).SceneFacadeManager?.instance,
+                (cce as any).SceneFacadeManager,
+            ];
+            const facade = candidates.find(
+                c => c && typeof c.changePreviewPlayState === 'function',
+            );
+            if (!facade) {
                 return {
                     success: false,
-                    error: 'cce.SceneFacade.changePreviewPlayState is not a function; cocos version may not support PIE control via this facade. Try the toolbar play button manually.',
+                    error: 'No SceneFacade with changePreviewPlayState found on cce (cce.SceneFacade / cce.SceneFacadeManager / .instance). Cocos version may not support PIE control via this facade — use the toolbar play button manually.',
                 };
             }
-            await sceneFacade.changePreviewPlayState(Boolean(state));
+            await facade.changePreviewPlayState(Boolean(state));
             return {
                 success: true,
                 data: { requestedState: Boolean(state) },

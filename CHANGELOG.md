@@ -1,5 +1,78 @@
 # Changelog
 
+## v2.8.2 — 2026-05-02
+
+Reload-retest fixes uncovered by live-testing v2.8.0/v2.8.1 against
+cocos editor 3.8.7. Two bugs three-way review missed because all
+reviewers stayed at the type/code-reading layer; only running the
+binary against a real editor exercised them.
+
+### 🔴 #1 — `cce.SceneFacade` runtime name mismatch
+
+`source/scene.ts:changePreviewPlayState` dispatched against
+`(globalThis as any).cce?.SceneFacade`, matching the type-doc name
+in `@cocos/creator-types`. But cocos editor 3.8.7 exposes the
+runtime singleton at `cce.SceneFacadeManager` (and
+`.SceneFacadeManager.instance`), same convention as the prefab
+path uses (`getPrefabFacade` already probes
+`cce.SceneFacadeManager.instance` / `cce.SceneFacadeManager`).
+
+Live test (commit 769151b → curl POST /api/debug/preview_control):
+
+```
+{"success":false,"error":"cce.SceneFacade is not available;
+  this scene-script method must run inside the cocos editor scene process."}
+```
+
+Fix: probe all three candidates (cce.SceneFacade /
+cce.SceneFacadeManager.instance / cce.SceneFacadeManager) and use
+whichever exposes `changePreviewPlayState`. Mirrors getPrefabFacade
+candidate-probe pattern. Also switched from `(globalThis as any).cce`
+to the top-level `cce` declaration so resolution semantics match
+the rest of `source/scene.ts`.
+
+### 🔴 #2 — Relative `savePath` resolved against host cwd, not project root
+
+`assertSavePathWithinProject` called `path.dirname(savePath)` directly.
+For relative paths this collapses to '.' and `realpath('.')` returns
+the host process cwd — typically `C:\Program Files (x86)\CocosDashboard\
+Cocos Creator\3.8.7\resources` for the bundled cocos editor — not the
+project root.
+
+Live test (relative `out.png`):
+```
+{"error":"savePath resolved outside the project root: C:\\Program Files (x86)\\CocosDashboard not within D:\\1_dev\\cocos_cs\\cocos_cs_349..."}
+```
+
+The rejection was incidentally "safe" but the error message was
+misleading and the AI client couldn't pass relative paths thinking
+"relative to my project."
+
+Fix: anchor relative paths against `Editor.Project.path` via
+`path.resolve(projectPath, savePath)` before extracting `path.dirname`.
+Helper now also returns `resolvedPath` so callers (screenshot /
+capturePreviewScreenshot / batchScreenshot) write to the resolved
+absolute path instead of the original relative string.
+
+This was Codex round-2 single-reviewer 🟡 #1 — promoted to must-fix
+after live-test confirmed real-world usability impact.
+
+### Live-test snapshot
+
+Tested against cocos editor 3.8.7 / project `cocos_cs_349`:
+- ✅ `debug_preview_url` query → returned `http://192.168.2.4:7456`
+- ✅ `debug_query_devices` → returned 20 device entries (iPhone /
+  iPad / HUAWEI / 小米 / Sony etc.)
+- ✅ `debug_capture_preview_screenshot` (no PIE) → expected failure
+  with helpful "launch cocos preview first" message + visible-window
+  list
+- ✅ `debug_screenshot` (no savePath) → wrote 3652-byte PNG to
+  `<project>/temp/mcp-captures/screenshot-<ts>.png`
+- ✅ `debug_screenshot` (savePath outside project) → containment
+  guard rejected `C:\Windows\Temp\...` with clear error
+- ❌→✅ `debug_preview_control` → fixed in v2.8.2 (this entry)
+- ❌→✅ `debug_screenshot` (relative savePath) → fixed in v2.8.2
+
 ## v2.8.1 — 2026-05-02
 
 Three-way review patch round 1 on v2.8.0. Three reviewers (Claude /

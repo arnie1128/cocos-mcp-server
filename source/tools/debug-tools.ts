@@ -724,7 +724,7 @@ export class DebugTools implements ToolExecutor {
     //
     // The check resolves the parent directory (the file itself may not
     // exist yet) and requires it to be inside `realpath(Editor.Project.path)`.
-    private assertSavePathWithinProject(savePath: string): { ok: true } | { ok: false; error: string } {
+    private assertSavePathWithinProject(savePath: string): { ok: true; resolvedPath: string } | { ok: false; error: string } {
         const projectPath: string | undefined = Editor?.Project?.path;
         if (!projectPath) {
             return { ok: false, error: 'Editor.Project.path is not available; cannot validate explicit savePath.' };
@@ -733,7 +733,16 @@ export class DebugTools implements ToolExecutor {
             const rp: any = fs.realpathSync as any;
             const resolveReal = rp.native ?? rp;
             const realProjectRoot = resolveReal(projectPath);
-            const parent = path.dirname(savePath);
+            // v2.8.2 retest fix (Codex r2 🟡 #1): a relative savePath would
+            // make `path.dirname(savePath)` collapse to '.' and resolve to
+            // the host process cwd (often `<editor-install>/CocosDashboard`)
+            // rather than the project root. Anchor relative paths against
+            // the project root explicitly so the AI's intuitive "relative
+            // to my project" interpretation is what the check enforces.
+            const absoluteSavePath = path.isAbsolute(savePath)
+                ? savePath
+                : path.resolve(projectPath, savePath);
+            const parent = path.dirname(absoluteSavePath);
             // Parent must already exist for realpath; if it doesn't, the
             // write would fail anyway, but return a clearer error here.
             let realParent: string;
@@ -752,7 +761,7 @@ export class DebugTools implements ToolExecutor {
                     error: `savePath resolved outside the project root: ${realParentNormalized} not within ${realRootNormalized}. Use a path inside <project>/ or omit savePath to auto-name into <project>/temp/mcp-captures.`,
                 };
             }
-            return { ok: true };
+            return { ok: true, resolvedPath: absoluteSavePath };
         } catch (err: any) {
             return { ok: false, error: `savePath realpath failed: ${err?.message ?? String(err)}` };
         }
@@ -769,8 +778,11 @@ export class DebugTools implements ToolExecutor {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
                 // also gets containment-checked. AI-generated paths could
                 // otherwise write outside the project root.
+                // v2.8.2 retest fix: use the helper's resolvedPath so a
+                // relative savePath actually lands inside the project root.
                 const guard = this.assertSavePathWithinProject(filePath);
                 if (!guard.ok) return { success: false, error: guard.error };
+                filePath = guard.resolvedPath;
             }
             const win = this.pickWindow(windowTitle);
             const image = await win.webContents.capturePage();
@@ -840,8 +852,10 @@ export class DebugTools implements ToolExecutor {
             } else {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
                 // also gets containment-checked.
+                // v2.8.2 retest fix: use resolvedPath for relative-path support.
                 const guard = this.assertSavePathWithinProject(filePath);
                 if (!guard.ok) return { success: false, error: guard.error };
+                filePath = guard.resolvedPath;
             }
             const image = await win.webContents.capturePage();
             const png: Buffer = image.toPNG();
@@ -875,8 +889,10 @@ export class DebugTools implements ToolExecutor {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit prefix
                 // also gets containment-checked. We check the prefix path
                 // itself — every emitted file lives in the same dirname.
+                // v2.8.2 retest fix: use resolvedPath for relative-prefix support.
                 const guard = this.assertSavePathWithinProject(prefix);
                 if (!guard.ok) return { success: false, error: guard.error };
+                prefix = guard.resolvedPath;
             }
             const win = this.pickWindow(windowTitle);
             const captures: any[] = [];
