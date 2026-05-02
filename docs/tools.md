@@ -5,7 +5,7 @@
 > 重新生成。手寫的章節介紹（category 描述、總覽段）放在 generator 內。
 
 Cocos MCP Server 透過 [Model Context Protocol](https://modelcontextprotocol.io/) 對外暴露
-**185 tools across 18 categories**（185 個工具，分 18 個 category）。
+**186 tools across 18 categories**（186 個工具，分 18 個 category）。
 每個工具的 input schema 由 zod 在 `source/tools/&lt;category&gt;-tools.ts` 內定義，
 經過 `lib/schema.ts:toInputSchema` 轉成 JSON Schema 後送出 `tools/list`。
 Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.title`，缺少時由工具名稱自動轉成人類可讀文字。
@@ -39,7 +39,7 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | [`sceneAdvanced`](#sceneadvanced) | 23 | 場景進階查詢與 scene-script 入口：依 asset uuid 反查節點、執行任意 scene-script 方法、批次節點查詢等。 |
 | [`sceneView`](#sceneview) | 20 | 場景視圖控制：gizmo 工具切換、座標系、視圖模式、參考圖等。會影響編輯器面板，不影響 runtime 行為。 |
 | [`referenceImage`](#referenceimage) | 1 | 場景視圖中參考圖的管理（add / remove / list / 透明度等）。 |
-| [`assetAdvanced`](#assetadvanced) | 11 | asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。 |
+| [`assetAdvanced`](#assetadvanced) | 12 | asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。 |
 | [`validation`](#validation) | 3 | 場景與資源完整性檢查工具，回報缺失或錯誤的 reference。 |
 | [`inspector`](#inspector) | 2 | Inspector 面板與選取狀態查詢，用於讀取目前編輯器 UI context。 |
 | [`assetMeta`](#assetmeta) | 3 | 資源 meta 查詢與設定工具，處理 importer / uuid / meta 層級資訊。 |
@@ -215,6 +215,7 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `assetAdvanced` | [`assetAdvanced_get_unused_assets`](#assetadvanced_get_unused_assets) | Find unused assets | Unsupported unused-asset placeholder; always reports unsupported. |
 | `assetAdvanced` | [`assetAdvanced_compress_textures`](#assetadvanced_compress_textures) | Compress textures | Unsupported texture-compression placeholder; always reports unsupported. |
 | `assetAdvanced` | [`assetAdvanced_export_asset_manifest`](#assetadvanced_export_asset_manifest) | Export asset manifest | Return asset inventory for a directory as json/csv/xml text; does not write a file. |
+| `assetAdvanced` | [`assetAdvanced_get_users`](#assetadvanced_get_users) | Find asset users | Find scenes/prefabs/scripts that reference an asset by UUID. |
 | `validation` | [`validation_validate_json_params`](#validation_validate_json_params) | Validate/repair JSON args | Validate and lightly repair a JSON argument string before calling another tool. |
 | `validation` | [`validation_safe_string_value`](#validation_safe_string_value) | Escape string for JSON | Escape a raw string for safe use inside JSON arguments. |
 | `validation` | [`validation_format_mcp_request`](#validation_format_mcp_request) | Format MCP request | Format a complete MCP tools/call request and curl example. |
@@ -2725,7 +2726,7 @@ Manage scene reference images through the cocos reference-image module. Op-routi
 
 asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。
 
-本 category 共 **11** 個工具。
+本 category 共 **12** 個工具。
 
 <a id="assetadvanced_save_asset_meta"></a>
 
@@ -2898,6 +2899,21 @@ Return asset inventory for a directory as json/csv/xml text; does not write a fi
 | `directory` | string |  | `"db://assets"` | Asset-db directory to include in the manifest. Default db://assets. |
 | `format` | enum: `json` \| `csv` \| `xml` |  | `"json"` | Returned manifest serialization format. |
 | `includeMetadata` | boolean |  | `true` | Try to include asset metadata when available. |
+
+</details>
+
+<a id="assetadvanced_get_users"></a>
+
+<details>
+<summary><code>assetAdvanced_get_users</code> — Find asset users</summary>
+
+_Find scenes/prefabs/scripts that reference an asset by UUID._
+
+Find scenes/prefabs/scripts that reference an asset by UUID.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `uuid` | string | ✓ |  | Asset UUID to find references to. |
 
 </details>
 

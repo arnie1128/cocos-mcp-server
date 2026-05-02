@@ -116,6 +116,15 @@ export class AssetAdvancedTools implements ToolExecutor {
                 }),
                 handler: a => this.exportAssetManifest(a.directory, a.format, a.includeMetadata),
             },
+            {
+                name: 'get_users',
+                title: 'Find asset users',
+                description: 'Find scenes/prefabs/scripts that reference an asset by UUID.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Asset UUID to find references to.'),
+                }),
+                handler: a => this.getUsers(a.uuid),
+            },
         ];
         this.exec = defineTools(defs);
     }
@@ -456,5 +465,34 @@ export class AssetAdvancedTools implements ToolExecutor {
         
         xml += '</assets>';
         return xml;
+    }
+
+    private async getUsers(targetUuid: string): Promise<ToolResponse> {
+        return new Promise(async (resolve) => {
+            try {
+                const scenes = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.SceneAsset' });
+                const prefabs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.Prefab' });
+                const scriptsTs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**/*.ts' });
+                const scriptsJs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**/*.js' });
+                
+                const allAssets = [...scenes, ...prefabs, ...scriptsTs, ...scriptsJs];
+                const uniqueAssets = Array.from(new Map(allAssets.map((a: any) => [a.uuid, a])).values());
+
+                const users: any[] = [];
+                for (const asset of uniqueAssets) {
+                    const deps = await Editor.Message.request('asset-db', 'query-asset-depends', asset.uuid);
+                    if (deps && deps.includes(targetUuid)) {
+                        let type = 'script';
+                        if (asset.type === 'cc.SceneAsset') type = 'scene';
+                        else if (asset.type === 'cc.Prefab') type = 'prefab';
+                        users.push({ type, uuid: asset.uuid, path: asset.url, name: asset.name });
+                    }
+                }
+                
+                resolve(ok({ uuid: targetUuid, users, total: users.length }));
+            } catch (err: any) {
+                resolve(fail(err.message));
+            }
+        });
     }
 }
