@@ -56,6 +56,7 @@ v2.11.0/v2.11.1 兩 cycle starter）。後續比對基本上是「我們持續 s
 > - animation state 工具（v2.10.2 補完 4 個）。
 > - get_users / 工具標記 / preferences macro / record format-quality（皆 v2.10.x ship）。
 > - tool description / title 重構 + ok()/fail() helpers + schemas 抽取（v2.10.x 完成）。
+> - **完整 TS class 定義生成**（v2.10.2 #1 已 ship — component dump 分支 + `@property` decorator + enum/bitmask metadata + nested type；inspector-tools.ts:139 `renderTsClass` / `processTsClass`）。
 
 | # | 來源 | 內容 | 估時 | 風險 | 備註 |
 |---|---|---|---|---|---|
@@ -64,7 +65,7 @@ v2.11.0/v2.11.1 兩 cycle starter）。後續比對基本上是「我們持續 s
 | 3 | harady | **`server_check_code_sync`**：偵測 runtime 內存編譯 vs disk 上 build hash 是否一致 | 0.5 天 | 中 | 需注入到 GameDebugClient 並比對 build artifact hash |
 | 4 | Spaydo | **`validation_take_snapshot` / `validation_compare_snapshots`**：場景快照 + diff 比較，AI 改完場景的回歸檢查 | 1 天 | 低 | 與 v2.4 InstanceReference 配合可做 deep equality |
 | 5 | Spaydo | **資產清查三件組**：`asset_get_tree`（樹狀）/ `asset_export_manifest`（外匯出）/ `asset_get_unused`（孤兒檢測） | 1 天 | 低 | 大型專案 refactor / 上架體積優化必備 |
-| 6 | cocos-code-mode | **完整 TS class 定義生成**（v2.4.0 partial → 補齊）：component dump 分支、`@property` decorator、enum / bitmask metadata、nested type、ProjectSettings 內省 | 1.5 天 | 低 | inspector-tools.ts 純擴充，schema layer 不動。最值得移植 idea |
+| 6 | cocos-code-mode | **ProjectSettings 內省 + 通用 `setInstanceProperties`**：補上他們的 `inspectorGetSettingsDefinition` / `inspectorGetSettingsProperties` 對應；通用 instance properties writer。注意：場景 instance 的完整 TS class 定義（component dump / `@property` decorator / enum/bitmask metadata）已於 v2.10.2 #1 ship，不屬此項。 | 1 天 | 低 | inspector-tools.ts 擴充 settings 分支；不動 schema layer |
 | 7 | RomaRogov | **`@ccclass` URL → class name 萃取**：從 `db://` script URL 解析出 class name，比手填 className 可靠 | 0.3 天 | 低 | 補強 `component_add_component` 的 className 解析鏈路 |
 | 8 | FunplayAI | **OS 層輸入模擬**（`simulate_mouse_*` / `simulate_key_*`）：彌補 preview-mode 互動測試盲點 | 1 天 | 中 | 需處理跨平台（windows/macOS）IPC；landmine #16 之外的另一條路 |
 | 9 | FunplayAI | **core/full tool profile**：tool-manager 補一層輕量 profile，降低小工作流的 AI tool token 消耗 | 0.5 天 | 中 | 與 v2.7 tool-manager UI persistence 互動，schema 變動需評估 |
@@ -113,7 +114,8 @@ v2.11.0/v2.11.1 兩 cycle starter）。後續比對基本上是「我們持續 s
 protocol stack — Claude Code/Desktop/Cline/Continue 全 MCP-native；UTCP 失主流
 client；80% Code Mode 效益可在 MCP 內透過 `execute_javascript` 取得。
 
-v2.11 候選 #6（完整 TS class 定義生成）即是補這個 idea 的最後一塊。
+場景 instance 的完整 TS class 定義（含 `@property` decorator + enum/bitmask metadata）已於
+v2.10.2 #1 ship；剩下 ProjectSettings 內省與通用 instance properties writer 是 v2.11 候選 #6。
 
 ## 與官方 cocos-cli 的關係
 

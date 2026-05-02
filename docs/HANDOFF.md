@@ -21,7 +21,7 @@
 | 2 | harady | `component_auto_bind`（自動綁定 script `@property` editor reference） | 0.5 天 | 低 |
 | 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（場景 snapshot diff 回歸） | 1 天 | 低 |
 | 4 | Spaydo | 資產清查三件組：`asset_get_tree` / `asset_export_manifest` / `asset_get_unused` | 1 天 | 低 |
-| 5 | cocos-code-mode | 完整 TS class 定義生成（component + `@property` decorator + enum/bitmask metadata） | 1.5 天 | 低 |
+| 5 | cocos-code-mode | ProjectSettings 內省 + 通用 `setInstanceProperties`（注意：場景 instance 完整 TS class 定義已於 v2.10.2 #1 ship） | 1 天 | 低 |
 | 6 | RomaRogov | `@ccclass` URL → class name 萃取 helper | 0.3 天 | 低 |
 | 7 | harady | `server_check_code_sync`（runtime/disk build hash 漂移偵測） | 0.5 天 | 中 |
 | 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
