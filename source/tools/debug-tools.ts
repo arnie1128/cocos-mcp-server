@@ -129,6 +129,20 @@ export class DebugTools implements ToolExecutor {
                 handler: a => this.runScriptDiagnostics(a.tsconfigPath),
             },
             {
+                name: 'preview_url',
+                description: 'Resolve the cocos browser-preview URL (e.g. http://localhost:7456) via the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
+                inputSchema: z.object({
+                    action: z.enum(['query', 'open']).default('query').describe('"query" returns the URL; "open" returns the URL AND opens it in the user default browser via electron.shell.openExternal.'),
+                }),
+                handler: a => this.previewUrl(a.action),
+            },
+            {
+                name: 'query_devices',
+                description: 'List preview devices configured in the cocos project (cc.IDeviceItem entries). Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
+                inputSchema: z.object({}),
+                handler: () => this.queryDevices(),
+            },
+            {
                 name: 'game_command',
                 description: 'Send a runtime command to a GameDebugClient running inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/contentSize/active/components by name). Custom command types are forwarded to the client\'s customCommands map (e.g. "state", "navigate"). Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
                 inputSchema: z.object({
@@ -682,6 +696,43 @@ export class DebugTools implements ToolExecutor {
                 },
                 message: `Captured ${captures.length} screenshots`,
             };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    // v2.7.0 #3: preview-url / query-devices handlers ---------------------
+
+    private async previewUrl(action: 'query' | 'open' = 'query'): Promise<ToolResponse> {
+        try {
+            const url: string = await Editor.Message.request('preview', 'query-preview-url' as any) as any;
+            if (!url || typeof url !== 'string') {
+                return { success: false, error: 'preview/query-preview-url returned empty result; check that cocos preview server is running' };
+            }
+            const data: any = { url };
+            if (action === 'open') {
+                try {
+                    // Lazy require so smoke / non-Electron contexts don't fault
+                    // on missing electron.
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const electron = require('electron');
+                    await electron.shell.openExternal(url);
+                    data.opened = true;
+                } catch (err: any) {
+                    data.opened = false;
+                    data.openError = err?.message ?? String(err);
+                }
+            }
+            return { success: true, data, message: action === 'open' ? `Opened ${url} in default browser` : url };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    private async queryDevices(): Promise<ToolResponse> {
+        try {
+            const devices: any[] = await Editor.Message.request('device', 'query') as any;
+            return { success: true, data: { devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 } };
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
