@@ -858,7 +858,9 @@ v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime
 v2.8.2 reload-tested ✅（11 條 live-test 全綠 + 1 觀察：cocos preview 設成「編輯器內預覽 (embedded)」時 `preview_control(start)` facade 通但 `capture_preview_screenshot` 用 Preview-title 濾抓不到視窗，因 embedded 模式 gameview 嵌在主編輯器、不開新 window）
 v2.8.3 ✅ done（embedded-mode PIE 補完 — 5 件子任務，commits 48d11ec / 71c4868 / ce6825f）
 v2.8.4 ✅ done（browser-mode retest 又抓到 2 件 — landmine #16 廣域化 + auto fallback hint mode-aware；commit 843fe73，已 push origin/main）
-v2.9.0 ⏳ in-progress（T-V29-1 check_editor_health + T-V29-2 set_preview_mode 落地 → 188 → 190 tools；剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing；三方 review batch 收尾在最後）
+v2.9.0 ⏳ in-progress（T-V29-1 check_editor_health + T-V29-2 set_preview_mode 落地 → 188 → 190 tools，commit 2c277b4 已 push）
+v2.9.1 ✅ done（setter live-test fix — v2.9.0 setter 寫 dot-path 'current.platform' 雖回 truthy 但實際沒生效；改成 4 strategies 探測 + 每次 write 後 read-back 驗證，第一個 read-back 對得上的 strategy 勝出。另一個三方 review 抓不到的 runtime-only bug — reviewers 只看 type signature）
+剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing；三方 review batch 收尾在最後
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

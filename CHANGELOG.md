@@ -1,5 +1,37 @@
 # Changelog
 
+## v2.9.1 — 2026-05-02
+
+Setter live-test fix.
+
+### 🔴 #1 — `debug_set_preview_mode` write was silently ignored
+
+v2.9.0 setter passed `('preferences', 'set-config', 'preview',
+'current.platform', value)` and got back a non-false result, then
+returned success. Live retest showed the config dump still reported
+`preview.current.platform = "browser"` after a `confirm=true` write
+to `"gameView"` — the read-back didn't match. Restore-to-browser
+also detected as no-op for the same reason.
+
+cocos `set-config` doesn't appear to support dot-path keys the way
+`query-config` does. Fix: probe four shapes in order and verify each
+write with a fresh read-back before declaring success:
+1. `('preview', 'current', { platform: value })` — nested object
+2. `('preview', 'current.platform', value, 'global')` — explicit protocol
+3. `('preview', 'current.platform', value, 'local')` — explicit protocol
+4. `('preview', 'current.platform', value)` — original (kept as last resort)
+
+The first strategy whose read-back matches the requested mode wins;
+its `id` is returned in `data.strategy` plus a full `data.attempts`
+breakdown for diagnostics. If all four strategies fail, the tool
+returns `success: false` with the full attempts log so AI can
+report back which shape works on whichever cocos version is in
+play.
+
+This is the kind of bug three-way review can't catch — reviewers
+read only the type signature, not the runtime behaviour. Live
+retest is the only mitigation.
+
 ## v2.9.0 — 2026-05-02
 
 Opens with two PIE-related tools that close the v2.8.x retest gaps.

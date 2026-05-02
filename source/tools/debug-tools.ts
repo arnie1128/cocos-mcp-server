@@ -1108,8 +1108,19 @@ export class DebugTools implements ToolExecutor {
 
     // v2.9.0 T-V29-2: counterpart to getPreviewMode. Writes
     // preview.current.platform via the typed
-    // Editor.Message.request('preferences', 'set-config', 'preview',
-    // 'current.platform', value) channel.
+    // Editor.Message.request('preferences', 'set-config', ...) channel.
+    //
+    // v2.9.0 retest fix: the initial implementation passed
+    // ('preview', 'current.platform', value) and returned success but
+    // the write did NOT take effect — cocos's set-config doesn't seem
+    // to support dot-path keys. Strategies tried in order:
+    //   1. ('preview', 'current', { platform: value })  — nested object
+    //   2. ('preview', 'current.platform', value, 'global') — explicit protocol
+    //   3. ('preview', 'current.platform', value, 'local')  — explicit protocol
+    //   4. ('preview', 'current.platform', value)          — no protocol (original)
+    // Each attempt is followed by a fresh query-config to verify the
+    // value actually flipped. We return the strategy that worked plus
+    // the raw set-config return for diagnostics.
     //
     // Confirm gate: `confirm=false` (default) is a dry-run that returns
     // the current value + suggested call. `confirm=true` actually
@@ -1117,10 +1128,11 @@ export class DebugTools implements ToolExecutor {
     // exploring tool capabilities.
     private async setPreviewMode(mode: 'browser' | 'gameView' | 'simulator', confirm: boolean): Promise<ToolResponse> {
         try {
-            // Read previous value first so we can include it in the
-            // response (and the AI can decide whether to restore later).
-            const cfg: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
-            const previousMode: string | null = cfg?.preview?.current?.platform ?? null;
+            const queryCurrent = async (): Promise<string | null> => {
+                const cfg: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
+                return cfg?.preview?.current?.platform ?? null;
+            };
+            const previousMode = await queryCurrent();
             if (!confirm) {
                 return {
                     success: true,
@@ -1135,17 +1147,70 @@ export class DebugTools implements ToolExecutor {
                     message: `cocos preview already set to "${mode}"; no change applied.`,
                 };
             }
-            const ok: boolean = await Editor.Message.request(
-                'preferences', 'set-config' as any, 'preview' as any,
-                'current.platform' as any, mode as any,
-            ) as any;
-            if (ok === false) {
-                return { success: false, error: 'preferences/set-config returned false; cocos refused the write. Check that "current.platform" is the right key for this cocos version (3.8.7 verified).' };
+            type Strategy = { id: string; payload: () => Promise<any> };
+            const strategies: Strategy[] = [
+                {
+                    id: "set-config('preview','current',{platform:value})",
+                    payload: () => Editor.Message.request(
+                        'preferences', 'set-config' as any,
+                        'preview' as any, 'current' as any,
+                        { platform: mode } as any,
+                    ),
+                },
+                {
+                    id: "set-config('preview','current.platform',value,'global')",
+                    payload: () => Editor.Message.request(
+                        'preferences', 'set-config' as any,
+                        'preview' as any, 'current.platform' as any,
+                        mode as any, 'global' as any,
+                    ),
+                },
+                {
+                    id: "set-config('preview','current.platform',value,'local')",
+                    payload: () => Editor.Message.request(
+                        'preferences', 'set-config' as any,
+                        'preview' as any, 'current.platform' as any,
+                        mode as any, 'local' as any,
+                    ),
+                },
+                {
+                    id: "set-config('preview','current.platform',value)",
+                    payload: () => Editor.Message.request(
+                        'preferences', 'set-config' as any,
+                        'preview' as any, 'current.platform' as any,
+                        mode as any,
+                    ),
+                },
+            ];
+            const attempts: Array<{ strategy: string; setResult: any; observedMode: string | null; matched: boolean; error?: string }> = [];
+            let winner: typeof attempts[number] | null = null;
+            for (const s of strategies) {
+                let setResult: any = undefined;
+                let error: string | undefined;
+                try {
+                    setResult = await s.payload();
+                } catch (err: any) {
+                    error = err?.message ?? String(err);
+                }
+                const observedMode = await queryCurrent();
+                const matched = observedMode === mode;
+                attempts.push({ strategy: s.id, setResult, observedMode, matched, error });
+                if (matched) {
+                    winner = attempts[attempts.length - 1];
+                    break;
+                }
+            }
+            if (!winner) {
+                return {
+                    success: false,
+                    error: `set-config strategies all failed to flip preview.current.platform from "${previousMode ?? 'unknown'}" to "${mode}". Tried 4 shapes; cocos returned values but the read-back never matched the requested mode. The set-config channel may have changed in this cocos build; switch via the cocos preview dropdown manually for now and report which shape works.`,
+                    data: { previousMode, requestedMode: mode, attempts },
+                };
             }
             return {
                 success: true,
-                data: { previousMode, newMode: mode, confirmed: true },
-                message: `cocos preview switched: "${previousMode ?? 'unknown'}" → "${mode}". Restore via debug_set_preview_mode(mode="${previousMode ?? 'browser'}", confirm=true) when done if needed.`,
+                data: { previousMode, newMode: mode, confirmed: true, strategy: winner.strategy, attempts },
+                message: `cocos preview switched: "${previousMode ?? 'unknown'}" → "${mode}" via ${winner.strategy}. Restore via debug_set_preview_mode(mode="${previousMode ?? 'browser'}", confirm=true) when done if needed.`,
             };
         } catch (err: any) {
             return { success: false, error: `preferences/set-config 'preview' failed: ${err?.message ?? String(err)}` };
