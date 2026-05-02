@@ -5,6 +5,7 @@ import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runScriptDiagnostics, waitForCompile } from '../lib/ts-diagnostics';
 import { queueGameCommand, awaitCommandResult, getClientStatus } from '../lib/game-command-queue';
+import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -167,6 +168,14 @@ export class DebugTools implements ToolExecutor {
                 description: 'Read GameDebugClient connection status: connected (polled within 2s), last poll timestamp, whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
                 handler: () => this.gameClientStatus(),
+            },
+            {
+                name: 'preview_control',
+                description: 'Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacade.changePreviewPlayState method (documented on SceneFacadeManager in @cocos/creator-types). Pair with debug_capture_preview_screenshot: call preview_control(op="start") to enter play mode, wait for the PIE window to appear, then capture. preview_control(op="stop") returns to scene mode. Implementation routes through scene-script (execute-scene-script → scene-side changePreviewPlayState handler) so the call is type-checked against creator-types and not subject to silent removal between cocos versions.',
+                inputSchema: z.object({
+                    op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button). "stop" exits PIE play and returns to scene mode.'),
+                }),
+                handler: a => this.previewControl(a.op),
             },
             {
                 name: 'get_script_diagnostic_context',
@@ -849,6 +858,26 @@ export class DebugTools implements ToolExecutor {
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
+    }
+
+    // v2.8.0 T-V28-3: PIE play / stop. Routes through scene-script so the
+    // typed cce.SceneFacade.changePreviewPlayState is reached via the
+    // documented execute-scene-script channel. The HANDOFF originally
+    // listed `scene/editor-preview-set-play` as an undocumented Editor
+    // .Message channel; we found the typed facade method during T-V28-3
+    // implementation and went with that instead.
+    private async previewControl(op: 'start' | 'stop'): Promise<ToolResponse> {
+        const state = op === 'start';
+        const result: ToolResponse = await runSceneMethodAsToolResponse('changePreviewPlayState', [state]);
+        if (result.success) {
+            return {
+                ...result,
+                message: state
+                    ? 'Entered Preview-in-Editor play mode (PIE window may take a moment to appear)'
+                    : 'Exited Preview-in-Editor play mode',
+            };
+        }
+        return result;
     }
 
     private async queryDevices(): Promise<ToolResponse> {

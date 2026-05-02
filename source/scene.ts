@@ -991,4 +991,50 @@ export const methods: { [key: string]: (...any: any) => any } = {
         }
     },
 
+    /**
+     * v2.8.0 T-V28-3: enter / exit Preview-in-Editor (PIE) play mode
+     * programmatically. Uses the documented (and typed) cce.SceneFacade
+     * method `changePreviewPlayState(state: boolean)` on
+     * SceneFacadeManager — see
+     * `node_modules/@cocos/creator-types/editor/packages/scene/@types/cce/3d/facade/scene-facade-manager.d.ts:250`.
+     *
+     * Parameters:
+     *   state — true to start PIE, false to stop and return to scene mode.
+     *
+     * The HANDOFF originally noted `scene/editor-preview-set-play` as an
+     * undocumented Editor.Message channel; we found the typed facade
+     * method during T-V28-3 implementation and went with that instead so
+     * the call path is type-checked against creator-types and not subject
+     * to silent removal between cocos versions.
+     *
+     * Returns the standard scene-script envelope. cce.SceneFacade is
+     * accessed via `(globalThis as any).cce` so static TS doesn't need
+     * a creator-types import for the editor namespace (cce types are
+     * editor-side, not exported through `cc`).
+     */
+    async changePreviewPlayState(state: boolean) {
+        try {
+            const sceneFacade: any = (globalThis as any).cce?.SceneFacade;
+            if (!sceneFacade) {
+                return {
+                    success: false,
+                    error: 'cce.SceneFacade is not available; this scene-script method must run inside the cocos editor scene process.',
+                };
+            }
+            if (typeof sceneFacade.changePreviewPlayState !== 'function') {
+                return {
+                    success: false,
+                    error: 'cce.SceneFacade.changePreviewPlayState is not a function; cocos version may not support PIE control via this facade. Try the toolbar play button manually.',
+                };
+            }
+            await sceneFacade.changePreviewPlayState(Boolean(state));
+            return {
+                success: true,
+                data: { requestedState: Boolean(state) },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
 };
