@@ -354,13 +354,33 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
                 // v2.4.5 review fix (claude + codex + gemini):
                 // parseFloat('1.2.3') silently returns 1.2 — too
                 // lenient. Use Number() which rejects trailing garbage
-                // by returning NaN, then NaN-check.
-                const s = typeof value === 'number' ? value : String(value).trim();
-                const n = Number(s);
-                if (Number.isNaN(n)) {
-                    throw new Error(`Cannot coerce '${value}' to ${type} (not a valid number)`);
+                // by returning NaN.
+                //
+                // v2.4.6 review fixes:
+                //   - codex 🔴: Number('') === 0 silently coerces an
+                //     empty string to zero. Reject explicitly so AI
+                //     doesn't accidentally write 0 when it meant to
+                //     omit a value.
+                //   - codex 🟡: Number('Infinity') === Infinity passes
+                //     the NaN check. Use Number.isFinite to reject
+                //     ±Infinity for the asset-meta numeric path —
+                //     cocos asset properties never want infinite
+                //     values, so this is fail-fast.
+                if (typeof value !== 'number') {
+                    const s = String(value).trim();
+                    if (s === '') {
+                        throw new Error(`Cannot coerce empty string to ${type}`);
+                    }
+                    const n = Number(s);
+                    if (!Number.isFinite(n)) {
+                        throw new Error(`Cannot coerce '${value}' to ${type} (not a finite number)`);
+                    }
+                    return n;
                 }
-                return n;
+                if (!Number.isFinite(value)) {
+                    throw new Error(`Cannot coerce ${value} to ${type} (not a finite number)`);
+                }
+                return value;
             }
             case 'String':
                 return String(value);

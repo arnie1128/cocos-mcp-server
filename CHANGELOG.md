@@ -1,5 +1,36 @@
 # Changelog
 
+## v2.4.6 — 2026-05-03
+
+Round-3 review fixes on v2.4.5. One 🔴 (Codex) + one consensus 🟡 in
+the same `convertPropertyValue` Number/Float branch.
+
+### Must-fix
+
+- **`Number('')` no longer silently coerces to 0**. v2.4.5 switched
+  from `parseFloat` to `Number()` for stricter trailing-garbage
+  handling, but `Number('')` returns 0 (a JS gotcha), so an
+  AI-supplied empty string for a numeric property silently wrote 0
+  to the asset meta. Reject explicitly so the AI sees the error
+  rather than corrupting a numeric setting. (Codex.) Fix at
+  `source/asset-interpreters/base.ts:convertPropertyValue`.
+
+### Worth-considering
+
+- **Reject ±Infinity for Number/Float**. `Number('Infinity')` →
+  `Infinity` passes a NaN check; cocos asset properties never want
+  infinite values. Switched the Number/Float branch from
+  `Number.isNaN` to `Number.isFinite`, mirroring the Integer branch
+  that already had this guard. (Codex.)
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 16 categories / 170 tools (unchanged from v2.4.5)
+
+---
+
 ## v2.4.5 — 2026-05-03
 
 Round-2 three-way review polish on v2.4.4. No 🔴 from any reviewer
