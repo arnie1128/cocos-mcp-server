@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.6.2 — 2026-05-02
+
+Three-way review patch round 2 on v2.6.1 (Claude + Codex + Gemini).
+Round 2 converged with no behavior-level findings — single ≥2-reviewer
+🟡 was a doc-string staleness in `CLAUDE.md` landmine #15 (still said
+"181 v2.6.0" after the v2.6.0 bump moved tool count to 183). Fix is a
+one-line update to "183 v2.6.1".
+
+`SERVER_VERSION` bumped to `'2.6.2'` to keep the panel display in
+sync with the on-disk version after extension reload.
+
+Round 2 single-reviewer 🟡 deferred (rationale logged inline):
+
+- Symlink check in `persistGameScreenshot` is technically a tautology
+  given `path.dirname(path.join(dir, x)) === dir` (Claude). Comment
+  overstates what the check accomplishes; the check is benign because
+  the basename is fully server-controlled. Re-anchoring against
+  `Editor.Project.path` is a future cleanup.
+- 413-after-`req.destroy()` may write headers to a half-closed socket
+  (Claude). Node silently no-ops; not a crash path.
+- `getClientStatus().queued` semantic — after consume the slot is
+  "in flight" not "queued", but we still report `queued: true` (Claude).
+  Consider rename in a future cycle.
+- `Math.ceil(b64Len * 3 / 4)` overestimates by ≤2 bytes when base64
+  has padding (Codex). Off-by-one at the cap boundary; ≤2 bytes off
+  on a 32 MB cap is meaningless.
+
 ## v2.6.1 — 2026-05-02
 
 Three-way review patch round 1 on v2.6.0 (Claude + Codex + Gemini).
