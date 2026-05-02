@@ -3,30 +3,31 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.10.5 done — v2.10.x cycle wrap, ready for v2.11）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.1 done — v2.11.x cycle live）
 
-**當下版本**：v2.10.5（v2.10.x cycle 完整收尾 + audit gap-fill）。**18 categories / 180 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；下一步 v2.11。
+**當下版本**：v2.11.1（decorator unification + narrative 外化 ship）。**18 categories / 180 tools / 16 asset-interpreters / 5 prompt templates / 16,439 source LOC**。沒有 in-flight work；候選見下方 v2.11.2 清單。
 
-**v2.10.x cycle 摘要**：cross-repo refresh + tool description/title 重構 + 13 項 backlog 中 11 ship + 2 延後。Tool count 181 → 180（淨 -1）。Source LOC 整體 -1500 行。委派軌跡：codex CLI（gpt-5.5 / codex-cli 0.128.0）+ gemini-3.1-pro-preview + 我手做。
+**v2.11 cycle 開頭兩 ship**：
+- v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
+- v2.11.1 — 中型檔案 narrative 外化（project / scene / scene-advanced / asset-advanced / scene-view / file-editor → `source/data/<category>-docs.ts`），由 3 支並行 codex 處理
 
-完整 cycle 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
+完整 v2.10.x 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 
-**v2.10.x 已 ship**：
-- v2.10.0 — landmine #16/#17 文件級結案 + cross-repo refresh
-- v2.10.1 — Stage 1 — tool description/title infra（annotations.title）
-- v2.10.2 — Stage 2 — TS def expand / game_command / animation +4 / Polish A
-- v2.10.3 — Stage 3 — interpreters 8→15 / record format/quality / labeling / get_users / Polish B
-- v2.10.4 — Stage 4 — preferences 7→1 macro / discover_then_act prompt / Polish C + scene.ts 收尾
-- v2.10.5 — Audit gap-fill — TiledMap interpreter / referenceSchema / vec3Schema migration
+**v2.11.2+ 候選清單**（依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
 
-**v2.11 候選清單**（兩項從 v2.10.x 延後，可直接動工）：
-
-| # | 項目 | 估時 | 風險 | 備註 |
+| # | 來源 | 項目 | 估時 | 風險 |
 |---|---|---|---|---|
-| 1 | **Decorator unification（16 檔轉 `@mcpTool`）** | 3-5 天 | 中 | inspector-tools / asset-meta 已用，其餘 16 檔 inline `defineTools(array)`。建議切成 4-5 支並行 codex / gemini 任務，每批 3-4 檔。預計省 150-250 LOC |
-| 2 | **中型檔案 narrative 外移** | 2-3 天 | 低 | project-tools (769) / scene-tools (625) / scene-advanced (483) / asset-advanced (481) / scene-view (421) / file-editor (385) — description 抽到 `source/data/<category>-docs.ts`。預計省 ~500 LOC |
+| 1 | harady | 批次節點/排版工具：`node_create_tree` / `node_set_layout` / `prefab_create_from_spec` | 1.5 天 | 低 |
+| 2 | harady | `component_auto_bind`（自動綁定 script `@property` editor reference） | 0.5 天 | 低 |
+| 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（場景 snapshot diff 回歸） | 1 天 | 低 |
+| 4 | Spaydo | 資產清查三件組：`asset_get_tree` / `asset_export_manifest` / `asset_get_unused` | 1 天 | 低 |
+| 5 | cocos-code-mode | 完整 TS class 定義生成（component + `@property` decorator + enum/bitmask metadata） | 1.5 天 | 低 |
+| 6 | RomaRogov | `@ccclass` URL → class name 萃取 helper | 0.3 天 | 低 |
+| 7 | harady | `server_check_code_sync`（runtime/disk build hash 漂移偵測） | 0.5 天 | 中 |
+| 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
+| 9 | FunplayAI | core/full tool profile（tool-manager 第二層輕量 profile） | 0.5 天 | 中 |
 
-完整 v2.10.x 推進清單與決策見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)。
+詳細 v2.11.x 候選 + 跨 repo 比對見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)（v2.11.1 refresh）。
 
 **未解 issues（不變）**：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（文件已記）
@@ -35,17 +36,22 @@
 - MediaRecorder live-test 需 browser-preview 環境 + client wired into game
 
 **經驗教訓（新 session 必讀）**：詳見 [`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md) §經驗教訓段。摘要：
-- Codex 大 task 切多支並行（v2.10.1 整支灌 18 檔 hung context overflow）
+- Codex 大 task 切多支並行（v2.10.1 整支灌 18 檔 hung context overflow；v2.11.0 拆 6 支 successful）
 - 主動 log-tail 別等 status（rollout file size > 540KB 是 context warning）
 - gemini-3.1-pro-preview 200K context 邊界要意識
 - codex CLI 0.128.0 不需 `--dangerously-bypass`（舊 1.0.4 wrapper 才要）
 - schemas.ts 提取要含 consumer migration prompt（不然會像 vec3Schema 變孤兒）
 - Cycle wrap audit（user 主動列項目 verify）有效揪出漏網 task
+- 多 codex 並行寫同 repo：明確「只動分配檔、不跑 tsc/smoke」可在無 worktree 下安全並行（v2.11.0 6 支 + v2.11.1 3 支驗證）
+- Codex 對複雜 schema-bound class method 簽名偶爾用非標準 hybrid pattern（positional + 物件偵測），需 follow-up `!` non-null fix 或日後 polish 為單 args 物件
 
 ## 最近 Commit
 
 | SHA | 內容 |
 |---|---|
+| `5861bd0` | refactor(v2.11.1 #2): externalize tool descriptions for 6 mid-size files |
+| `3f62c7f` | refactor(v2.11.0 #1): unify 16 tool files to @mcpTool decorator pattern |
+| `d48d834` | docs(v2.10): cycle wrap — release notes + handoff archive + HANDOFF v2.11 entry point |
 | `61ceed3` | fix(v2.10.5): close v2.10.x backlog gaps — TiledMap interpreter + referenceSchema + lib/schemas migration |
 | `211bfb7` | release: v2.10.4 — Stage 4 wrap + #11/#12 quality polish |
 | `e596095` | release: v2.10.3 — Stage 3 wrap (interpreters/record/labeling/get_users/Polish B) |
@@ -94,11 +100,11 @@ P0 ✅ done
 P1 ✅ done
 P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
 v2.1.2 — v2.1.7 ✅ done（修補 + audit + P2 close + B-1 description sweep；見 docs/archive/handoff/v2.1.md）
-v2.2.0 — v2.10.5 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
+v2.2.0 — v2.11.1 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.11 — Decorator unification（16 檔）+ 中型檔案 narrative 外移（6 檔）
+B-2 ⏳ v2.11.2+ — 跨 repo gap 9 項候選（harady 批次節點 / Spaydo snapshot+資產清查 / cocos-code-mode TS def 完整化 等，依 docs/research/cross-repo-survey.md）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -156,6 +162,8 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.11.1 改動前（v2.11.0 ship 點）→ `git reset --hard 3f62c7f`
+- v2.11.0 改動前（v2.10.x cycle wrap 點）→ `git reset --hard d48d834`
 - v2.10.5 改動前（v2.10.4 cycle wrap 點）→ `git reset --hard 211bfb7`
 - v2.10.4 改動前（v2.10.3 Stage 3 wrap 點）→ `git reset --hard e596095`
 - v2.10.3 改動前（v2.10.2 Stage 2 wrap 點）→ `git reset --hard c2c2ef6`
