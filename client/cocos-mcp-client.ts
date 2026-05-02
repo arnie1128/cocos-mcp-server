@@ -19,8 +19,13 @@
  *   - "click" — args: {name: string}. Find a node by exact name (DFS from
  *     director.getScene()) and emit Button.EventType.CLICK.
  *   - "inspect" — args: {name: string}. Find a node by name and return
- *     {position, scale, rotation, contentSize?, anchorPoint?, layer,
+ *     {position, scale, rotation, uiTransform?, widget?, layout?, layer,
  *      active, components: [{type, enabled}]}.
+ *   - "state" — return current scene info plus customCommands.state()
+ *     data when supplied.
+ *   - "navigate" — args: {pageName: string}. Calls
+ *     customCommands.navigate(pageName); projects must provide their own
+ *     router hook.
  *   - "record_start" — args: {mimeType?: 'video/webm'|'video/mp4',
  *     videoBitsPerSecond?: number}. Starts MediaRecorder against the
  *     game canvas (canvas.captureStream). Returns immediately with
@@ -108,6 +113,10 @@ async function executeCommand(cmd: McpCommand): Promise<any> {
                 return wrap(cmd.id, clickNode(cmd.args?.name));
             case 'inspect':
                 return wrap(cmd.id, inspectNode(cmd.args?.name));
+            case 'state':
+                return wrap(cmd.id, await getState());
+            case 'navigate':
+                return wrap(cmd.id, await navigateTo(cmd.args?.pageName ?? cmd.args?.page ?? cmd.args?.name));
             case 'record_start':
                 return wrap(cmd.id, await recordStart(cmd.args ?? {}));
             case 'record_stop':
@@ -239,10 +248,91 @@ function inspectNode(name?: string): { success: boolean; data?: any; error?: str
     // UITransform info when present (very common for UI nodes).
     const ui = target.getComponent('cc.UITransform') as any;
     if (ui) {
-        data.contentSize = { width: ui.contentSize.width, height: ui.contentSize.height };
-        data.anchorPoint = { x: ui.anchorPoint.x, y: ui.anchorPoint.y };
+        data.uiTransform = {
+            contentSize: ui.contentSize ? { width: ui.contentSize.width, height: ui.contentSize.height } : null,
+            anchorPoint: ui.anchorPoint ? { x: ui.anchorPoint.x, y: ui.anchorPoint.y } : null,
+        };
+        data.contentSize = data.uiTransform.contentSize;
+        data.anchorPoint = data.uiTransform.anchorPoint;
+    }
+    const widget = target.getComponent('cc.Widget') as any;
+    if (widget) {
+        data.widget = {
+            isAlignTop: widget.isAlignTop,
+            isAlignBottom: widget.isAlignBottom,
+            isAlignLeft: widget.isAlignLeft,
+            isAlignRight: widget.isAlignRight,
+            isAlignHorizontalCenter: widget.isAlignHorizontalCenter,
+            isAlignVerticalCenter: widget.isAlignVerticalCenter,
+            top: widget.top,
+            bottom: widget.bottom,
+            left: widget.left,
+            right: widget.right,
+            horizontalCenter: widget.horizontalCenter,
+            verticalCenter: widget.verticalCenter,
+        };
+    }
+    const layout = target.getComponent('cc.Layout') as any;
+    if (layout) {
+        data.layout = {
+            type: layout.type,
+            spacingX: layout.spacingX,
+            spacingY: layout.spacingY,
+            paddingTop: layout.paddingTop,
+            paddingBottom: layout.paddingBottom,
+            paddingLeft: layout.paddingLeft,
+            paddingRight: layout.paddingRight,
+        };
     }
     return { success: true, data };
+}
+
+async function getState(): Promise<{ success: boolean; data?: any; error?: string }> {
+    const scene = director.getScene();
+    const defaultState = {
+        sceneName: scene?.name ?? null,
+        childCount: scene?.children.length ?? 0,
+        active: scene?.active ?? false,
+    };
+    const handler = _config.customCommands.state;
+    if (!handler) {
+        return { success: true, data: defaultState };
+    }
+
+    const out = await handler(undefined);
+    if (out?.success === false) {
+        return { success: false, error: out?.error ?? 'customCommands.state failed', data: out?.data };
+    }
+    const customState = out?.success !== undefined ? out.data : out;
+    return {
+        success: true,
+        data: {
+            ...defaultState,
+            ...(customState && typeof customState === 'object' ? customState : {}),
+        },
+    };
+}
+
+async function navigateTo(pageName?: string): Promise<any> {
+    if (!pageName) return { success: false, error: 'pageName is required' };
+    const handler = _config.customCommands.navigate;
+    if (!handler) {
+        const reason = 'navigate requires customCommands.navigate to be provided by the game';
+        console.warn('[McpDebugClient] navigate requires customCommands.navigate(pageName) to be provided by the game');
+        return {
+            success: false,
+            reason,
+            data: { success: false, reason },
+            error: reason,
+        };
+    }
+
+    const out = await handler(pageName);
+    return {
+        success: out?.success ?? true,
+        data: out?.data,
+        error: out?.error,
+    };
 }
 
 // v2.9.x T-V29-5: MediaRecorder bridge. Records the game canvas as
