@@ -108,7 +108,7 @@ round-1 fix 是否完全收，且無新引入 bug；如再有 ≥2-reviewer 🟡
 
 | SHA | 內容 |
 |---|---|
-| `<v2.8.1>` | fix(v2.8.1): three-way review patch round 1 on v2.8.0 — 4 must-fix + 2 polish |
+| `769151b` | fix(v2.8.1): three-way review patch round 1 on v2.8.0 — 4 must-fix + 2 polish |
 | `ddb6c77` | release: v2.8.0 — spillover (CORS polish + realpath helper + debug_preview_control) |
 | `c4a4dc8` | feat(v2.8.0 #3): debug_preview_control for programmatic PIE play/stop |
 | `80d722f` | fix(v2.8.0 #2): realpath containment helper for all auto-named capture paths |
