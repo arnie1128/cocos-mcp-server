@@ -650,13 +650,44 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
+    // v2.8.0 T-V28-2 (carryover from v2.7.0 Codex single-reviewer 🟡):
+    // mirror the v2.6.1 persistGameScreenshot realpath containment check on
+    // every auto-named save path. Caller passes a basename that gets joined
+    // under the project-rooted capture dir; the resolved parent must equal
+    // the resolved dir, otherwise we reject before writing. Protects against
+    // the temp/mcp-captures path being a symlink chain that escapes the
+    // project tree (rare but cheap to guard).
+    //
+    // Returns { ok: true, filePath, dir } when safe to write, or
+    // { ok: false, error } with the same error envelope shape as
+    // ensureCaptureDir so callers can fall through their existing
+    // error-return pattern.
+    private resolveAutoCaptureFile(basename: string): { ok: true; filePath: string; dir: string } | { ok: false; error: string } {
+        const dirResult = this.ensureCaptureDir();
+        if (!dirResult.ok) return { ok: false, error: dirResult.error };
+        const filePath = path.join(dirResult.dir, basename);
+        let realDir: string;
+        let realParent: string;
+        try {
+            const rp: any = fs.realpathSync as any;
+            realDir = (rp.native ?? rp)(dirResult.dir);
+            realParent = (rp.native ?? rp)(path.dirname(filePath));
+        } catch (err: any) {
+            return { ok: false, error: `screenshot path realpath failed: ${err?.message ?? String(err)}` };
+        }
+        if (path.resolve(realParent) !== path.resolve(realDir)) {
+            return { ok: false, error: 'screenshot save path resolved outside the capture directory' };
+        }
+        return { ok: true, filePath, dir: dirResult.dir };
+    }
+
     private async screenshot(savePath?: string, windowTitle?: string, includeBase64: boolean = false): Promise<ToolResponse> {
         try {
             let filePath = savePath;
             if (!filePath) {
-                const dirResult = this.ensureCaptureDir();
-                if (!dirResult.ok) return { success: false, error: dirResult.error };
-                filePath = path.join(dirResult.dir, `screenshot-${Date.now()}.png`);
+                const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
+                if (!resolved.ok) return { success: false, error: resolved.error };
+                filePath = resolved.filePath;
             }
             const win = this.pickWindow(windowTitle);
             const image = await win.webContents.capturePage();
@@ -720,9 +751,9 @@ export class DebugTools implements ToolExecutor {
             const win = matches[0];
             let filePath = savePath;
             if (!filePath) {
-                const dirResult = this.ensureCaptureDir();
-                if (!dirResult.ok) return { success: false, error: dirResult.error };
-                filePath = path.join(dirResult.dir, `preview-${Date.now()}.png`);
+                const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
+                if (!resolved.ok) return { success: false, error: resolved.error };
+                filePath = resolved.filePath;
             }
             const image = await win.webContents.capturePage();
             const png: Buffer = image.toPNG();
@@ -745,9 +776,13 @@ export class DebugTools implements ToolExecutor {
         try {
             let prefix = savePathPrefix;
             if (!prefix) {
-                const dirResult = this.ensureCaptureDir();
-                if (!dirResult.ok) return { success: false, error: dirResult.error };
-                prefix = path.join(dirResult.dir, `batch-${Date.now()}`);
+                // basename is the prefix stem; per-iteration files extend it
+                // with `-${i}.png`. Containment check on the prefix path is
+                // sufficient because path.join preserves dirname for any
+                // suffix the loop appends.
+                const resolved = this.resolveAutoCaptureFile(`batch-${Date.now()}`);
+                if (!resolved.ok) return { success: false, error: resolved.error };
+                prefix = resolved.filePath;
             }
             const win = this.pickWindow(windowTitle);
             const captures: any[] = [];
@@ -876,8 +911,6 @@ export class DebugTools implements ToolExecutor {
     private static readonly MAX_GAME_SCREENSHOT_BYTES = 32 * 1024 * 1024;
 
     private persistGameScreenshot(dataUrl: string, _width?: number, _height?: number): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
-        const dirResult = this.ensureCaptureDir();
-        if (!dirResult.ok) return { ok: false, error: dirResult.error };
         const m = /^data:image\/(png|jpeg|webp);base64,(.*)$/i.exec(dataUrl);
         if (!m) {
             return { ok: false, error: 'GameDebugClient returned screenshot dataUrl in unexpected format (expected data:image/{png|jpeg|webp};base64,...)' };
@@ -894,29 +927,14 @@ export class DebugTools implements ToolExecutor {
         if (buf.length > DebugTools.MAX_GAME_SCREENSHOT_BYTES) {
             return { ok: false, error: `screenshot payload too large after decode: ${buf.length} bytes exceeds cap ${DebugTools.MAX_GAME_SCREENSHOT_BYTES}` };
         }
-        const filePath = path.join(dirResult.dir, `game-${Date.now()}.${ext}`);
-        // v2.6.1 review fix (claude M2 + codex 🟡 + gemini 🟡): the v2.6.0
-        // version realpath'd `dirResult.dir` but compared to the *unresolved*
-        // `path.dirname(filePath)`. With `filePath = path.join(dir, basename)`
-        // dirname collapses to the original dir string, so the comparison
-        // really asked "does dir contain a symlink anywhere in its path?"
-        // — which fail-rejected legitimate symlinked temp dirs (macOS
-        // /var → /private/var, network mounts). Realpath both sides for a
-        // true containment check.
-        let realDir: string;
-        let realParent: string;
-        try {
-            const rp: any = fs.realpathSync as any;
-            realDir = (rp.native ?? rp)(dirResult.dir);
-            realParent = (rp.native ?? rp)(path.dirname(filePath));
-        } catch (err: any) {
-            return { ok: false, error: `screenshot path realpath failed: ${err?.message ?? String(err)}` };
-        }
-        if (path.resolve(realParent) !== path.resolve(realDir)) {
-            return { ok: false, error: 'screenshot save path resolved outside the capture directory' };
-        }
-        fs.writeFileSync(filePath, buf);
-        return { ok: true, filePath, size: buf.length };
+        // v2.6.1 review fix (claude M2 + codex 🟡 + gemini 🟡): realpath both
+        // sides for a true containment check. v2.8.0 T-V28-2 hoisted this
+        // pattern into resolveAutoCaptureFile() so screenshot() / capture-
+        // preview / batch-screenshot / persist-game share one implementation.
+        const resolved = this.resolveAutoCaptureFile(`game-${Date.now()}.${ext}`);
+        if (!resolved.ok) return { ok: false, error: resolved.error };
+        fs.writeFileSync(resolved.filePath, buf);
+        return { ok: true, filePath: resolved.filePath, size: buf.length };
     }
 
     // v2.4.8 A1: TS diagnostics handlers ----------------------------------
