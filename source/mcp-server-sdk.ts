@@ -33,7 +33,7 @@ const SERVER_NAME = 'cocos-mcp-server';
 // version on every minor/major bump. SDK Server initialize response carries
 // this string; clients see it during MCP handshake. Drift since v2.0.0 has
 // been confusing review rounds and live-test verification.
-const SERVER_VERSION = '2.7.1';
+const SERVER_VERSION = '2.7.2';
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.

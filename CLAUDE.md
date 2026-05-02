@@ -44,17 +44,21 @@ source/
 │   ├── scene-tools.ts             #   8 tools
 │   ├── scene-advanced-tools.ts    #  23 tools
 │   ├── scene-view-tools.ts        #  20 tools
-│   ├── node-tools.ts              #  11 tools
-│   ├── component-tools.ts         #  10 tools  (P4 T-P4-1 added add/remove/list_event_handler)
+│   ├── node-tools.ts              #  12 tools
+│   ├── component-tools.ts         #  11 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
 │   ├── project-tools.ts           #  24 tools
-│   ├── debug-tools.ts             #  17 tools  (v2.4.8 +A1 TS diagnostics 3; v2.6.0 +game_command/client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
+│   ├── debug-tools.ts             #  20 tools  (v2.3.0 +execute_javascript/execute_script/screenshot/batch_screenshot; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
 │   ├── preferences-tools.ts       #   7 tools
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools
 │   ├── reference-image-tools.ts   #  12 tools
 │   ├── asset-advanced-tools.ts    #  11 tools
 │   ├── validation-tools.ts        #   3 tools
+│   ├── inspector-tools.ts         #   2 tools  (v2.4.0 step 6 — get_instance_definition / get_common_types_definition)
+│   ├── asset-meta-tools.ts        #   3 tools  (v2.4.3 — list_interpreters / get_properties / set_properties)
+│   ├── animation-tools.ts         #   4 tools  (v2.4.8 A2)
+│   ├── file-editor-tools.ts       #   4 tools  (v2.5.0 — insert_text / delete_lines / replace_text / query_text)
 │   └── tool-manager.ts            # Per-config enable/disable persistence
 ├── panels/                 # Vue 3 panel UI (default + tool-manager tabs)
 │   └── default/

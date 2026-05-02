@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.6.2 + reload-retested → next: v2.7.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.7.2 doc-fix on v2.7.1 → next: v2.8.0 / live-reload-retest v2.7.x）
 
 **當下版本**：v2.7.1（v2.7.0 minor + 1 round-1 review patch；origin/main
 push pending 至此 commit 完成）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest
@@ -14,10 +14,11 @@ debug_preview_url、debug_query_devices、debug_capture_preview_screenshot）；
 v2.7.1 round-1 三方 review fixes（4 🔴 + 4 ≥2-reviewer 🟡）。
 **18 categories / 186 tools**（v2.7.0 +3）。
 
-**下一個動工**：**v2.7.0** — spillover buffer（無強制必做的單一主題；
-candidate 清單視用戶優先級）。
+**下一個動工**：**v2.8.0** — open spillover；建議先做 **v2.7.x reload
+retest** 把 v2.7.0 三件新 tool 在實機 cocos editor 跑過（preview_url /
+query_devices / capture_preview_screenshot），再決定 v2.8.0 主題。
 
-**v2.7.0 候選清單**：
+**v2.8.0 候選清單**（從 v2.7.0 規劃時的 spillover 候選順延）：
 - W7（Claude r1）把 CORS scoping for `/game/*` endpoints 補上 —
   非 wildcard，限 `null` / `file://` / `devtools://`，避免本機瀏覽
   器 tab 攻擊面。1 天。

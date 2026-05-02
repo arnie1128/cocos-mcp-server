@@ -1,5 +1,52 @@
 # Changelog
 
+## v2.7.2 — 2026-05-02
+
+Three-way review patch round 2 on v2.7.1 (Gemini r2 完整, Claude r2
+stalled mid-output, Codex r2 out-of-credits — 1 reviewer fully landed
++ 1 partial). Doc-only fixes; no source changes beyond version stamps.
+
+### 🔴 doc accuracy — `CLAUDE.md` architecture map drift
+
+Gemini r2 caught three drift points in the per-file tool-count
+comments at `CLAUDE.md:44-57`. Verified against the live registry via
+`npm run check:gemini`:
+
+- `debug-tools.ts` 17 → **20** (the v2.7.1 update under-counted by 3
+  because v2.3.0's `execute_javascript`/`execute_script`/`screenshot`/
+  `batch_screenshot` were never added to the comment after the
+  baseline-9 line).
+- `node-tools.ts` 11 → **12** (off-by-one drift; nobody noticed
+  through 5+ minor versions).
+- `component-tools.ts` 10 → **11** (same drift class).
+
+Plus **four entries that were never in the architecture map**:
+
+- `inspector-tools.ts` (2 tools, added v2.4.0 step 6)
+- `asset-meta-tools.ts` (3 tools, added v2.4.3)
+- `animation-tools.ts` (4 tools, added v2.4.8 A2)
+- `file-editor-tools.ts` (4 tools, added v2.5.0)
+
+Sum across all 18 files now reconciles to **186** ✓.
+
+### 🟡 — `HANDOFF.md` next-session heading stale
+
+Claude r2 (partial) noted the heading still said `next: v2.7.0` after
+v2.7.0 already shipped + v2.7.1 patched. Heading rewritten to point at
+v2.8.0 with a recommendation to live-reload-retest v2.7.x first.
+
+### Round-2 reviewer attendance note
+
+- Gemini r2 — full review, 3 🔴 + 2 🟡 + 6 🟢
+- Claude r2 — stalled mid-stream after partial 🟡; the 🟡 (HANDOFF
+  heading) was extracted and addressed
+- Codex r2 — failed with out-of-usage (resets 16:00 Asia/Taipei);
+  re-attendance not blocking because the actionable findings already
+  came from Gemini and partial Claude
+
+If Codex's re-run later surfaces additional issues, those will fold
+into a v2.7.3 (or be deferred to v2.8.0 if cosmetic).
+
 ## v2.7.1 — 2026-05-02
 
 Three-way review patch round 1 on v2.7.0 (Claude + Codex + Gemini).
