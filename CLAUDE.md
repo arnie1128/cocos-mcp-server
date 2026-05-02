@@ -48,7 +48,7 @@ source/
 │   ├── component-tools.ts         #  11 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
 │   ├── project-tools.ts           #  24 tools
-│   ├── debug-tools.ts             #  20 tools  (v2.3.0 +execute_javascript/execute_script/screenshot/batch_screenshot; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
+│   ├── debug-tools.ts             #  20 tools  (v2.3.0 net +3: execute_javascript/screenshot/batch_screenshot — execute_script kept as compat alias not net-new; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
 │   ├── preferences-tools.ts       #   7 tools
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools

@@ -5,33 +5,38 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.7.2 doc-fix on v2.7.1 → next: v2.8.0 / live-reload-retest v2.7.x）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.7.3 round-2 re-attendance → next: v2.8.0 / live-reload-retest v2.7.x）
 
-**當下版本**：v2.7.1（v2.7.0 minor + 1 round-1 review patch；origin/main
-push pending 至此 commit 完成）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest
-通過；v2.7.0 落地 preview-QA + security 主題（CORS scoping for /game/*、
-debug_preview_url、debug_query_devices、debug_capture_preview_screenshot）；
-v2.7.1 round-1 三方 review fixes（4 🔴 + 4 ≥2-reviewer 🟡）。
+**當下版本**：v2.7.3（v2.7.0 minor + 3 round review patches；
+origin/main push pending 至此 commit 完成）。v2.6.0–v2.6.2 cycle 全綠
++ reload-retest 通過；v2.7.0 落地 preview-QA + security 主題（CORS
+scoping for /game/*、debug_preview_url、debug_query_devices、
+debug_capture_preview_screenshot）；v2.7.1 round-1 三方 review fixes
+（4 🔴 + 4 ≥2-reviewer 🟡）；v2.7.2 round-2 doc fix（CLAUDE.md
+architecture map drift + HANDOFF heading）；v2.7.3 round-2 re-attendance
+（Codex re-run caught 2 🔴 missed in v2.7.2 + 2 🟡 paid down）。
 **18 categories / 186 tools**（v2.7.0 +3）。
 
 **下一個動工**：**v2.8.0** — open spillover；建議先做 **v2.7.x reload
-retest** 把 v2.7.0 三件新 tool 在實機 cocos editor 跑過（preview_url /
-query_devices / capture_preview_screenshot），再決定 v2.8.0 主題。
+retest** 把 v2.7.0 三件新 tool 在實機 cocos editor 跑過，再決定 v2.8.0
+主題。
 
-**v2.8.0 候選清單**（從 v2.7.0 規劃時的 spillover 候選順延）：
-- W7（Claude r1）把 CORS scoping for `/game/*` endpoints 補上 —
-  非 wildcard，限 `null` / `file://` / `devtools://`，避免本機瀏覽
-  器 tab 攻擊面。1 天。
-- `capture_preview_screenshot` — preview-window 截圖（Electron
-  capturePage on Preview-in-Editor window，跟 game canvas 截圖層級
-  不同）。配合 v2.6.0 已落地的 `debug_screenshot` 編輯器截圖三件
-  組成完整覆蓋。0.5 天。
+**v2.8.0 候選清單**（從 v2.7.0 規劃時的 spillover 候選順延，已扣除
+v2.7.0 落地的 3 件）：
 - `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
-- harady `debug_preview` 程式化啟停 preview + `debug_query_devices`。
+- harady `debug_preview` 程式化 PIE start/stop（v2.7.0 #3 只 ship
+  `debug_preview_url` 走 documented `preview/query-preview-url`；
+  PIE play/stop 須走 undocumented `scene/editor-preview-set-play`，
+  v2.7.0 刻意暫緩；若 v2.8.0 接受 protected/undocumented 風險，可動）。
   0.5 天。
+- `Vary: Origin` on disallowed-origin branch（v2.7.0 review Claude 單方
+  🟡）+ hoist double `resolveGameCorsOrigin` call（v2.7.0 review Claude
+  單方 🟡 cosmetic）。0.1 天 polish。
+- Realpath check on `screenshot()` auto-named save path（v2.7.0
+  review Codex 單方 🟡 carry-over from v2.6.x）。0.2 天。
 
 > ~~decorator 捨棄 `reflect-metadata`~~ — closed at v2.7.0 task #1
 > verification（2026-05-02）：v2.4.0 step 5 採 descriptor-capture，

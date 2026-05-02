@@ -1,5 +1,41 @@
 # Changelog
 
+## v2.7.3 — 2026-05-02
+
+Codex round-2 re-attendance patch (Codex was out-of-credits during the
+v2.7.1 → v2.7.2 cycle; ran the cumulative review since v2.7.0 release
+once credits returned). 2 🔴 + 2 🟡 caught — all addressed.
+
+### 🔴 #1 — `HANDOFF.md` body version stale at v2.7.1
+
+`docs/HANDOFF.md:10` body said "當下版本：v2.7.1" while the heading
+already pointed to v2.7.2. v2.7.2 patched the heading but missed the
+body line. v2.7.3 syncs body + heading to "v2.7.3".
+
+### 🔴 #2 — v2.8.0 candidate list duplicates v2.7.0-shipped tools
+
+`docs/HANDOFF.md:25-28` listed `capture_preview_screenshot` and
+`debug_query_devices` as v2.8.0 spillover candidates, but both
+shipped in v2.7.0 (#3, #4). Same for `debug_preview_url` family.
+v2.7.3 prunes the candidate list to truly outstanding items
+(MediaRecorder record, RomaRogov macro-tool routing,
+PIE-internal preview start/stop, Vary/hoist polish, screenshot
+realpath check).
+
+### 🟡 #1 — Smoke step 21 no-Origin case didn't assert `ACAO: *`
+
+`scripts/smoke-mcp-sdk.js:328` only checked the 200 status; a future
+bug that dropped the wildcard echo would slip past. Added strict
+`headers['access-control-allow-origin'] === '*'` assertion in
+parallel with the other 5 sub-cases.
+
+### 🟡 #2 — `CLAUDE.md:51` `debug-tools.ts` v2.3.0 math misleading
+
+The comment listed v2.3.0 as adding 4 tools (including `execute_script`),
+but `execute_script` is a compat alias for the older
+`debug_execute_script` — not net-new. Reworded "v2.3.0 net +3" with
+explicit alias note. Live count remains 20.
+
 ## v2.7.2 — 2026-05-02
 
 Three-way review patch round 2 on v2.7.1 (Gemini r2 完整, Claude r2

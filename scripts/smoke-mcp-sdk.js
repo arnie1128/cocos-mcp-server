@@ -324,8 +324,16 @@ function getJson(pathname) {
         if (nullOrigin.headers['access-control-allow-origin'] !== 'null') throw new Error('Origin: null should echo ACAO: null');
 
         // No-Origin (curl/Node fetch without Origin) should also pass with ACAO=*.
-        const noOrigin = await getJson('/game/status');
+        // v2.7.3 fix (codex r2-redux 🟡): also assert ACAO === '*' so a future
+        // bug that silently drops the wildcard echo would be caught.
+        const noOrigin = await new Promise((resolve, reject) => {
+            const req = http.request({ host: '127.0.0.1', port: PORT, method: 'GET', path: '/game/status' },
+                (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
+            req.on('error', reject);
+            req.end();
+        });
         if (noOrigin.status !== 200) throw new Error('/game/* should accept no-Origin requests');
+        if (noOrigin.headers['access-control-allow-origin'] !== '*') throw new Error('no-Origin /game/* should echo ACAO: * (got ' + noOrigin.headers['access-control-allow-origin'] + ')');
 
         // 22. v2.6.1: /game/result body cap (32 MB) — request a 33 MB body
         //   should be rejected with 413. Use direct http.request with a
