@@ -1448,15 +1448,21 @@ export class DebugTools implements ToolExecutor {
         const sceneLatencyMs = Math.max(isReady.latencyMs, dump.latencyMs);
         // v2.9.6 round-2 fix (Codex 🔴 single — null UUID false-healthy):
         // require BOTH probes to resolve AND query-is-ready === true AND
-        // query-node-tree to return non-null. Empty result string / null
-        // / undefined all force sceneAlive=false so AI gets a clear
-        // signal instead of an "alive but garbage" envelope.
-        const dumpValid = dump.ok && dump.value !== null && dump.value !== undefined;
+        // query-node-tree to return non-null.
+        // v2.9.7 round-3 fix (Codex r3 🟡 + Claude r3 🟡 informational):
+        // tighten further — a returned empty array `[]` is null-safe but
+        // semantically means "no scene loaded", which is NOT alive in the
+        // sense the AI cares about (a frozen renderer might also produce
+        // zero-tree responses on some builds). Require non-empty array.
+        const dumpValid = dump.ok
+            && dump.value !== null
+            && dump.value !== undefined
+            && (!Array.isArray(dump.value) || dump.value.length > 0);
         const sceneAlive = isReady.ok && dumpValid && isReady.value === true;
         let sceneError: string | null = null;
         if (!isReady.ok) sceneError = isReady.error;
         else if (!dump.ok) sceneError = dump.error;
-        else if (!dumpValid) sceneError = `scene/query-node-tree returned ${JSON.stringify(dump.value)} (expected non-null)`;
+        else if (!dumpValid) sceneError = `scene/query-node-tree returned ${Array.isArray(dump.value) && dump.value.length === 0 ? 'an empty array (no scene loaded or scene-script in degraded state)' : JSON.stringify(dump.value)} (expected non-empty INode[])`;
         else if (isReady.value !== true) sceneError = `scene/query-is-ready returned ${JSON.stringify(isReady.value)} (expected true)`;
         const suggestion = !hostAlive
             ? 'cocos editor host process unresponsive — verify the editor is running and the cocos-mcp-server extension is loaded.'

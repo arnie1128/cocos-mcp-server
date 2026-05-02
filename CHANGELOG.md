@@ -1,5 +1,60 @@
 # Changelog
 
+## v2.9.7 — 2026-05-02
+
+Three-way cumulative review round-3 patch — single 🟡 fix that closes
+the cycle.
+
+### 🟡 — `check_editor_health` empty-array boundary (Codex r3 + Claude r3)
+
+`check_editor_health` declared sceneAlive=true when query-node-tree
+returned a non-null but empty `[]`. Codex r3 explicitly flagged it as
+needs-patch; Claude r3 noted the same as informational ("not blocking
+because cocos always has a scene root after query-is-ready === true,
+but theoretical"). ≥2 reviewers raised it → promoted to must-fix per
+the project's three-way review workflow.
+
+Fix:
+```ts
+const dumpValid = dump.ok
+    && dump.value !== null
+    && dump.value !== undefined
+    && (!Array.isArray(dump.value) || dump.value.length > 0);
+```
+
+Plus enriched the sceneError message to disclose the empty-array
+case explicitly: "scene/query-node-tree returned an empty array
+(no scene loaded or scene-script in degraded state)".
+
+### Round-3 reviewer summary
+
+- Claude r3: 🟢 ship-it, "Three rounds converged" — verified all 4 🔴
+  + 2 🟡 from round-2 patch.
+- Gemini r3: 🟢 ship-it on all 6 fixes; 2 informational 🟡 (node-tools
+  pre-existing query-current-scene fallback + transport vs recording
+  cap math) — both single-reviewer, deferred.
+- Codex r3: 4 🟢 + 1 🟡 (empty-array, fixed in this patch).
+
+### Cycle wrap
+
+v2.9.x cumulative review converged after 3 rounds + 1 single-issue
+patch. v2.8.4 → v2.9.7 covered:
+
+- v2.9.0 (2c277b4) +2 tools (check_editor_health, set_preview_mode)
+- v2.9.1 (792a692) setter live-test fix + landmines #16/#17
+- v2.9.2 (77a6430) 8-item polish batch (Vary, isPathWithinRoot,
+  previewControlInFlight, getScriptDiagnosticContext refactor, scene
+  methods alignment, comment unify, TOCTOU doc, msg symmetry)
+- v2.9.3 (963c91c) macro-tool routing (12→1) + park gates
+- v2.9.4 (3bf839f) MediaRecorder bridge (record_start/stop + client)
+- v2.9.5 (e425aa7) round-1 patch (5 🔴 + 4 🟡 from cumulative review)
+- v2.9.6 (e9fd3c0) round-2 patch (4 🔴 + 2 🟡 from r2 review)
+- v2.9.7 (this commit) round-3 patch (1 🟡 from r3 review)
+
+**18 categories / 181 tools** stable. Two preview-related tools
+(preview_control / set_preview_mode) remain ⚠ EXPERIMENTAL pending
+v2.10 reference-project comparison (landmines #16 / #17).
+
 ## v2.9.6 — 2026-05-02
 
 Three-way cumulative review round-2 patch on v2.9.5. Reviewers found

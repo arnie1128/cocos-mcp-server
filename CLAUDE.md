@@ -395,7 +395,7 @@ v2.1.6 after measure showed lossy-only gains).
     `z.toJSONSchema(schema, { target: 'draft-7' })`, which inlines
     reused subschemas (verified empirically: same `vec3` instance used
     3× in `position`/`rotation`/`scale` produces three full inline
-    copies, no `$ref`). All 181 v2.9.6 tool schemas are confirmed
+    copies, no `$ref`). All 181 v2.9.7 tool schemas are confirmed
     inline.
 
     Regression guard: `node scripts/check-gemini-compat.js` walks

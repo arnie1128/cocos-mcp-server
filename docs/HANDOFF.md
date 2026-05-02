@@ -5,9 +5,9 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.6 — v2.9.x cumulative review round-2 patch landed → round-3 三方 review pending）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.7 — v2.9.x cumulative review converged after 3 rounds → next: v2.10 對比參考專案 + simulator/MediaRecorder live-test）
 
-**當下版本**：v2.9.6（v2.9.x cumulative review round-2 patch on top of v2.9.5）。**18 categories / 181 tools**。
+**當下版本**：v2.9.7（v2.9.x cumulative review converged — 3 rounds, 1 single-issue follow-up）。**18 categories / 181 tools**。
 
 **v2.8.x 收尾**（已 push origin/main）：v2.8.0 spillover（T-V28-1 CORS hoist + T-V28-2 resolveAutoCaptureFile + T-V28-3 debug_preview_control）→ v2.8.1 round-1 review patch → v2.8.2 reload-retest fix（cce.SceneFacadeManager + 相對 savePath）→ v2.8.3 embedded-mode capture 補完（T-V283-1/2/3）→ v2.8.4 browser-mode retest fix（landmine #16 廣域化 + mode-aware fallback hint）。
 
@@ -18,13 +18,15 @@
 - v2.9.3 macro-tool routing（12 referenceImage_* → 1 op-router）+ preview-tools park gates
 - v2.9.4 MediaRecorder bridge（debug_record_start/stop + client template）
 - v2.9.5 cumulative review round-1 patch：check_editor_health 改用 query-is-ready + query-node 雙探針 / persistGameRecording regex 修 codecs 逗號（attempt 1，後發現仍有 bug）/ MediaRecorder cleanup centralization + recordStop durationMs 修 / 32MB→64MB cap reconcile / isPathWithinRoot `..` 邊界 / referenceImage_manage `add` array 驗證 / HANDOFF 整理
-- v2.9.6 cumulative review round-2 patch（本 cycle）：3-reviewer 🔴 共識 regex attempt 1 仍卡 codec 內逗號 → 改用 base64-alphabet 終止符；query-current-scene 是 unverified channel → 改用 typed query-node-tree；null UUID 偽健康防呆；SERVER_VERSION '2.8.0' → '2.9.0' 同步 minor base；record_stop schema 32MB stale 文字 → 64MB；recordStart _recState 賦值順序修
+- v2.9.6 cumulative review round-2 patch：3-reviewer 🔴 共識 regex attempt 1 仍卡 codec 內逗號 → 改用 base64-alphabet 終止符；query-current-scene 是 unverified channel → 改用 typed query-node-tree；null UUID 偽健康防呆；SERVER_VERSION '2.8.0' → '2.9.0' 同步 minor base；record_stop schema 32MB stale 文字 → 64MB；recordStart _recState 賦值順序修
+- v2.9.7 cumulative review round-3 patch：≥2-reviewer 🟡 empty-array boundary in check_editor_health（Codex r3 + Claude r3 informational 共同）。dumpValid 加 `Array.isArray && length > 0`，sceneError 訊息 disclose empty-array 情境
+- **三方 review 收尾**（3 rounds）：r1 5🔴+4🟡 / r2 4🔴+2🟡 / r3 1🟡 / r3-followup 0 issue。Claude+Gemini r3 都 🟢 ship-it；Codex r3 提的 1 🟡 已在 v2.9.7 fix；Gemini r3 + Codex r3 提的 single-reviewer 🟡（pre-existing node-tools.ts query-current-scene fallback、transport vs recording cap 數學精度）defer 到 v2.10 處理
 
 **未解 issues**（v2.10 對比參考專案後再動）：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race，editor 凍結需 Ctrl+R。tool 已加 acknowledgeFreezeRisk park gate。
 - landmine #17 — set_preview_mode 4 strategies 全 silent no-op；setter 仍 ⚠ EXPERIMENTAL。
 
-**下一個動工**：v2.9.6 commit + push → 三方 review round-3（驗證 round-2 fix）→ 視結果決定 ship-it / round-4 patch。
+**下一個動工**：v2.10 對比參考專案（landmines #16 + #17 解 preview_control freeze 與 set_preview_mode no-op）→ MediaRecorder live-test（需 browser-preview 環境 + client wired into game）→ pre-existing node-tools.ts query-current-scene fallback 收斂到 typed channel。三方 review 收尾，v2.9.x cycle ship 完成。
 
 **v2.9.0 候選清單**（v2.8.x 完整 ship 後再動）：
 - **PIE freeze 對比參考專案**（landmine #16）— 讀 harady / RomaRogov-cocos-mcp / cocos-cli / FunplayAI / Spaydo / cocos-code-mode 各家如何處理 `changePreviewPlayState` 或同等 PIE 啟動：是否有人繞過 `softReloadScene` race / 使用其他 channel / 加 retry-with-build-prebake 之類前置步驟。如果有就移植；沒有就把結論記回 landmine #16 收斂（「業界亦無解，認定為 cocos 3.8.7 內傷」）。0.5 天。
@@ -528,6 +530,56 @@ Cocos Creator reload 後 `/health` 回 `tools: 181`，
   argv 不經 shell parsing，spaces in paths 自然安全；quoteForCmd 不會被觸發。
   註解已寫進 `source/lib/ts-diagnostics.ts:execAsync`。
 
+### v2.8.4 — v2.9.7 cumulative 三方 review 紀錄（3 輪 + 1 follow-up）
+
+走「主 commits + 三方 cumulative review + 反修 patch」流程。**3 rounds + 1 single-issue follow-up**。Cycle range：v2.8.4 release `843fe73` → v2.9.7 release.
+
+#### Round 1 — v2.9.4 commit `3bf839f`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | check_editor_health probe 不夠深（getCurrentSceneInfo 只讀 cached director.getScene()，凍結時仍回 sceneAlive:true） | Gemini + Codex + Claude（3-reviewer） |
+| 2 | 🔴 must-fix | persistGameRecording regex 對 codec 內逗號失效 | Codex + Claude |
+| 3 | 🔴 must-fix | MediaRecorder cleanup 多條失敗路徑漏 stop tracks / 清 _recState | Codex + Claude |
+| 4 | 🔴 must-fix | recordStop 把 _recState=null 後讀 startedAt → durationMs 永遠 0 | Claude |
+| 5 | 🔴 must-fix | base64 O(N²) string concat（client 端） | Gemini（已由 linter 同步 apply FileReader） |
+| 6 | 🟡 worth | 32MB cap 與 transport request body cap 不一致 + 對 high-bitrate 60s 太緊 | Gemini + Codex |
+| 7 | 🟡 worth | referenceImage_manage `add` 沒驗 array 型態 | Claude |
+| 8 | 🟡 worth | isPathWithinRoot `..` 邊界（`rel === '..'` case） | Codex |
+| 9 | 🟡 worth | HANDOFF NEXT ENTRY POINT 內文與 heading 不一致（增量 append 三段、tool count drift） | Claude |
+
+v2.9.5 commit `e425aa7` 反修：5 🔴 + 4 🟡 全清。
+
+#### Round 2 — v2.9.5 commit `e425aa7`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | regex attempt 1 `((?:;[^,]*?)*)` 仍卡 codec 內逗號 | Gemini + Claude + Codex（3-reviewer） |
+| 2 | 🔴 must-fix | scene/query-current-scene 是 unverified channel（不在 typed message.d.ts） | Codex + Claude |
+| 3 | 🔴 must-fix | null UUID branch 仍可被 query-is-ready=true 帶過 → 偽健康 | Codex |
+| 4 | 🔴 must-fix | SERVER_VERSION '2.8.0' 沒跟 minor base 同步到 '2.9.0' | Codex |
+| 5 | 🟡 worth | record_stop description 仍寫 32MB（v2.9.5 已升 64MB） | Codex |
+| 6 | 🟡 worth | recordStart _recState 賦值在 recorder.start() 之後，sync onerror 會競態 | Claude |
+
+v2.9.6 commit `e9fd3c0` 反修：4 🔴 + 2 🟡 全清。
+
+#### Round 3 — v2.9.6 commit `e9fd3c0`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🟡 worth | check_editor_health empty-array boundary — query-node-tree 回 `[]` 仍 sceneAlive=true | Codex r3 + Claude r3 informational |
+
+Single-reviewer 🟡 deferred（不在反修範圍）：
+- node-tools.ts:180 pre-existing `query-current-scene` fallback（Gemini r3 — 不在 v2.9.x 改動範圍，記為 v2.10 spillover）
+- transport vs recording cap 數學精度（Codex r3 — base64+JSON overhead 讓 64MB recording 在 transport 層先 413；canvas captureStream 實務上 30s × 5Mbps = 18MB raw，不 pursue）
+- recorder.start error message hint enhancement（Gemini r2 — cosmetic）
+
+v2.9.7 commit 反修：1 🟡（empty-array guard + sceneError 訊息 enrich）。
+
+#### Round 3 follow-up — v2.9.7
+
+Claude r3 已表態「Three rounds converged」、Gemini r3 「ship-it on all 6 fixes」、Codex r3 「四題 🟢 + 1 🟡（empty-array）」。empty-array 已在 v2.9.7 修，1-line guard 風險極低、未跑 round-4。三方 review 收尾。
+
 ### v2.8.0 — v2.8.1 三方 review 紀錄（2 輪 / 1 反修）
 
 走「主 commit + 三方 review + 反修 patch」流程。**2 輪 review，1 輪反修**。
@@ -683,6 +735,7 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.9.7 改動前（v2.9.6 round-2 patch 點）→ `git reset --hard e9fd3c0`
 - v2.9.6 改動前（v2.9.5 round-1 patch 點）→ `git reset --hard e425aa7`
 - v2.9.5 改動前（v2.9.4 release 點）→ `git reset --hard 3bf839f`
 - v2.9.0 改動前（v2.8.4 release 點）→ `git reset --hard 843fe73`
@@ -854,6 +907,9 @@ v2.9.1 retest 觀察（freeze 偵測）：`check_editor_health` 在 cocos 凍結
 v2.9.2 ✅ done（T-V29-3 polish batch — 8 件 v2.8.1 deferred single-reviewer 🟡 全部處理）
 v2.9.3 ✅ done（T-V29-6 macro-tool routing — 12 個 referenceImage_* 工具 collapse 成 1 個 `referenceImage_manage({op,...})` op-router；preview-mode 兩件加 park gate：preview_control(start) 需 `acknowledgeFreezeRisk:true`、set_preview_mode 已有 `confirm` gate + ⚠ EXPERIMENTAL 描述。**18 categories / 179 tools**，retest 全綠（含 simulator 模式 T-V29-4 順帶完成）；breaking change：舊的 referenceImage_add_reference_image 等 12 個 flat tool 移除，callers 改用 referenceImage_manage(op=...)）
 v2.9.4 ✅ done（T-V29-5 MediaRecorder bridge — `debug_record_start` / `debug_record_stop` 顯式工具 wrap game_command 隊列；client 端加 record_start / record_stop built-in handlers 用 MediaRecorder + canvas.captureStream；server 端 persistGameRecording 32MB cap + project containment guard。**18 categories / 181 tools**。Live-test 因目前 preview 在 simulator 模式且 client 未 wire 進 game 而暫緩，待未來 browser-preview 環境的 session retest）
+v2.9.5 ✅ done（cumulative review round-1 patch — 5 🔴 + 4 🟡 全清，commit e425aa7 已 push）
+v2.9.6 ✅ done（cumulative review round-2 patch — 4 🔴（regex attempt 1 仍卡 codec 內逗號 / unverified channel / null-healthy / SERVER_VERSION 同步）+ 2 🟡 全清，commit e9fd3c0 已 push）
+v2.9.7 ✅ done（cumulative review round-3 patch — 1 🟡（≥2-reviewer empty-array boundary in check_editor_health）。Cycle wrap：Claude+Gemini+Codex 三方收斂。剩餘 single-reviewer 🟡（pre-existing node-tools fallback / transport cap 數學）defer 到 v2.10）
 剩 preview-mode 對比參考專案；T-V29-batch cumulative 三方 review 收尾
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
