@@ -122,7 +122,7 @@ export class ComponentTools implements ToolExecutor {
 
     constructor() {
         const defs: ToolDef[] = [
-            { name: 'add_component', title: 'Add node component', description: 'Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
+            { name: 'add_component', title: 'Add node component', description: '[specialist] Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
                     nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
@@ -134,21 +134,21 @@ export class ComponentTools implements ToolExecutor {
                     if ('response' in r) return r.response;
                     return this.addComponent(r.uuid, a.componentType);
                 } },
-            { name: 'remove_component', title: 'Remove node component', description: "Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
+            { name: 'remove_component', title: 'Remove node component', description: "[specialist] Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
                     componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
                 }), handler: a => this.removeComponent(a.nodeUuid, a.componentType) },
-            { name: 'get_components', title: 'List node components', description: 'List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.',
+            { name: 'get_components', title: 'List node components', description: '[specialist] List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID whose components should be listed.'),
                 }), handler: a => this.getComponents(a.nodeUuid) },
-            { name: 'get_component_info', title: 'Read component info', description: 'Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
+            { name: 'get_component_info', title: 'Read component info', description: '[specialist] Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID that owns the component.'),
                     componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
                 }), handler: a => this.getComponentInfo(a.nodeUuid, a.componentType) },
-            { name: 'set_component_property', title: 'Set component property', description: 'Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+            { name: 'set_component_property', title: 'Set component property', description: '[specialist] Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
                     nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
@@ -169,16 +169,16 @@ export class ComponentTools implements ToolExecutor {
                     if ('response' in r) return r.response;
                     return this.setComponentProperty({ ...a, nodeUuid: r.uuid });
                 } },
-            { name: 'attach_script', title: 'Attach script component', description: 'Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
+            { name: 'attach_script', title: 'Attach script component', description: '[specialist] Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
                     scriptPath: z.string().describe('Script asset db:// path, e.g. db://assets/scripts/MyScript.ts.'),
                 }), handler: a => this.attachScript(a.nodeUuid, a.scriptPath) },
-            { name: 'get_available_components', title: 'List available components', description: 'List curated built-in component types by category. No scene query; custom project scripts are not discovered here.',
+            { name: 'get_available_components', title: 'List available components', description: '[specialist] List curated built-in component types by category. No scene query; custom project scripts are not discovered here.',
                 inputSchema: z.object({
                     category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter for the built-in curated list.'),
                 }), handler: a => this.getAvailableComponents(a.category) },
-            { name: 'add_event_handler', title: 'Add event handler', description: 'Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
+            { name: 'add_event_handler', title: 'Add event handler', description: '[specialist] Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
                     componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
@@ -198,7 +198,7 @@ export class ComponentTools implements ToolExecutor {
                     }
                     return resp;
                 } },
-            { name: 'remove_event_handler', title: 'Remove event handler', description: 'Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.',
+            { name: 'remove_event_handler', title: 'Remove event handler', description: '[specialist] Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID owning the component'),
                     componentType: z.string().default('cc.Button').describe('Component class name'),
@@ -217,7 +217,7 @@ export class ComponentTools implements ToolExecutor {
                     }
                     return resp;
                 } },
-            { name: 'list_event_handlers', title: 'List event handlers', description: 'List EventHandler entries on a component event array. No mutation; use before remove_event_handler.',
+            { name: 'list_event_handlers', title: 'List event handlers', description: '[specialist] List EventHandler entries on a component event array. No mutation; use before remove_event_handler.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID owning the component'),
                     componentType: z.string().default('cc.Button').describe('Component class name'),
@@ -226,7 +226,7 @@ export class ComponentTools implements ToolExecutor {
                 handler: a => runSceneMethodAsToolResponse('listEventHandlers', [
                     a.nodeUuid, a.componentType, a.eventArrayProperty,
                 ]) },
-            { name: 'set_component_properties', title: 'Set component properties', description: 'Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
+            { name: 'set_component_properties', title: 'Set component properties', description: '[specialist] Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
                     nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),

@@ -33,7 +33,7 @@ export class ReferenceImageTools implements ToolExecutor {
             {
                 name: 'manage',
                 title: 'Manage reference images',
-                description: 'Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).',
+                description: '[specialist] Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).',
                 inputSchema: z.object({
                     op: z.enum([
                         'add', 'remove', 'switch', 'set_data', 'query_config',

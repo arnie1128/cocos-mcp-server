@@ -50,188 +50,188 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 
 | Category | Tool | title | summary |
 |---|---|---|---|
-| `scene` | [`scene_get_current_scene`](#scene_get_current_scene) | Read current scene | Read the currently open scene root summary (name/uuid/type/active/nodeCount). |
-| `scene` | [`scene_get_scene_list`](#scene_get_scene_list) | List scene assets | List .scene assets under db://assets with name/path/uuid. |
-| `scene` | [`scene_open_scene`](#scene_open_scene) | Open scene by path | Open a scene by db:// path. |
-| `scene` | [`scene_save_scene`](#scene_save_scene) | Save current scene | Save the currently open scene back to its scene asset. |
-| `scene` | [`scene_create_scene`](#scene_create_scene) | Create scene asset | Create a new .scene asset. |
-| `scene` | [`scene_save_scene_as`](#scene_save_scene_as) | Copy scene asset | Copy the currently open scene to a new .scene asset. |
-| `scene` | [`scene_close_scene`](#scene_close_scene) | Close current scene | Close the current scene. |
-| `scene` | [`scene_get_scene_hierarchy`](#scene_get_scene_hierarchy) | Read scene hierarchy | Read the complete current scene node hierarchy. |
-| `node` | [`node_create_node`](#node_create_node) | Create scene node | Create a node in the current scene. |
-| `node` | [`node_get_node_info`](#node_get_node_info) | Read node info | Read one node by UUID, including transform, children, and component summary. |
-| `node` | [`node_find_nodes`](#node_find_nodes) | Find nodes by pattern | Search current-scene nodes by name pattern and return multiple matches. |
-| `node` | [`node_find_node_by_name`](#node_find_node_by_name) | Find node by name | Find the first node with an exact name. |
-| `node` | [`node_get_all_nodes`](#node_get_all_nodes) | List all nodes | List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid. |
-| `node` | [`node_set_node_property`](#node_set_node_property) | Set node property | Set a node property path. |
-| `node` | [`node_set_node_transform`](#node_set_node_transform) | Set node transform | Set node position, rotation, or scale with 2D/3D normalization. |
-| `node` | [`node_delete_node`](#node_delete_node) | Delete scene node | Delete a node from the current scene. |
-| `node` | [`node_move_node`](#node_move_node) | Reparent scene node | Reparent a node under a new parent. |
-| `node` | [`node_duplicate_node`](#node_duplicate_node) | Duplicate scene node | Duplicate a node and return the new UUID. |
-| `node` | [`node_detect_node_type`](#node_detect_node_type) | Detect node type | Heuristically classify a node as 2D or 3D from components/transform. |
-| `node` | [`node_set_node_properties`](#node_set_node_properties) | Set node properties | Batch-set multiple properties on the same node in one tool call. |
-| `component` | [`component_add_component`](#component_add_component) | Add node component | Add a component to a node. |
-| `component` | [`component_remove_component`](#component_remove_component) | Remove node component | Remove a component from a node. |
-| `component` | [`component_get_components`](#component_get_components) | List node components | List all components on a node. |
-| `component` | [`component_get_component_info`](#component_get_component_info) | Read component info | Read detailed data for one component on a node. |
-| `component` | [`component_set_component_property`](#component_set_component_property) | Set component property | Set one property on a node component. |
-| `component` | [`component_attach_script`](#component_attach_script) | Attach script component | Attach a script asset as a component to a node. |
-| `component` | [`component_get_available_components`](#component_get_available_components) | List available components | List curated built-in component types by category. |
-| `component` | [`component_add_event_handler`](#component_add_event_handler) | Add event handler | Append a cc.EventHandler to a component event array. |
-| `component` | [`component_remove_event_handler`](#component_remove_event_handler) | Remove event handler | Remove EventHandler entries from a component event array. |
-| `component` | [`component_list_event_handlers`](#component_list_event_handlers) | List event handlers | List EventHandler entries on a component event array. |
-| `component` | [`component_set_component_properties`](#component_set_component_properties) | Set component properties | Batch-set multiple properties on the same component in one tool call. |
-| `prefab` | [`prefab_get_prefab_list`](#prefab_get_prefab_list) | List prefab assets | List .prefab assets under a folder with name/path/uuid. |
-| `prefab` | [`prefab_load_prefab`](#prefab_load_prefab) | Read prefab metadata | Read prefab asset metadata only. |
-| `prefab` | [`prefab_instantiate_prefab`](#prefab_instantiate_prefab) | Instantiate prefab | Instantiate a prefab into the current scene; mutates scene and preserves prefab link. |
-| `prefab` | [`prefab_create_prefab`](#prefab_create_prefab) | Create prefab asset | Create a prefab asset from a scene node via cce.Prefab.createPrefab facade. |
-| `prefab` | [`prefab_update_prefab`](#prefab_update_prefab) | Apply prefab edits | Apply prefab instance edits back to its linked prefab asset; prefabPath is context only. |
-| `prefab` | [`prefab_revert_prefab`](#prefab_revert_prefab) | Revert prefab instance | Restore a prefab instance from its linked asset; discards unapplied overrides. |
-| `prefab` | [`prefab_get_prefab_info`](#prefab_get_prefab_info) | Read prefab info | Read prefab meta/dependency summary before apply/revert. |
-| `prefab` | [`prefab_validate_prefab`](#prefab_validate_prefab) | Validate prefab asset | Run basic prefab JSON structural checks; not byte-level Cocos equivalence. |
-| `prefab` | [`prefab_restore_prefab_node`](#prefab_restore_prefab_node) | Restore prefab node | Restore a prefab instance through scene/restore-prefab; assetUuid is context only. |
-| `prefab` | [`prefab_set_link`](#prefab_set_link) | Set prefab link | Attach or detach a prefab link on a node. |
-| `prefab` | [`prefab_get_prefab_data`](#prefab_get_prefab_data) | Read prefab data | Read facade prefab dump for a prefab instance node. |
-| `project` | [`project_run_project`](#project_run_project) | Open preview fallback | Open Build panel as preview fallback; does not launch preview automatically. |
-| `project` | [`project_build_project`](#project_build_project) | Open build fallback | Open Build panel for the requested platform; does not start the build. |
-| `project` | [`project_get_project_info`](#project_get_project_info) | Read project info | Read project name/path/uuid/version/Cocos version and config. |
-| `project` | [`project_get_project_settings`](#project_get_project_settings) | Read project settings | Read one project settings category via project/query-config. |
-| `project` | [`project_refresh_assets`](#project_refresh_assets) | Refresh asset folder | Refresh asset-db for a folder; affects Editor asset state, not file content. |
-| `project` | [`project_import_asset`](#project_import_asset) | Import asset file | Import one disk file into asset-db; mutates project assets. |
-| `project` | [`project_get_asset_info`](#project_get_asset_info) | Read asset info | Read basic metadata for one db:// asset path. |
-| `project` | [`project_get_assets`](#project_get_assets) | List project assets | List assets under a folder using type-specific filename patterns. |
-| `project` | [`project_get_build_settings`](#project_get_build_settings) | Read build settings | Report builder readiness and MCP build limitations. |
-| `project` | [`project_open_build_panel`](#project_open_build_panel) | Open build panel | Open the Cocos Build panel; does not start a build. |
-| `project` | [`project_check_builder_status`](#project_check_builder_status) | Check builder status | Check whether the builder worker is ready. |
-| `project` | [`project_start_preview_server`](#project_start_preview_server) | Start preview server | Unsupported preview-server placeholder; use Editor UI. |
-| `project` | [`project_stop_preview_server`](#project_stop_preview_server) | Stop preview server | Unsupported preview-server placeholder; use Editor UI. |
-| `project` | [`project_create_asset`](#project_create_asset) | Create asset | Create an asset file or folder through asset-db; null content creates folder. |
-| `project` | [`project_copy_asset`](#project_copy_asset) | Copy asset | Copy an asset through asset-db; mutates project assets. |
-| `project` | [`project_move_asset`](#project_move_asset) | Move asset | Move or rename an asset through asset-db; mutates project assets. |
-| `project` | [`project_delete_asset`](#project_delete_asset) | Delete asset | Delete one asset-db URL; mutates project assets. |
-| `project` | [`project_save_asset`](#project_save_asset) | Save asset | Write serialized content to an asset URL; use only for known-good formats. |
-| `project` | [`project_reimport_asset`](#project_reimport_asset) | Reimport asset | Ask asset-db to reimport an asset; updates imported asset state/cache. |
-| `project` | [`project_query_asset_path`](#project_query_asset_path) | Resolve asset path | Resolve an asset db:// URL to disk path. |
-| `project` | [`project_query_asset_uuid`](#project_query_asset_uuid) | Resolve asset UUID | Resolve an asset db:// URL to UUID. |
-| `project` | [`project_query_asset_url`](#project_query_asset_url) | Resolve asset URL | Resolve an asset UUID to db:// URL. |
-| `project` | [`project_find_asset_by_name`](#project_find_asset_by_name) | Find asset by name | Search assets by name with exact/type/folder filters; use to discover UUIDs/paths. |
-| `project` | [`project_get_asset_details`](#project_get_asset_details) | Read asset details | Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs. |
-| `debug` | [`debug_clear_console`](#debug_clear_console) | Clear console | Clear the Cocos Editor Console UI. |
+| `scene` | [`scene_get_current_scene`](#scene_get_current_scene) | Read current scene | [specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount). |
+| `scene` | [`scene_get_scene_list`](#scene_get_scene_list) | List scene assets | [specialist] List .scene assets under db://assets with name/path/uuid. |
+| `scene` | [`scene_open_scene`](#scene_open_scene) | Open scene by path | [specialist] Open a scene by db:// path. |
+| `scene` | [`scene_save_scene`](#scene_save_scene) | Save current scene | [specialist] Save the currently open scene back to its scene asset. |
+| `scene` | [`scene_create_scene`](#scene_create_scene) | Create scene asset | [specialist] Create a new .scene asset. |
+| `scene` | [`scene_save_scene_as`](#scene_save_scene_as) | Copy scene asset | [specialist] Copy the currently open scene to a new .scene asset. |
+| `scene` | [`scene_close_scene`](#scene_close_scene) | Close current scene | [specialist] Close the current scene. |
+| `scene` | [`scene_get_scene_hierarchy`](#scene_get_scene_hierarchy) | Read scene hierarchy | [specialist] Read the complete current scene node hierarchy. |
+| `node` | [`node_create_node`](#node_create_node) | Create scene node | [specialist] Create a node in the current scene. |
+| `node` | [`node_get_node_info`](#node_get_node_info) | Read node info | [specialist] Read one node by UUID, including transform, children, and component summary. |
+| `node` | [`node_find_nodes`](#node_find_nodes) | Find nodes by pattern | [specialist] Search current-scene nodes by name pattern and return multiple matches. |
+| `node` | [`node_find_node_by_name`](#node_find_node_by_name) | Find node by name | [specialist] Find the first node with an exact name. |
+| `node` | [`node_get_all_nodes`](#node_get_all_nodes) | List all nodes | [specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid. |
+| `node` | [`node_set_node_property`](#node_set_node_property) | Set node property | [specialist] Set a node property path. |
+| `node` | [`node_set_node_transform`](#node_set_node_transform) | Set node transform | [specialist] Set node position, rotation, or scale with 2D/3D normalization. |
+| `node` | [`node_delete_node`](#node_delete_node) | Delete scene node | [specialist] Delete a node from the current scene. |
+| `node` | [`node_move_node`](#node_move_node) | Reparent scene node | [specialist] Reparent a node under a new parent. |
+| `node` | [`node_duplicate_node`](#node_duplicate_node) | Duplicate scene node | [specialist] Duplicate a node and return the new UUID. |
+| `node` | [`node_detect_node_type`](#node_detect_node_type) | Detect node type | [specialist] Heuristically classify a node as 2D or 3D from components/transform. |
+| `node` | [`node_set_node_properties`](#node_set_node_properties) | Set node properties | [specialist] Batch-set multiple properties on the same node in one tool call. |
+| `component` | [`component_add_component`](#component_add_component) | Add node component | [specialist] Add a component to a node. |
+| `component` | [`component_remove_component`](#component_remove_component) | Remove node component | [specialist] Remove a component from a node. |
+| `component` | [`component_get_components`](#component_get_components) | List node components | [specialist] List all components on a node. |
+| `component` | [`component_get_component_info`](#component_get_component_info) | Read component info | [specialist] Read detailed data for one component on a node. |
+| `component` | [`component_set_component_property`](#component_set_component_property) | Set component property | [specialist] Set one property on a node component. |
+| `component` | [`component_attach_script`](#component_attach_script) | Attach script component | [specialist] Attach a script asset as a component to a node. |
+| `component` | [`component_get_available_components`](#component_get_available_components) | List available components | [specialist] List curated built-in component types by category. |
+| `component` | [`component_add_event_handler`](#component_add_event_handler) | Add event handler | [specialist] Append a cc.EventHandler to a component event array. |
+| `component` | [`component_remove_event_handler`](#component_remove_event_handler) | Remove event handler | [specialist] Remove EventHandler entries from a component event array. |
+| `component` | [`component_list_event_handlers`](#component_list_event_handlers) | List event handlers | [specialist] List EventHandler entries on a component event array. |
+| `component` | [`component_set_component_properties`](#component_set_component_properties) | Set component properties | [specialist] Batch-set multiple properties on the same component in one tool call. |
+| `prefab` | [`prefab_get_prefab_list`](#prefab_get_prefab_list) | List prefab assets | [specialist] List .prefab assets under a folder with name/path/uuid. |
+| `prefab` | [`prefab_load_prefab`](#prefab_load_prefab) | Read prefab metadata | [specialist] Read prefab asset metadata only. |
+| `prefab` | [`prefab_instantiate_prefab`](#prefab_instantiate_prefab) | Instantiate prefab | [specialist] Instantiate a prefab into the current scene; mutates scene and preserves prefab link. |
+| `prefab` | [`prefab_create_prefab`](#prefab_create_prefab) | Create prefab asset | [specialist] Create a prefab asset from a scene node via cce.Prefab.createPrefab facade. |
+| `prefab` | [`prefab_update_prefab`](#prefab_update_prefab) | Apply prefab edits | [specialist] Apply prefab instance edits back to its linked prefab asset; prefabPath is context only. |
+| `prefab` | [`prefab_revert_prefab`](#prefab_revert_prefab) | Revert prefab instance | [specialist] Restore a prefab instance from its linked asset; discards unapplied overrides. |
+| `prefab` | [`prefab_get_prefab_info`](#prefab_get_prefab_info) | Read prefab info | [specialist] Read prefab meta/dependency summary before apply/revert. |
+| `prefab` | [`prefab_validate_prefab`](#prefab_validate_prefab) | Validate prefab asset | [specialist] Run basic prefab JSON structural checks; not byte-level Cocos equivalence. |
+| `prefab` | [`prefab_restore_prefab_node`](#prefab_restore_prefab_node) | Restore prefab node | [specialist] Restore a prefab instance through scene/restore-prefab; assetUuid is context only. |
+| `prefab` | [`prefab_set_link`](#prefab_set_link) | Set prefab link | [specialist] Attach or detach a prefab link on a node. |
+| `prefab` | [`prefab_get_prefab_data`](#prefab_get_prefab_data) | Read prefab data | [specialist] Read facade prefab dump for a prefab instance node. |
+| `project` | [`project_run_project`](#project_run_project) | Open preview fallback | [specialist] Open Build panel as preview fallback; does not launch preview automatically. |
+| `project` | [`project_build_project`](#project_build_project) | Open build fallback | [specialist] Open Build panel for the requested platform; does not start the build. |
+| `project` | [`project_get_project_info`](#project_get_project_info) | Read project info | [specialist] Read project name/path/uuid/version/Cocos version and config. |
+| `project` | [`project_get_project_settings`](#project_get_project_settings) | Read project settings | [specialist] Read one project settings category via project/query-config. |
+| `project` | [`project_refresh_assets`](#project_refresh_assets) | Refresh asset folder | [specialist] Refresh asset-db for a folder; affects Editor asset state, not file content. |
+| `project` | [`project_import_asset`](#project_import_asset) | Import asset file | [specialist] Import one disk file into asset-db; mutates project assets. |
+| `project` | [`project_get_asset_info`](#project_get_asset_info) | Read asset info | [specialist] Read basic metadata for one db:// asset path. |
+| `project` | [`project_get_assets`](#project_get_assets) | List project assets | [specialist] List assets under a folder using type-specific filename patterns. |
+| `project` | [`project_get_build_settings`](#project_get_build_settings) | Read build settings | [specialist] Report builder readiness and MCP build limitations. |
+| `project` | [`project_open_build_panel`](#project_open_build_panel) | Open build panel | [specialist] Open the Cocos Build panel; does not start a build. |
+| `project` | [`project_check_builder_status`](#project_check_builder_status) | Check builder status | [specialist] Check whether the builder worker is ready. |
+| `project` | [`project_start_preview_server`](#project_start_preview_server) | Start preview server | [specialist] Unsupported preview-server placeholder; use Editor UI. |
+| `project` | [`project_stop_preview_server`](#project_stop_preview_server) | Stop preview server | [specialist] Unsupported preview-server placeholder; use Editor UI. |
+| `project` | [`project_create_asset`](#project_create_asset) | Create asset | [specialist] Create an asset file or folder through asset-db; null content creates folder. |
+| `project` | [`project_copy_asset`](#project_copy_asset) | Copy asset | [specialist] Copy an asset through asset-db; mutates project assets. |
+| `project` | [`project_move_asset`](#project_move_asset) | Move asset | [specialist] Move or rename an asset through asset-db; mutates project assets. |
+| `project` | [`project_delete_asset`](#project_delete_asset) | Delete asset | [specialist] Delete one asset-db URL; mutates project assets. |
+| `project` | [`project_save_asset`](#project_save_asset) | Save asset | [specialist] Write serialized content to an asset URL; use only for known-good formats. |
+| `project` | [`project_reimport_asset`](#project_reimport_asset) | Reimport asset | [specialist] Ask asset-db to reimport an asset; updates imported asset state/cache. |
+| `project` | [`project_query_asset_path`](#project_query_asset_path) | Resolve asset path | [specialist] Resolve an asset db:// URL to disk path. |
+| `project` | [`project_query_asset_uuid`](#project_query_asset_uuid) | Resolve asset UUID | [specialist] Resolve an asset db:// URL to UUID. |
+| `project` | [`project_query_asset_url`](#project_query_asset_url) | Resolve asset URL | [specialist] Resolve an asset UUID to db:// URL. |
+| `project` | [`project_find_asset_by_name`](#project_find_asset_by_name) | Find asset by name | [specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths. |
+| `project` | [`project_get_asset_details`](#project_get_asset_details) | Read asset details | [specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs. |
+| `debug` | [`debug_clear_console`](#debug_clear_console) | Clear console | [specialist] Clear the Cocos Editor Console UI. |
 | `debug` | [`debug_execute_javascript`](#debug_execute_javascript) | Execute JavaScript | [primary] Execute JavaScript in scene or editor context. |
 | `debug` | [`debug_execute_script`](#debug_execute_script) | Run scene JavaScript | [compat] Scene-only JavaScript eval. |
-| `debug` | [`debug_get_node_tree`](#debug_get_node_tree) | Read debug node tree | Read a debug node tree from a root or scene root for hierarchy/component inspection. |
-| `debug` | [`debug_get_performance_stats`](#debug_get_performance_stats) | Read performance stats | Try to read scene query-performance stats; may return unavailable in edit mode. |
-| `debug` | [`debug_validate_scene`](#debug_validate_scene) | Validate current scene | Run basic current-scene health checks for missing assets and node-count warnings. |
-| `debug` | [`debug_get_editor_info`](#debug_get_editor_info) | Read editor info | Read Editor/Cocos/project/process information and memory summary. |
-| `debug` | [`debug_get_project_logs`](#debug_get_project_logs) | Read project logs | Read temp/logs/project.log tail with optional level/keyword filters. |
-| `debug` | [`debug_get_log_file_info`](#debug_get_log_file_info) | Read log file info | Read temp/logs/project.log path, size, line count, and timestamps. |
-| `debug` | [`debug_search_project_logs`](#debug_search_project_logs) | Search project logs | Search temp/logs/project.log for string/regex and return line context. |
-| `debug` | [`debug_screenshot`](#debug_screenshot) | Capture editor screenshot | Capture the focused Cocos Editor window (or a window matched by title) to a PNG. |
-| `debug` | [`debug_capture_preview_screenshot`](#debug_capture_preview_screenshot) | Capture preview screenshot | Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. |
-| `debug` | [`debug_get_preview_mode`](#debug_get_preview_mode) | Read preview mode | Read the cocos preview configuration. |
+| `debug` | [`debug_get_node_tree`](#debug_get_node_tree) | Read debug node tree | [specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection. |
+| `debug` | [`debug_get_performance_stats`](#debug_get_performance_stats) | Read performance stats | [specialist] Try to read scene query-performance stats; may return unavailable in edit mode. |
+| `debug` | [`debug_validate_scene`](#debug_validate_scene) | Validate current scene | [specialist] Run basic current-scene health checks for missing assets and node-count warnings. |
+| `debug` | [`debug_get_editor_info`](#debug_get_editor_info) | Read editor info | [specialist] Read Editor/Cocos/project/process information and memory summary. |
+| `debug` | [`debug_get_project_logs`](#debug_get_project_logs) | Read project logs | [specialist] Read temp/logs/project.log tail with optional level/keyword filters. |
+| `debug` | [`debug_get_log_file_info`](#debug_get_log_file_info) | Read log file info | [specialist] Read temp/logs/project.log path, size, line count, and timestamps. |
+| `debug` | [`debug_search_project_logs`](#debug_search_project_logs) | Search project logs | [specialist] Search temp/logs/project.log for string/regex and return line context. |
+| `debug` | [`debug_screenshot`](#debug_screenshot) | Capture editor screenshot | [specialist] Capture the focused Cocos Editor window (or a window matched by title) to a PNG. |
+| `debug` | [`debug_capture_preview_screenshot`](#debug_capture_preview_screenshot) | Capture preview screenshot | [specialist] Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. |
+| `debug` | [`debug_get_preview_mode`](#debug_get_preview_mode) | Read preview mode | [specialist] Read the cocos preview configuration. |
 | `debug` | [`debug_set_preview_mode`](#debug_set_preview_mode) | Set preview mode | ❌ NOT SUPPORTED on cocos 3.8.7+ (landmine #17). |
-| `debug` | [`debug_batch_screenshot`](#debug_batch_screenshot) | Capture batch screenshots | Capture multiple PNGs of the editor window with optional delays between shots. |
-| `debug` | [`debug_wait_compile`](#debug_wait_compile) | Wait for compile | Block until cocos finishes its TypeScript compile pass. |
-| `debug` | [`debug_run_script_diagnostics`](#debug_run_script_diagnostics) | Run script diagnostics | Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. |
-| `debug` | [`debug_preview_url`](#debug_preview_url) | Resolve preview URL | Resolve the cocos browser-preview URL. |
-| `debug` | [`debug_query_devices`](#debug_query_devices) | List preview devices | List preview devices configured in the cocos project. |
-| `debug` | [`debug_game_command`](#debug_game_command) | Send game command | Send a runtime command to a connected GameDebugClient. |
-| `debug` | [`debug_record_start`](#debug_record_start) | Start game recording | Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). |
-| `debug` | [`debug_record_stop`](#debug_record_stop) | Stop game recording | Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures. |
-| `debug` | [`debug_game_client_status`](#debug_game_client_status) | Read game client status | Read GameDebugClient connection status. |
-| `debug` | [`debug_check_editor_health`](#debug_check_editor_health) | Check editor health | Probe whether the cocos editor scene-script renderer is responsive. |
+| `debug` | [`debug_batch_screenshot`](#debug_batch_screenshot) | Capture batch screenshots | [specialist] Capture multiple PNGs of the editor window with optional delays between shots. |
+| `debug` | [`debug_wait_compile`](#debug_wait_compile) | Wait for compile | [specialist] Block until cocos finishes its TypeScript compile pass. |
+| `debug` | [`debug_run_script_diagnostics`](#debug_run_script_diagnostics) | Run script diagnostics | [specialist] Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. |
+| `debug` | [`debug_preview_url`](#debug_preview_url) | Resolve preview URL | [specialist] Resolve the cocos browser-preview URL. |
+| `debug` | [`debug_query_devices`](#debug_query_devices) | List preview devices | [specialist] List preview devices configured in the cocos project. |
+| `debug` | [`debug_game_command`](#debug_game_command) | Send game command | [specialist] Send a runtime command to a connected GameDebugClient. |
+| `debug` | [`debug_record_start`](#debug_record_start) | Start game recording | [specialist] Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). |
+| `debug` | [`debug_record_stop`](#debug_record_stop) | Stop game recording | [specialist] Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures. |
+| `debug` | [`debug_game_client_status`](#debug_game_client_status) | Read game client status | [specialist] Read GameDebugClient connection status. |
+| `debug` | [`debug_check_editor_health`](#debug_check_editor_health) | Check editor health | [specialist] Probe whether the cocos editor scene-script renderer is responsive. |
 | `debug` | [`debug_preview_control`](#debug_preview_control) | Control preview playback | ⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16). |
-| `debug` | [`debug_get_script_diagnostic_context`](#debug_get_script_diagnostic_context) | Read diagnostic context | Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. |
-| `preferences` | [`preferences_open_preferences_settings`](#preferences_open_preferences_settings) | Open preferences settings | Open Cocos Preferences UI, optionally on a tab; UI side effect only. |
-| `preferences` | [`preferences_query_preferences_config`](#preferences_query_preferences_config) | Read preferences config | Read a Preferences config category/path/type; query before setting values. |
-| `preferences` | [`preferences_set_preferences_config`](#preferences_set_preferences_config) | Set preferences config | Write a Preferences config value; mutates Cocos global/local settings. |
-| `preferences` | [`preferences_get_all_preferences`](#preferences_get_all_preferences) | Read all preferences | Read common Preferences categories; may not include every extension category. |
-| `preferences` | [`preferences_reset_preferences`](#preferences_reset_preferences) | Reset preferences | Reset one Preferences category to defaults; all-category reset is unsupported. |
-| `preferences` | [`preferences_export_preferences`](#preferences_export_preferences) | Export preferences | Return readable Preferences as JSON data; does not write a file. |
-| `preferences` | [`preferences_import_preferences`](#preferences_import_preferences) | Import preferences | Unsupported Preferences import placeholder; never modifies settings. |
-| `server` | [`server_query_server_ip_list`](#server_query_server_ip_list) | Read server IP list | Read IPs reported by the Cocos Editor server. |
-| `server` | [`server_query_sorted_server_ip_list`](#server_query_sorted_server_ip_list) | Read sorted server IPs | Read the Editor server IP list in preferred order. |
-| `server` | [`server_query_server_port`](#server_query_server_port) | Read server port | Read the current Cocos Editor server port. |
-| `server` | [`server_get_server_status`](#server_get_server_status) | Read server status | Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. |
-| `server` | [`server_check_server_connectivity`](#server_check_server_connectivity) | Check server connectivity | Probe Editor.Message connectivity with server/query-port and a timeout. |
-| `server` | [`server_get_network_interfaces`](#server_get_network_interfaces) | Read network interfaces | Read OS network interfaces and compare with Editor-reported IPs. |
-| `broadcast` | [`broadcast_get_broadcast_log`](#broadcast_get_broadcast_log) | Read broadcast log | Read the extension-local broadcast log. |
-| `broadcast` | [`broadcast_listen_broadcast`](#broadcast_listen_broadcast) | Listen for broadcast | Add a messageType to the extension-local active listener list. |
-| `broadcast` | [`broadcast_stop_listening`](#broadcast_stop_listening) | Stop broadcast listener | Remove a messageType from the extension-local listener list. |
-| `broadcast` | [`broadcast_clear_broadcast_log`](#broadcast_clear_broadcast_log) | Clear broadcast log | Clear the extension-local broadcast log only. |
-| `broadcast` | [`broadcast_get_active_listeners`](#broadcast_get_active_listeners) | Read active listeners | List extension-local broadcast listener types and counts for diagnostics. |
-| `sceneAdvanced` | [`sceneAdvanced_reset_node_property`](#sceneadvanced_reset_node_property) | Reset node property | Reset one node property to Cocos default; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_move_array_element`](#sceneadvanced_move_array_element) | Move array element | Move an item in a node array property such as __comps__; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_remove_array_element`](#sceneadvanced_remove_array_element) | Remove array element | Remove an item from a node array property by index; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_copy_node`](#sceneadvanced_copy_node) | Copy scene nodes | Copy nodes through the Cocos scene clipboard channel. |
-| `sceneAdvanced` | [`sceneAdvanced_paste_node`](#sceneadvanced_paste_node) | Paste scene nodes | Paste copied nodes under a target parent; mutates scene and returns new UUIDs. |
-| `sceneAdvanced` | [`sceneAdvanced_cut_node`](#sceneadvanced_cut_node) | Cut scene nodes | Cut nodes through the Cocos scene channel; clipboard/scene side effects. |
-| `sceneAdvanced` | [`sceneAdvanced_reset_node_transform`](#sceneadvanced_reset_node_transform) | Reset node transform | Reset node transform to Cocos defaults; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_reset_component`](#sceneadvanced_reset_component) | Reset component state | Reset a component by component UUID; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_restore_prefab`](#sceneadvanced_restore_prefab) | Restore prefab instance | Restore a prefab instance through scene/restore-prefab; mutates scene. |
-| `sceneAdvanced` | [`sceneAdvanced_execute_component_method`](#sceneadvanced_execute_component_method) | Invoke component method | Execute an editor-exposed component method; side effects depend on method. |
-| `sceneAdvanced` | [`sceneAdvanced_execute_scene_script`](#sceneadvanced_execute_scene_script) | Run scene script | Execute a scene script method; low-level escape hatch that can mutate scene. |
-| `sceneAdvanced` | [`sceneAdvanced_scene_snapshot`](#sceneadvanced_scene_snapshot) | Create scene snapshot | Create a Cocos scene snapshot for undo/change tracking. |
-| `sceneAdvanced` | [`sceneAdvanced_scene_snapshot_abort`](#sceneadvanced_scene_snapshot_abort) | Abort scene snapshot | Abort the current Cocos scene snapshot. |
-| `sceneAdvanced` | [`sceneAdvanced_begin_undo_recording`](#sceneadvanced_begin_undo_recording) | Begin undo recording | Begin undo recording for a node and return undoId. |
-| `sceneAdvanced` | [`sceneAdvanced_end_undo_recording`](#sceneadvanced_end_undo_recording) | Commit undo recording | Commit a previously started undo recording. |
-| `sceneAdvanced` | [`sceneAdvanced_cancel_undo_recording`](#sceneadvanced_cancel_undo_recording) | Cancel undo recording | Cancel a previously started undo recording. |
-| `sceneAdvanced` | [`sceneAdvanced_soft_reload_scene`](#sceneadvanced_soft_reload_scene) | Reload current scene | Soft reload the current scene; Editor state side effect. |
-| `sceneAdvanced` | [`sceneAdvanced_query_scene_ready`](#sceneadvanced_query_scene_ready) | Check scene readiness | Check whether the scene module reports ready. |
-| `sceneAdvanced` | [`sceneAdvanced_query_scene_dirty`](#sceneadvanced_query_scene_dirty) | Check scene dirty state | Check whether the current scene has unsaved changes. |
-| `sceneAdvanced` | [`sceneAdvanced_query_scene_classes`](#sceneadvanced_query_scene_classes) | List scene classes | List registered scene classes, optionally filtered by base class. |
-| `sceneAdvanced` | [`sceneAdvanced_query_scene_components`](#sceneadvanced_query_scene_components) | List scene components | List available scene component definitions from Cocos. |
-| `sceneAdvanced` | [`sceneAdvanced_query_component_has_script`](#sceneadvanced_query_component_has_script) | Check component script | Check whether a component class has an associated script. |
-| `sceneAdvanced` | [`sceneAdvanced_query_nodes_by_asset_uuid`](#sceneadvanced_query_nodes_by_asset_uuid) | Find nodes by asset | Find current-scene nodes that reference an asset UUID. |
-| `sceneView` | [`sceneView_change_gizmo_tool`](#sceneview_change_gizmo_tool) | Set gizmo tool | Change active scene view gizmo tool; UI side effect only. |
-| `sceneView` | [`sceneView_query_gizmo_tool_name`](#sceneview_query_gizmo_tool_name) | Read gizmo tool | Read active scene view gizmo tool. |
-| `sceneView` | [`sceneView_change_gizmo_pivot`](#sceneview_change_gizmo_pivot) | Set gizmo pivot | Change scene view transform pivot mode; UI side effect only. |
-| `sceneView` | [`sceneView_query_gizmo_pivot`](#sceneview_query_gizmo_pivot) | Read gizmo pivot | Read current scene view pivot mode. |
-| `sceneView` | [`sceneView_query_gizmo_view_mode`](#sceneview_query_gizmo_view_mode) | Read gizmo view mode | Read current scene view/select mode. |
-| `sceneView` | [`sceneView_change_gizmo_coordinate`](#sceneview_change_gizmo_coordinate) | Set gizmo coordinate | Change scene view coordinate system to local/global; UI side effect only. |
-| `sceneView` | [`sceneView_query_gizmo_coordinate`](#sceneview_query_gizmo_coordinate) | Read gizmo coordinate | Read current scene view coordinate system. |
-| `sceneView` | [`sceneView_change_view_mode_2d_3d`](#sceneview_change_view_mode_2d_3d) | Set scene view mode | Switch scene view between 2D and 3D; UI side effect only. |
-| `sceneView` | [`sceneView_query_view_mode_2d_3d`](#sceneview_query_view_mode_2d_3d) | Read scene view mode | Read whether scene view is in 2D or 3D mode. |
-| `sceneView` | [`sceneView_set_grid_visible`](#sceneview_set_grid_visible) | Set grid visibility | Show or hide scene view grid; UI side effect only. |
-| `sceneView` | [`sceneView_query_grid_visible`](#sceneview_query_grid_visible) | Read grid visibility | Read scene view grid visibility. |
-| `sceneView` | [`sceneView_set_icon_gizmo_3d`](#sceneview_set_icon_gizmo_3d) | Set icon gizmo mode | Switch IconGizmo between 3D and 2D mode; UI side effect only. |
-| `sceneView` | [`sceneView_query_icon_gizmo_3d`](#sceneview_query_icon_gizmo_3d) | Read icon gizmo mode | Read current IconGizmo 3D/2D mode. |
-| `sceneView` | [`sceneView_set_icon_gizmo_size`](#sceneview_set_icon_gizmo_size) | Set icon gizmo size | Set IconGizmo display size; UI side effect only. |
-| `sceneView` | [`sceneView_query_icon_gizmo_size`](#sceneview_query_icon_gizmo_size) | Read icon gizmo size | Read current IconGizmo display size. |
-| `sceneView` | [`sceneView_focus_camera_on_nodes`](#sceneview_focus_camera_on_nodes) | Focus camera on nodes | Focus scene view camera on nodes or all nodes; camera UI side effect only. |
-| `sceneView` | [`sceneView_align_camera_with_view`](#sceneview_align_camera_with_view) | Align camera with view | Apply scene view camera transform to selected camera/node; may mutate selection. |
-| `sceneView` | [`sceneView_align_view_with_node`](#sceneview_align_view_with_node) | Align view with node | Align scene view to selected node; camera UI side effect only. |
-| `sceneView` | [`sceneView_get_scene_view_status`](#sceneview_get_scene_view_status) | Read scene view status | Read combined scene view status snapshot. |
-| `sceneView` | [`sceneView_reset_scene_view`](#sceneview_reset_scene_view) | Reset scene view | Reset scene view UI settings to defaults; UI side effects only. |
-| `referenceImage` | [`referenceImage_manage`](#referenceimage_manage) | Manage reference images | Manage scene reference images through the cocos reference-image module. |
-| `assetAdvanced` | [`assetAdvanced_save_asset_meta`](#assetadvanced_save_asset_meta) | Save asset meta | Write serialized meta content for an asset URL/UUID; mutates asset metadata. |
-| `assetAdvanced` | [`assetAdvanced_generate_available_url`](#assetadvanced_generate_available_url) | Generate asset URL | Return a collision-free asset URL derived from the requested URL. |
-| `assetAdvanced` | [`assetAdvanced_query_asset_db_ready`](#assetadvanced_query_asset_db_ready) | Check asset-db readiness | Check whether asset-db reports ready before batch operations. |
-| `assetAdvanced` | [`assetAdvanced_open_asset_external`](#assetadvanced_open_asset_external) | Open asset externally | Open an asset through the editor/OS external handler; does not edit content. |
-| `assetAdvanced` | [`assetAdvanced_batch_import_assets`](#assetadvanced_batch_import_assets) | Import assets in batch | Import files from a disk directory into asset-db; mutates project assets. |
-| `assetAdvanced` | [`assetAdvanced_batch_delete_assets`](#assetadvanced_batch_delete_assets) | Delete assets in batch | Delete multiple asset-db URLs; mutates project assets. |
-| `assetAdvanced` | [`assetAdvanced_validate_asset_references`](#assetadvanced_validate_asset_references) | Validate asset references | Lightly scan assets under a directory for broken asset-info references. |
-| `assetAdvanced` | [`assetAdvanced_get_asset_dependencies`](#assetadvanced_get_asset_dependencies) | Read asset dependencies | Unsupported dependency-analysis placeholder; always reports unsupported. |
-| `assetAdvanced` | [`assetAdvanced_get_unused_assets`](#assetadvanced_get_unused_assets) | Find unused assets | Unsupported unused-asset placeholder; always reports unsupported. |
-| `assetAdvanced` | [`assetAdvanced_compress_textures`](#assetadvanced_compress_textures) | Compress textures | Unsupported texture-compression placeholder; always reports unsupported. |
-| `assetAdvanced` | [`assetAdvanced_export_asset_manifest`](#assetadvanced_export_asset_manifest) | Export asset manifest | Return asset inventory for a directory as json/csv/xml text; does not write a file. |
-| `assetAdvanced` | [`assetAdvanced_get_users`](#assetadvanced_get_users) | Find asset users | Find scenes/prefabs/scripts that reference an asset by UUID. |
-| `validation` | [`validation_validate_json_params`](#validation_validate_json_params) | Validate/repair JSON args | Validate and lightly repair a JSON argument string before calling another tool. |
-| `validation` | [`validation_safe_string_value`](#validation_safe_string_value) | Escape string for JSON | Escape a raw string for safe use inside JSON arguments. |
-| `validation` | [`validation_format_mcp_request`](#validation_format_mcp_request) | Format MCP request | Format a complete MCP tools/call request and curl example. |
-| `inspector` | [`inspector_get_common_types_definition`](#inspector_get_common_types_definition) | Read cocos common types | Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. |
-| `inspector` | [`inspector_get_instance_definition`](#inspector_get_instance_definition) | Read instance TS definition | Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. |
-| `assetMeta` | [`assetMeta_list_interpreters`](#assetmeta_list_interpreters) | List asset interpreters | List the asset importer types this server has specialized interpreters for. |
-| `assetMeta` | [`assetMeta_get_properties`](#assetmeta_get_properties) | Read asset meta properties | Read an asset's meta + sub-meta userData via its importer-specific interpreter. |
-| `assetMeta` | [`assetMeta_set_properties`](#assetmeta_set_properties) | Write asset meta properties | Batch-write asset meta fields. |
-| `animation` | [`animation_check_animation_finished`](#animation_check_animation_finished) | Check animation finished | Check whether a named cc.AnimationState has reached its end time. |
-| `animation` | [`animation_get_animation_state_info`](#animation_get_animation_state_info) | Get animation state info | Get speed and timing info for a named cc.AnimationState. |
-| `animation` | [`animation_list_clips`](#animation_list_clips) | List animation clips | List animation clips registered on a node's cc.Animation component. |
-| `animation` | [`animation_list_animation_states`](#animation_list_animation_states) | List animation states | List cc.AnimationState entries on a node's cc.Animation component. |
-| `animation` | [`animation_play`](#animation_play) | Play animation clip | Play an animation clip on a node's cc.Animation component. |
-| `animation` | [`animation_set_animation_speed`](#animation_set_animation_speed) | Set animation speed | Set speed on a named cc.AnimationState. |
-| `animation` | [`animation_stop`](#animation_stop) | Stop animation | Stop the currently playing animation on a node's cc.Animation component. |
-| `animation` | [`animation_set_clip`](#animation_set_clip) | Configure animation clip | Configure a node's cc.Animation: defaultClip name and/or playOnLoad. |
+| `debug` | [`debug_get_script_diagnostic_context`](#debug_get_script_diagnostic_context) | Read diagnostic context | [specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. |
+| `preferences` | [`preferences_open_preferences_settings`](#preferences_open_preferences_settings) | Open preferences settings | [specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only. |
+| `preferences` | [`preferences_query_preferences_config`](#preferences_query_preferences_config) | Read preferences config | [specialist] Read a Preferences config category/path/type; query before setting values. |
+| `preferences` | [`preferences_set_preferences_config`](#preferences_set_preferences_config) | Set preferences config | [specialist] Write a Preferences config value; mutates Cocos global/local settings. |
+| `preferences` | [`preferences_get_all_preferences`](#preferences_get_all_preferences) | Read all preferences | [specialist] Read common Preferences categories; may not include every extension category. |
+| `preferences` | [`preferences_reset_preferences`](#preferences_reset_preferences) | Reset preferences | [specialist] Reset one Preferences category to defaults; all-category reset is unsupported. |
+| `preferences` | [`preferences_export_preferences`](#preferences_export_preferences) | Export preferences | [specialist] Return readable Preferences as JSON data; does not write a file. |
+| `preferences` | [`preferences_import_preferences`](#preferences_import_preferences) | Import preferences | [specialist] Unsupported Preferences import placeholder; never modifies settings. |
+| `server` | [`server_query_server_ip_list`](#server_query_server_ip_list) | Read server IP list | [specialist] Read IPs reported by the Cocos Editor server. |
+| `server` | [`server_query_sorted_server_ip_list`](#server_query_sorted_server_ip_list) | Read sorted server IPs | [specialist] Read the Editor server IP list in preferred order. |
+| `server` | [`server_query_server_port`](#server_query_server_port) | Read server port | [specialist] Read the current Cocos Editor server port. |
+| `server` | [`server_get_server_status`](#server_get_server_status) | Read server status | [specialist] Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. |
+| `server` | [`server_check_server_connectivity`](#server_check_server_connectivity) | Check server connectivity | [specialist] Probe Editor.Message connectivity with server/query-port and a timeout. |
+| `server` | [`server_get_network_interfaces`](#server_get_network_interfaces) | Read network interfaces | [specialist] Read OS network interfaces and compare with Editor-reported IPs. |
+| `broadcast` | [`broadcast_get_broadcast_log`](#broadcast_get_broadcast_log) | Read broadcast log | [specialist] Read the extension-local broadcast log. |
+| `broadcast` | [`broadcast_listen_broadcast`](#broadcast_listen_broadcast) | Listen for broadcast | [specialist] Add a messageType to the extension-local active listener list. |
+| `broadcast` | [`broadcast_stop_listening`](#broadcast_stop_listening) | Stop broadcast listener | [specialist] Remove a messageType from the extension-local listener list. |
+| `broadcast` | [`broadcast_clear_broadcast_log`](#broadcast_clear_broadcast_log) | Clear broadcast log | [specialist] Clear the extension-local broadcast log only. |
+| `broadcast` | [`broadcast_get_active_listeners`](#broadcast_get_active_listeners) | Read active listeners | [specialist] List extension-local broadcast listener types and counts for diagnostics. |
+| `sceneAdvanced` | [`sceneAdvanced_reset_node_property`](#sceneadvanced_reset_node_property) | Reset node property | [specialist] Reset one node property to Cocos default; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_move_array_element`](#sceneadvanced_move_array_element) | Move array element | [specialist] Move an item in a node array property such as __comps__; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_remove_array_element`](#sceneadvanced_remove_array_element) | Remove array element | [specialist] Remove an item from a node array property by index; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_copy_node`](#sceneadvanced_copy_node) | Copy scene nodes | [specialist] Copy nodes through the Cocos scene clipboard channel. |
+| `sceneAdvanced` | [`sceneAdvanced_paste_node`](#sceneadvanced_paste_node) | Paste scene nodes | [specialist] Paste copied nodes under a target parent; mutates scene and returns new UUIDs. |
+| `sceneAdvanced` | [`sceneAdvanced_cut_node`](#sceneadvanced_cut_node) | Cut scene nodes | [specialist] Cut nodes through the Cocos scene channel; clipboard/scene side effects. |
+| `sceneAdvanced` | [`sceneAdvanced_reset_node_transform`](#sceneadvanced_reset_node_transform) | Reset node transform | [specialist] Reset node transform to Cocos defaults; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_reset_component`](#sceneadvanced_reset_component) | Reset component state | [specialist] Reset a component by component UUID; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_restore_prefab`](#sceneadvanced_restore_prefab) | Restore prefab instance | [specialist] Restore a prefab instance through scene/restore-prefab; mutates scene. |
+| `sceneAdvanced` | [`sceneAdvanced_execute_component_method`](#sceneadvanced_execute_component_method) | Invoke component method | [specialist] Execute an editor-exposed component method; side effects depend on method. |
+| `sceneAdvanced` | [`sceneAdvanced_execute_scene_script`](#sceneadvanced_execute_scene_script) | Run scene script | [specialist] Execute a scene script method; low-level escape hatch that can mutate scene. |
+| `sceneAdvanced` | [`sceneAdvanced_scene_snapshot`](#sceneadvanced_scene_snapshot) | Create scene snapshot | [specialist] Create a Cocos scene snapshot for undo/change tracking. |
+| `sceneAdvanced` | [`sceneAdvanced_scene_snapshot_abort`](#sceneadvanced_scene_snapshot_abort) | Abort scene snapshot | [specialist] Abort the current Cocos scene snapshot. |
+| `sceneAdvanced` | [`sceneAdvanced_begin_undo_recording`](#sceneadvanced_begin_undo_recording) | Begin undo recording | [specialist] Begin undo recording for a node and return undoId. |
+| `sceneAdvanced` | [`sceneAdvanced_end_undo_recording`](#sceneadvanced_end_undo_recording) | Commit undo recording | [specialist] Commit a previously started undo recording. |
+| `sceneAdvanced` | [`sceneAdvanced_cancel_undo_recording`](#sceneadvanced_cancel_undo_recording) | Cancel undo recording | [specialist] Cancel a previously started undo recording. |
+| `sceneAdvanced` | [`sceneAdvanced_soft_reload_scene`](#sceneadvanced_soft_reload_scene) | Reload current scene | [specialist] Soft reload the current scene; Editor state side effect. |
+| `sceneAdvanced` | [`sceneAdvanced_query_scene_ready`](#sceneadvanced_query_scene_ready) | Check scene readiness | [specialist] Check whether the scene module reports ready. |
+| `sceneAdvanced` | [`sceneAdvanced_query_scene_dirty`](#sceneadvanced_query_scene_dirty) | Check scene dirty state | [specialist] Check whether the current scene has unsaved changes. |
+| `sceneAdvanced` | [`sceneAdvanced_query_scene_classes`](#sceneadvanced_query_scene_classes) | List scene classes | [specialist] List registered scene classes, optionally filtered by base class. |
+| `sceneAdvanced` | [`sceneAdvanced_query_scene_components`](#sceneadvanced_query_scene_components) | List scene components | [specialist] List available scene component definitions from Cocos. |
+| `sceneAdvanced` | [`sceneAdvanced_query_component_has_script`](#sceneadvanced_query_component_has_script) | Check component script | [specialist] Check whether a component class has an associated script. |
+| `sceneAdvanced` | [`sceneAdvanced_query_nodes_by_asset_uuid`](#sceneadvanced_query_nodes_by_asset_uuid) | Find nodes by asset | [specialist] Find current-scene nodes that reference an asset UUID. |
+| `sceneView` | [`sceneView_change_gizmo_tool`](#sceneview_change_gizmo_tool) | Set gizmo tool | [specialist] Change active scene view gizmo tool; UI side effect only. |
+| `sceneView` | [`sceneView_query_gizmo_tool_name`](#sceneview_query_gizmo_tool_name) | Read gizmo tool | [specialist] Read active scene view gizmo tool. |
+| `sceneView` | [`sceneView_change_gizmo_pivot`](#sceneview_change_gizmo_pivot) | Set gizmo pivot | [specialist] Change scene view transform pivot mode; UI side effect only. |
+| `sceneView` | [`sceneView_query_gizmo_pivot`](#sceneview_query_gizmo_pivot) | Read gizmo pivot | [specialist] Read current scene view pivot mode. |
+| `sceneView` | [`sceneView_query_gizmo_view_mode`](#sceneview_query_gizmo_view_mode) | Read gizmo view mode | [specialist] Read current scene view/select mode. |
+| `sceneView` | [`sceneView_change_gizmo_coordinate`](#sceneview_change_gizmo_coordinate) | Set gizmo coordinate | [specialist] Change scene view coordinate system to local/global; UI side effect only. |
+| `sceneView` | [`sceneView_query_gizmo_coordinate`](#sceneview_query_gizmo_coordinate) | Read gizmo coordinate | [specialist] Read current scene view coordinate system. |
+| `sceneView` | [`sceneView_change_view_mode_2d_3d`](#sceneview_change_view_mode_2d_3d) | Set scene view mode | [specialist] Switch scene view between 2D and 3D; UI side effect only. |
+| `sceneView` | [`sceneView_query_view_mode_2d_3d`](#sceneview_query_view_mode_2d_3d) | Read scene view mode | [specialist] Read whether scene view is in 2D or 3D mode. |
+| `sceneView` | [`sceneView_set_grid_visible`](#sceneview_set_grid_visible) | Set grid visibility | [specialist] Show or hide scene view grid; UI side effect only. |
+| `sceneView` | [`sceneView_query_grid_visible`](#sceneview_query_grid_visible) | Read grid visibility | [specialist] Read scene view grid visibility. |
+| `sceneView` | [`sceneView_set_icon_gizmo_3d`](#sceneview_set_icon_gizmo_3d) | Set icon gizmo mode | [specialist] Switch IconGizmo between 3D and 2D mode; UI side effect only. |
+| `sceneView` | [`sceneView_query_icon_gizmo_3d`](#sceneview_query_icon_gizmo_3d) | Read icon gizmo mode | [specialist] Read current IconGizmo 3D/2D mode. |
+| `sceneView` | [`sceneView_set_icon_gizmo_size`](#sceneview_set_icon_gizmo_size) | Set icon gizmo size | [specialist] Set IconGizmo display size; UI side effect only. |
+| `sceneView` | [`sceneView_query_icon_gizmo_size`](#sceneview_query_icon_gizmo_size) | Read icon gizmo size | [specialist] Read current IconGizmo display size. |
+| `sceneView` | [`sceneView_focus_camera_on_nodes`](#sceneview_focus_camera_on_nodes) | Focus camera on nodes | [specialist] Focus scene view camera on nodes or all nodes; camera UI side effect only. |
+| `sceneView` | [`sceneView_align_camera_with_view`](#sceneview_align_camera_with_view) | Align camera with view | [specialist] Apply scene view camera transform to selected camera/node; may mutate selection. |
+| `sceneView` | [`sceneView_align_view_with_node`](#sceneview_align_view_with_node) | Align view with node | [specialist] Align scene view to selected node; camera UI side effect only. |
+| `sceneView` | [`sceneView_get_scene_view_status`](#sceneview_get_scene_view_status) | Read scene view status | [specialist] Read combined scene view status snapshot. |
+| `sceneView` | [`sceneView_reset_scene_view`](#sceneview_reset_scene_view) | Reset scene view | [specialist] Reset scene view UI settings to defaults; UI side effects only. |
+| `referenceImage` | [`referenceImage_manage`](#referenceimage_manage) | Manage reference images | [specialist] Manage scene reference images through the cocos reference-image module. |
+| `assetAdvanced` | [`assetAdvanced_save_asset_meta`](#assetadvanced_save_asset_meta) | Save asset meta | [specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata. |
+| `assetAdvanced` | [`assetAdvanced_generate_available_url`](#assetadvanced_generate_available_url) | Generate asset URL | [specialist] Return a collision-free asset URL derived from the requested URL. |
+| `assetAdvanced` | [`assetAdvanced_query_asset_db_ready`](#assetadvanced_query_asset_db_ready) | Check asset-db readiness | [specialist] Check whether asset-db reports ready before batch operations. |
+| `assetAdvanced` | [`assetAdvanced_open_asset_external`](#assetadvanced_open_asset_external) | Open asset externally | [specialist] Open an asset through the editor/OS external handler; does not edit content. |
+| `assetAdvanced` | [`assetAdvanced_batch_import_assets`](#assetadvanced_batch_import_assets) | Import assets in batch | [specialist] Import files from a disk directory into asset-db; mutates project assets. |
+| `assetAdvanced` | [`assetAdvanced_batch_delete_assets`](#assetadvanced_batch_delete_assets) | Delete assets in batch | [specialist] Delete multiple asset-db URLs; mutates project assets. |
+| `assetAdvanced` | [`assetAdvanced_validate_asset_references`](#assetadvanced_validate_asset_references) | Validate asset references | [specialist] Lightly scan assets under a directory for broken asset-info references. |
+| `assetAdvanced` | [`assetAdvanced_get_asset_dependencies`](#assetadvanced_get_asset_dependencies) | Read asset dependencies | [specialist] Unsupported dependency-analysis placeholder; always reports unsupported. |
+| `assetAdvanced` | [`assetAdvanced_get_unused_assets`](#assetadvanced_get_unused_assets) | Find unused assets | [specialist] Unsupported unused-asset placeholder; always reports unsupported. |
+| `assetAdvanced` | [`assetAdvanced_compress_textures`](#assetadvanced_compress_textures) | Compress textures | [specialist] Unsupported texture-compression placeholder; always reports unsupported. |
+| `assetAdvanced` | [`assetAdvanced_export_asset_manifest`](#assetadvanced_export_asset_manifest) | Export asset manifest | [specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file. |
+| `assetAdvanced` | [`assetAdvanced_get_users`](#assetadvanced_get_users) | Find asset users | [specialist] Find scenes/prefabs/scripts that reference an asset by UUID. |
+| `validation` | [`validation_validate_json_params`](#validation_validate_json_params) | Validate/repair JSON args | [specialist] Validate and lightly repair a JSON argument string before calling another tool. |
+| `validation` | [`validation_safe_string_value`](#validation_safe_string_value) | Escape string for JSON | [specialist] Escape a raw string for safe use inside JSON arguments. |
+| `validation` | [`validation_format_mcp_request`](#validation_format_mcp_request) | Format MCP request | [specialist] Format a complete MCP tools/call request and curl example. |
+| `inspector` | [`inspector_get_common_types_definition`](#inspector_get_common_types_definition) | Read cocos common types | [specialist] Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. |
+| `inspector` | [`inspector_get_instance_definition`](#inspector_get_instance_definition) | Read instance TS definition | [specialist] Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. |
+| `assetMeta` | [`assetMeta_list_interpreters`](#assetmeta_list_interpreters) | List asset interpreters | [specialist] List the asset importer types this server has specialized interpreters for. |
+| `assetMeta` | [`assetMeta_get_properties`](#assetmeta_get_properties) | Read asset meta properties | [specialist] Read an asset's meta + sub-meta userData via its importer-specific interpreter. |
+| `assetMeta` | [`assetMeta_set_properties`](#assetmeta_set_properties) | Write asset meta properties | [specialist] Batch-write asset meta fields. |
+| `animation` | [`animation_check_animation_finished`](#animation_check_animation_finished) | Check animation finished | [specialist] Check whether a named cc.AnimationState has reached its end time. |
+| `animation` | [`animation_get_animation_state_info`](#animation_get_animation_state_info) | Get animation state info | [specialist] Get speed and timing info for a named cc.AnimationState. |
+| `animation` | [`animation_list_clips`](#animation_list_clips) | List animation clips | [specialist] List animation clips registered on a node's cc.Animation component. |
+| `animation` | [`animation_list_animation_states`](#animation_list_animation_states) | List animation states | [specialist] List cc.AnimationState entries on a node's cc.Animation component. |
+| `animation` | [`animation_play`](#animation_play) | Play animation clip | [specialist] Play an animation clip on a node's cc.Animation component. |
+| `animation` | [`animation_set_animation_speed`](#animation_set_animation_speed) | Set animation speed | [specialist] Set speed on a named cc.AnimationState. |
+| `animation` | [`animation_stop`](#animation_stop) | Stop animation | [specialist] Stop the currently playing animation on a node's cc.Animation component. |
+| `animation` | [`animation_set_clip`](#animation_set_clip) | Configure animation clip | [specialist] Configure a node's cc.Animation: defaultClip name and/or playOnLoad. |
 | `fileEditor` | [`fileEditor_insert_text`](#fileeditor_insert_text) | Insert text at line | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
 | `fileEditor` | [`fileEditor_delete_lines`](#fileeditor_delete_lines) | Delete line range | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
 | `fileEditor` | [`fileEditor_replace_text`](#fileeditor_replace_text) | Replace text in file | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
@@ -252,9 +252,9 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 <details>
 <summary><code>scene_get_current_scene</code> — Read current scene</summary>
 
-_Read the currently open scene root summary (name/uuid/type/active/nodeCount)._
+_[specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount)._
 
-Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.
+[specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.
 
 **參數**：無
 
@@ -265,9 +265,9 @@ Read the currently open scene root summary (name/uuid/type/active/nodeCount). No
 <details>
 <summary><code>scene_get_scene_list</code> — List scene assets</summary>
 
-_List .scene assets under db://assets with name/path/uuid._
+_[specialist] List .scene assets under db://assets with name/path/uuid._
 
-List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.
+[specialist] List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.
 
 **參數**：無
 
@@ -278,9 +278,9 @@ List .scene assets under db://assets with name/path/uuid. Does not open scenes o
 <details>
 <summary><code>scene_open_scene</code> — Open scene by path</summary>
 
-_Open a scene by db:// path._
+_[specialist] Open a scene by db:// path._
 
-Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.
+[specialist] Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -293,9 +293,9 @@ Open a scene by db:// path. Switches the active Editor scene; save current edits
 <details>
 <summary><code>scene_save_scene</code> — Save current scene</summary>
 
-_Save the currently open scene back to its scene asset._
+_[specialist] Save the currently open scene back to its scene asset._
 
-Save the currently open scene back to its scene asset. Mutates the project file on disk.
+[specialist] Save the currently open scene back to its scene asset. Mutates the project file on disk.
 
 **參數**：無
 
@@ -306,9 +306,9 @@ Save the currently open scene back to its scene asset. Mutates the project file 
 <details>
 <summary><code>scene_create_scene</code> — Create scene asset</summary>
 
-_Create a new .scene asset._
+_[specialist] Create a new .scene asset._
 
-Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.
+[specialist] Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -323,9 +323,9 @@ Create a new .scene asset. Mutates asset-db; non-empty templates also open the n
 <details>
 <summary><code>scene_save_scene_as</code> — Copy scene asset</summary>
 
-_Copy the currently open scene to a new .scene asset._
+_[specialist] Copy the currently open scene to a new .scene asset._
 
-Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.
+[specialist] Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -340,9 +340,9 @@ Copy the currently open scene to a new .scene asset. Saves current scene first; 
 <details>
 <summary><code>scene_close_scene</code> — Close current scene</summary>
 
-_Close the current scene._
+_[specialist] Close the current scene._
 
-Close the current scene. Editor state side effect; save first if unsaved changes matter.
+[specialist] Close the current scene. Editor state side effect; save first if unsaved changes matter.
 
 **參數**：無
 
@@ -353,9 +353,9 @@ Close the current scene. Editor state side effect; save first if unsaved changes
 <details>
 <summary><code>scene_get_scene_hierarchy</code> — Read scene hierarchy</summary>
 
-_Read the complete current scene node hierarchy._
+_[specialist] Read the complete current scene node hierarchy._
 
-Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.
+[specialist] Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -378,9 +378,9 @@ Read the complete current scene node hierarchy. No mutation; use for UUID/path l
 <details>
 <summary><code>node_create_node</code> — Create scene node</summary>
 
-_Create a node in the current scene._
+_[specialist] Create a node in the current scene._
 
-Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.
+[specialist] Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -403,9 +403,9 @@ Create a node in the current scene. Supports empty, component, or prefab/asset i
 <details>
 <summary><code>node_get_node_info</code> — Read node info</summary>
 
-_Read one node by UUID, including transform, children, and component summary._
+_[specialist] Read one node by UUID, including transform, children, and component summary._
 
-Read one node by UUID, including transform, children, and component summary. No mutation.
+[specialist] Read one node by UUID, including transform, children, and component summary. No mutation.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -418,9 +418,9 @@ Read one node by UUID, including transform, children, and component summary. No 
 <details>
 <summary><code>node_find_nodes</code> — Find nodes by pattern</summary>
 
-_Search current-scene nodes by name pattern and return multiple matches._
+_[specialist] Search current-scene nodes by name pattern and return multiple matches._
 
-Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.
+[specialist] Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -434,9 +434,9 @@ Search current-scene nodes by name pattern and return multiple matches. No mutat
 <details>
 <summary><code>node_find_node_by_name</code> — Find node by name</summary>
 
-_Find the first node with an exact name._
+_[specialist] Find the first node with an exact name._
 
-Find the first node with an exact name. No mutation; only safe when the name is unique enough.
+[specialist] Find the first node with an exact name. No mutation; only safe when the name is unique enough.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -449,9 +449,9 @@ Find the first node with an exact name. No mutation; only safe when the name is 
 <details>
 <summary><code>node_get_all_nodes</code> — List all nodes</summary>
 
-_List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid._
+_[specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid._
 
-List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.
+[specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.
 
 **參數**：無
 
@@ -462,9 +462,9 @@ List all current-scene nodes with name/uuid/type/path; primary source for nodeUu
 <details>
 <summary><code>node_set_node_property</code> — Set node property</summary>
 
-_Set a node property path._
+_[specialist] Set a node property path._
 
-Set a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.
+[specialist] Set a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -481,9 +481,9 @@ Set a node property path. Mutates scene; use for active/name/layer. Prefer set_n
 <details>
 <summary><code>node_set_node_transform</code> — Set node transform</summary>
 
-_Set node position, rotation, or scale with 2D/3D normalization._
+_[specialist] Set node position, rotation, or scale with 2D/3D normalization._
 
-Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.
+[specialist] Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -501,9 +501,9 @@ Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. A
 <details>
 <summary><code>node_delete_node</code> — Delete scene node</summary>
 
-_Delete a node from the current scene._
+_[specialist] Delete a node from the current scene._
 
-Delete a node from the current scene. Mutates scene and removes children; verify UUID first.
+[specialist] Delete a node from the current scene. Mutates scene and removes children; verify UUID first.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -516,9 +516,9 @@ Delete a node from the current scene. Mutates scene and removes children; verify
 <details>
 <summary><code>node_move_node</code> — Reparent scene node</summary>
 
-_Reparent a node under a new parent._
+_[specialist] Reparent a node under a new parent._
 
-Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.
+[specialist] Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -533,9 +533,9 @@ Reparent a node under a new parent. Mutates scene; current implementation does n
 <details>
 <summary><code>node_duplicate_node</code> — Duplicate scene node</summary>
 
-_Duplicate a node and return the new UUID._
+_[specialist] Duplicate a node and return the new UUID._
 
-Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.
+[specialist] Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -549,9 +549,9 @@ Duplicate a node and return the new UUID. Mutates scene; child inclusion follows
 <details>
 <summary><code>node_detect_node_type</code> — Detect node type</summary>
 
-_Heuristically classify a node as 2D or 3D from components/transform._
+_[specialist] Heuristically classify a node as 2D or 3D from components/transform._
 
-Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.
+[specialist] Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -564,9 +564,9 @@ Heuristically classify a node as 2D or 3D from components/transform. No mutation
 <details>
 <summary><code>node_set_node_properties</code> — Set node properties</summary>
 
-_Batch-set multiple properties on the same node in one tool call._
+_[specialist] Batch-set multiple properties on the same node in one tool call._
 
-Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.
+[specialist] Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -592,9 +592,9 @@ Batch-set multiple properties on the same node in one tool call. Mutates scene; 
 <details>
 <summary><code>component_add_component</code> — Add node component</summary>
 
-_Add a component to a node._
+_[specialist] Add a component to a node._
 
-Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.
+[specialist] Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -610,9 +610,9 @@ Add a component to a node. Mutates scene; verify the component type or script cl
 <details>
 <summary><code>component_remove_component</code> — Remove node component</summary>
 
-_Remove a component from a node._
+_[specialist] Remove a component from a node._
 
-Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.
+[specialist] Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -626,9 +626,9 @@ Remove a component from a node. Mutates scene; componentType must be the cid/typ
 <details>
 <summary><code>component_get_components</code> — List node components</summary>
 
-_List all components on a node._
+_[specialist] List all components on a node._
 
-List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.
+[specialist] List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -641,9 +641,9 @@ List all components on a node. Includes type/cid and basic properties; use befor
 <details>
 <summary><code>component_get_component_info</code> — Read component info</summary>
 
-_Read detailed data for one component on a node._
+_[specialist] Read detailed data for one component on a node._
 
-Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.
+[specialist] Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -657,9 +657,9 @@ Read detailed data for one component on a node. No mutation; use to inspect prop
 <details>
 <summary><code>component_set_component_property</code> — Set component property</summary>
 
-_Set one property on a node component._
+_[specialist] Set one property on a node component._
 
-Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.
+[specialist] Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -679,9 +679,9 @@ Set one property on a node component. Supports built-in UI and custom script com
 <details>
 <summary><code>component_attach_script</code> — Attach script component</summary>
 
-_Attach a script asset as a component to a node._
+_[specialist] Attach a script asset as a component to a node._
 
-Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.
+[specialist] Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -695,9 +695,9 @@ Attach a script asset as a component to a node. Mutates scene; use get_component
 <details>
 <summary><code>component_get_available_components</code> — List available components</summary>
 
-_List curated built-in component types by category._
+_[specialist] List curated built-in component types by category._
 
-List curated built-in component types by category. No scene query; custom project scripts are not discovered here.
+[specialist] List curated built-in component types by category. No scene query; custom project scripts are not discovered here.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -710,9 +710,9 @@ List curated built-in component types by category. No scene query; custom projec
 <details>
 <summary><code>component_add_event_handler</code> — Add event handler</summary>
 
-_Append a cc.EventHandler to a component event array._
+_[specialist] Append a cc.EventHandler to a component event array._
 
-Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.
+[specialist] Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -731,9 +731,9 @@ Append a cc.EventHandler to a component event array. Nudges the editor model for
 <details>
 <summary><code>component_remove_event_handler</code> — Remove event handler</summary>
 
-_Remove EventHandler entries from a component event array._
+_[specialist] Remove EventHandler entries from a component event array._
 
-Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.
+[specialist] Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -751,9 +751,9 @@ Remove EventHandler entries from a component event array. Nudges the editor mode
 <details>
 <summary><code>component_list_event_handlers</code> — List event handlers</summary>
 
-_List EventHandler entries on a component event array._
+_[specialist] List EventHandler entries on a component event array._
 
-List EventHandler entries on a component event array. No mutation; use before remove_event_handler.
+[specialist] List EventHandler entries on a component event array. No mutation; use before remove_event_handler.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -768,9 +768,9 @@ List EventHandler entries on a component event array. No mutation; use before re
 <details>
 <summary><code>component_set_component_properties</code> — Set component properties</summary>
 
-_Batch-set multiple properties on the same component in one tool call._
+_[specialist] Batch-set multiple properties on the same component in one tool call._
 
-Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.
+[specialist] Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -797,9 +797,9 @@ Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data�
 <details>
 <summary><code>prefab_get_prefab_list</code> — List prefab assets</summary>
 
-_List .prefab assets under a folder with name/path/uuid._
+_[specialist] List .prefab assets under a folder with name/path/uuid._
 
-List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.
+[specialist] List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -812,9 +812,9 @@ List .prefab assets under a folder with name/path/uuid. No scene or asset mutati
 <details>
 <summary><code>prefab_load_prefab</code> — Read prefab metadata</summary>
 
-_Read prefab asset metadata only._
+_[specialist] Read prefab asset metadata only._
 
-Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or create_node assetUuid/assetPath to add one to the scene.
+[specialist] Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or create_node assetUuid/assetPath to add one to the scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -827,9 +827,9 @@ Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or
 <details>
 <summary><code>prefab_instantiate_prefab</code> — Instantiate prefab</summary>
 
-_Instantiate a prefab into the current scene; mutates scene and preserves prefab link._
+_[specialist] Instantiate a prefab into the current scene; mutates scene and preserves prefab link._
 
-Instantiate a prefab into the current scene; mutates scene and preserves prefab link.
+[specialist] Instantiate a prefab into the current scene; mutates scene and preserves prefab link.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -844,9 +844,9 @@ Instantiate a prefab into the current scene; mutates scene and preserves prefab 
 <details>
 <summary><code>prefab_create_prefab</code> — Create prefab asset</summary>
 
-_Create a prefab asset from a scene node via cce.Prefab.createPrefab facade._
+_[specialist] Create a prefab asset from a scene node via cce.Prefab.createPrefab facade._
 
-Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.
+[specialist] Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -861,9 +861,9 @@ Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.
 <details>
 <summary><code>prefab_update_prefab</code> — Apply prefab edits</summary>
 
-_Apply prefab instance edits back to its linked prefab asset; prefabPath is context only._
+_[specialist] Apply prefab instance edits back to its linked prefab asset; prefabPath is context only._
 
-Apply prefab instance edits back to its linked prefab asset; prefabPath is context only.
+[specialist] Apply prefab instance edits back to its linked prefab asset; prefabPath is context only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -877,9 +877,9 @@ Apply prefab instance edits back to its linked prefab asset; prefabPath is conte
 <details>
 <summary><code>prefab_revert_prefab</code> — Revert prefab instance</summary>
 
-_Restore a prefab instance from its linked asset; discards unapplied overrides._
+_[specialist] Restore a prefab instance from its linked asset; discards unapplied overrides._
 
-Restore a prefab instance from its linked asset; discards unapplied overrides.
+[specialist] Restore a prefab instance from its linked asset; discards unapplied overrides.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -892,9 +892,9 @@ Restore a prefab instance from its linked asset; discards unapplied overrides.
 <details>
 <summary><code>prefab_get_prefab_info</code> — Read prefab info</summary>
 
-_Read prefab meta/dependency summary before apply/revert._
+_[specialist] Read prefab meta/dependency summary before apply/revert._
 
-Read prefab meta/dependency summary before apply/revert.
+[specialist] Read prefab meta/dependency summary before apply/revert.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -907,9 +907,9 @@ Read prefab meta/dependency summary before apply/revert.
 <details>
 <summary><code>prefab_validate_prefab</code> — Validate prefab asset</summary>
 
-_Run basic prefab JSON structural checks; not byte-level Cocos equivalence._
+_[specialist] Run basic prefab JSON structural checks; not byte-level Cocos equivalence._
 
-Run basic prefab JSON structural checks; not byte-level Cocos equivalence.
+[specialist] Run basic prefab JSON structural checks; not byte-level Cocos equivalence.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -922,9 +922,9 @@ Run basic prefab JSON structural checks; not byte-level Cocos equivalence.
 <details>
 <summary><code>prefab_restore_prefab_node</code> — Restore prefab node</summary>
 
-_Restore a prefab instance through scene/restore-prefab; assetUuid is context only._
+_[specialist] Restore a prefab instance through scene/restore-prefab; assetUuid is context only._
 
-Restore a prefab instance through scene/restore-prefab; assetUuid is context only.
+[specialist] Restore a prefab instance through scene/restore-prefab; assetUuid is context only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -938,9 +938,9 @@ Restore a prefab instance through scene/restore-prefab; assetUuid is context onl
 <details>
 <summary><code>prefab_set_link</code> — Set prefab link</summary>
 
-_Attach or detach a prefab link on a node._
+_[specialist] Attach or detach a prefab link on a node._
 
-Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.
+[specialist] Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -956,9 +956,9 @@ Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.link
 <details>
 <summary><code>prefab_get_prefab_data</code> — Read prefab data</summary>
 
-_Read facade prefab dump for a prefab instance node._
+_[specialist] Read facade prefab dump for a prefab instance node._
 
-Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.
+[specialist] Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -981,9 +981,9 @@ Read facade prefab dump for a prefab instance node. No mutation; useful for insp
 <details>
 <summary><code>project_run_project</code> — Open preview fallback</summary>
 
-_Open Build panel as preview fallback; does not launch preview automatically._
+_[specialist] Open Build panel as preview fallback; does not launch preview automatically._
 
-Open Build panel as preview fallback; does not launch preview automatically.
+[specialist] Open Build panel as preview fallback; does not launch preview automatically.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -996,9 +996,9 @@ Open Build panel as preview fallback; does not launch preview automatically.
 <details>
 <summary><code>project_build_project</code> — Open build fallback</summary>
 
-_Open Build panel for the requested platform; does not start the build._
+_[specialist] Open Build panel for the requested platform; does not start the build._
 
-Open Build panel for the requested platform; does not start the build.
+[specialist] Open Build panel for the requested platform; does not start the build.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1012,9 +1012,9 @@ Open Build panel for the requested platform; does not start the build.
 <details>
 <summary><code>project_get_project_info</code> — Read project info</summary>
 
-_Read project name/path/uuid/version/Cocos version and config._
+_[specialist] Read project name/path/uuid/version/Cocos version and config._
 
-Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.
+[specialist] Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.
 
 **參數**：無
 
@@ -1025,9 +1025,9 @@ Read project name/path/uuid/version/Cocos version and config. Also exposed as re
 <details>
 <summary><code>project_get_project_settings</code> — Read project settings</summary>
 
-_Read one project settings category via project/query-config._
+_[specialist] Read one project settings category via project/query-config._
 
-Read one project settings category via project/query-config.
+[specialist] Read one project settings category via project/query-config.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1040,9 +1040,9 @@ Read one project settings category via project/query-config.
 <details>
 <summary><code>project_refresh_assets</code> — Refresh asset folder</summary>
 
-_Refresh asset-db for a folder; affects Editor asset state, not file content._
+_[specialist] Refresh asset-db for a folder; affects Editor asset state, not file content._
 
-Refresh asset-db for a folder; affects Editor asset state, not file content.
+[specialist] Refresh asset-db for a folder; affects Editor asset state, not file content.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1055,9 +1055,9 @@ Refresh asset-db for a folder; affects Editor asset state, not file content.
 <details>
 <summary><code>project_import_asset</code> — Import asset file</summary>
 
-_Import one disk file into asset-db; mutates project assets._
+_[specialist] Import one disk file into asset-db; mutates project assets._
 
-Import one disk file into asset-db; mutates project assets.
+[specialist] Import one disk file into asset-db; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1071,9 +1071,9 @@ Import one disk file into asset-db; mutates project assets.
 <details>
 <summary><code>project_get_asset_info</code> — Read asset info</summary>
 
-_Read basic metadata for one db:// asset path._
+_[specialist] Read basic metadata for one db:// asset path._
 
-Read basic metadata for one db:// asset path.
+[specialist] Read basic metadata for one db:// asset path.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1086,9 +1086,9 @@ Read basic metadata for one db:// asset path.
 <details>
 <summary><code>project_get_assets</code> — List project assets</summary>
 
-_List assets under a folder using type-specific filename patterns._
+_[specialist] List assets under a folder using type-specific filename patterns._
 
-List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.
+[specialist] List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1102,9 +1102,9 @@ List assets under a folder using type-specific filename patterns. Also exposed a
 <details>
 <summary><code>project_get_build_settings</code> — Read build settings</summary>
 
-_Report builder readiness and MCP build limitations._
+_[specialist] Report builder readiness and MCP build limitations._
 
-Report builder readiness and MCP build limitations.
+[specialist] Report builder readiness and MCP build limitations.
 
 **參數**：無
 
@@ -1115,9 +1115,9 @@ Report builder readiness and MCP build limitations.
 <details>
 <summary><code>project_open_build_panel</code> — Open build panel</summary>
 
-_Open the Cocos Build panel; does not start a build._
+_[specialist] Open the Cocos Build panel; does not start a build._
 
-Open the Cocos Build panel; does not start a build.
+[specialist] Open the Cocos Build panel; does not start a build.
 
 **參數**：無
 
@@ -1128,9 +1128,9 @@ Open the Cocos Build panel; does not start a build.
 <details>
 <summary><code>project_check_builder_status</code> — Check builder status</summary>
 
-_Check whether the builder worker is ready._
+_[specialist] Check whether the builder worker is ready._
 
-Check whether the builder worker is ready.
+[specialist] Check whether the builder worker is ready.
 
 **參數**：無
 
@@ -1141,9 +1141,9 @@ Check whether the builder worker is ready.
 <details>
 <summary><code>project_start_preview_server</code> — Start preview server</summary>
 
-_Unsupported preview-server placeholder; use Editor UI._
+_[specialist] Unsupported preview-server placeholder; use Editor UI._
 
-Unsupported preview-server placeholder; use Editor UI.
+[specialist] Unsupported preview-server placeholder; use Editor UI.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1156,9 +1156,9 @@ Unsupported preview-server placeholder; use Editor UI.
 <details>
 <summary><code>project_stop_preview_server</code> — Stop preview server</summary>
 
-_Unsupported preview-server placeholder; use Editor UI._
+_[specialist] Unsupported preview-server placeholder; use Editor UI._
 
-Unsupported preview-server placeholder; use Editor UI.
+[specialist] Unsupported preview-server placeholder; use Editor UI.
 
 **參數**：無
 
@@ -1169,9 +1169,9 @@ Unsupported preview-server placeholder; use Editor UI.
 <details>
 <summary><code>project_create_asset</code> — Create asset</summary>
 
-_Create an asset file or folder through asset-db; null content creates folder._
+_[specialist] Create an asset file or folder through asset-db; null content creates folder._
 
-Create an asset file or folder through asset-db; null content creates folder.
+[specialist] Create an asset file or folder through asset-db; null content creates folder.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1186,9 +1186,9 @@ Create an asset file or folder through asset-db; null content creates folder.
 <details>
 <summary><code>project_copy_asset</code> — Copy asset</summary>
 
-_Copy an asset through asset-db; mutates project assets._
+_[specialist] Copy an asset through asset-db; mutates project assets._
 
-Copy an asset through asset-db; mutates project assets.
+[specialist] Copy an asset through asset-db; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1203,9 +1203,9 @@ Copy an asset through asset-db; mutates project assets.
 <details>
 <summary><code>project_move_asset</code> — Move asset</summary>
 
-_Move or rename an asset through asset-db; mutates project assets._
+_[specialist] Move or rename an asset through asset-db; mutates project assets._
 
-Move or rename an asset through asset-db; mutates project assets.
+[specialist] Move or rename an asset through asset-db; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1220,9 +1220,9 @@ Move or rename an asset through asset-db; mutates project assets.
 <details>
 <summary><code>project_delete_asset</code> — Delete asset</summary>
 
-_Delete one asset-db URL; mutates project assets._
+_[specialist] Delete one asset-db URL; mutates project assets._
 
-Delete one asset-db URL; mutates project assets.
+[specialist] Delete one asset-db URL; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1235,9 +1235,9 @@ Delete one asset-db URL; mutates project assets.
 <details>
 <summary><code>project_save_asset</code> — Save asset</summary>
 
-_Write serialized content to an asset URL; use only for known-good formats._
+_[specialist] Write serialized content to an asset URL; use only for known-good formats._
 
-Write serialized content to an asset URL; use only for known-good formats.
+[specialist] Write serialized content to an asset URL; use only for known-good formats.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1251,9 +1251,9 @@ Write serialized content to an asset URL; use only for known-good formats.
 <details>
 <summary><code>project_reimport_asset</code> — Reimport asset</summary>
 
-_Ask asset-db to reimport an asset; updates imported asset state/cache._
+_[specialist] Ask asset-db to reimport an asset; updates imported asset state/cache._
 
-Ask asset-db to reimport an asset; updates imported asset state/cache.
+[specialist] Ask asset-db to reimport an asset; updates imported asset state/cache.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1266,9 +1266,9 @@ Ask asset-db to reimport an asset; updates imported asset state/cache.
 <details>
 <summary><code>project_query_asset_path</code> — Resolve asset path</summary>
 
-_Resolve an asset db:// URL to disk path._
+_[specialist] Resolve an asset db:// URL to disk path._
 
-Resolve an asset db:// URL to disk path.
+[specialist] Resolve an asset db:// URL to disk path.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1281,9 +1281,9 @@ Resolve an asset db:// URL to disk path.
 <details>
 <summary><code>project_query_asset_uuid</code> — Resolve asset UUID</summary>
 
-_Resolve an asset db:// URL to UUID._
+_[specialist] Resolve an asset db:// URL to UUID._
 
-Resolve an asset db:// URL to UUID.
+[specialist] Resolve an asset db:// URL to UUID.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1296,9 +1296,9 @@ Resolve an asset db:// URL to UUID.
 <details>
 <summary><code>project_query_asset_url</code> — Resolve asset URL</summary>
 
-_Resolve an asset UUID to db:// URL._
+_[specialist] Resolve an asset UUID to db:// URL._
 
-Resolve an asset UUID to db:// URL.
+[specialist] Resolve an asset UUID to db:// URL.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1311,9 +1311,9 @@ Resolve an asset UUID to db:// URL.
 <details>
 <summary><code>project_find_asset_by_name</code> — Find asset by name</summary>
 
-_Search assets by name with exact/type/folder filters; use to discover UUIDs/paths._
+_[specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths._
 
-Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.
+[specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1330,9 +1330,9 @@ Search assets by name with exact/type/folder filters; use to discover UUIDs/path
 <details>
 <summary><code>project_get_asset_details</code> — Read asset details</summary>
 
-_Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs._
+_[specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs._
 
-Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.
+[specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1356,9 +1356,9 @@ console log、截圖、preview 與系統資訊：取得 / 清空 console、讀 p
 <details>
 <summary><code>debug_clear_console</code> — Clear console</summary>
 
-_Clear the Cocos Editor Console UI._
+_[specialist] Clear the Cocos Editor Console UI._
 
-Clear the Cocos Editor Console UI. No project side effects.
+[specialist] Clear the Cocos Editor Console UI. No project side effects.
 
 **參數**：無
 
@@ -1400,9 +1400,9 @@ _[compat] Scene-only JavaScript eval._
 <details>
 <summary><code>debug_get_node_tree</code> — Read debug node tree</summary>
 
-_Read a debug node tree from a root or scene root for hierarchy/component inspection._
+_[specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection._
 
-Read a debug node tree from a root or scene root for hierarchy/component inspection.
+[specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1416,9 +1416,9 @@ Read a debug node tree from a root or scene root for hierarchy/component inspect
 <details>
 <summary><code>debug_get_performance_stats</code> — Read performance stats</summary>
 
-_Try to read scene query-performance stats; may return unavailable in edit mode._
+_[specialist] Try to read scene query-performance stats; may return unavailable in edit mode._
 
-Try to read scene query-performance stats; may return unavailable in edit mode.
+[specialist] Try to read scene query-performance stats; may return unavailable in edit mode.
 
 **參數**：無
 
@@ -1429,9 +1429,9 @@ Try to read scene query-performance stats; may return unavailable in edit mode.
 <details>
 <summary><code>debug_validate_scene</code> — Validate current scene</summary>
 
-_Run basic current-scene health checks for missing assets and node-count warnings._
+_[specialist] Run basic current-scene health checks for missing assets and node-count warnings._
 
-Run basic current-scene health checks for missing assets and node-count warnings.
+[specialist] Run basic current-scene health checks for missing assets and node-count warnings.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1445,9 +1445,9 @@ Run basic current-scene health checks for missing assets and node-count warnings
 <details>
 <summary><code>debug_get_editor_info</code> — Read editor info</summary>
 
-_Read Editor/Cocos/project/process information and memory summary._
+_[specialist] Read Editor/Cocos/project/process information and memory summary._
 
-Read Editor/Cocos/project/process information and memory summary.
+[specialist] Read Editor/Cocos/project/process information and memory summary.
 
 **參數**：無
 
@@ -1458,9 +1458,9 @@ Read Editor/Cocos/project/process information and memory summary.
 <details>
 <summary><code>debug_get_project_logs</code> — Read project logs</summary>
 
-_Read temp/logs/project.log tail with optional level/keyword filters._
+_[specialist] Read temp/logs/project.log tail with optional level/keyword filters._
 
-Read temp/logs/project.log tail with optional level/keyword filters.
+[specialist] Read temp/logs/project.log tail with optional level/keyword filters.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1475,9 +1475,9 @@ Read temp/logs/project.log tail with optional level/keyword filters.
 <details>
 <summary><code>debug_get_log_file_info</code> — Read log file info</summary>
 
-_Read temp/logs/project.log path, size, line count, and timestamps._
+_[specialist] Read temp/logs/project.log path, size, line count, and timestamps._
 
-Read temp/logs/project.log path, size, line count, and timestamps.
+[specialist] Read temp/logs/project.log path, size, line count, and timestamps.
 
 **參數**：無
 
@@ -1488,9 +1488,9 @@ Read temp/logs/project.log path, size, line count, and timestamps.
 <details>
 <summary><code>debug_search_project_logs</code> — Search project logs</summary>
 
-_Search temp/logs/project.log for string/regex and return line context._
+_[specialist] Search temp/logs/project.log for string/regex and return line context._
 
-Search temp/logs/project.log for string/regex and return line context.
+[specialist] Search temp/logs/project.log for string/regex and return line context.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1505,9 +1505,9 @@ Search temp/logs/project.log for string/regex and return line context.
 <details>
 <summary><code>debug_screenshot</code> — Capture editor screenshot</summary>
 
-_Capture the focused Cocos Editor window (or a window matched by title) to a PNG._
+_[specialist] Capture the focused Cocos Editor window (or a window matched by title) to a PNG._
 
-Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.
+[specialist] Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1522,9 +1522,9 @@ Capture the focused Cocos Editor window (or a window matched by title) to a PNG.
 <details>
 <summary><code>debug_capture_preview_screenshot</code> — Capture preview screenshot</summary>
 
-_Capture the cocos Preview-in-Editor (PIE) gameview to a PNG._
+_[specialist] Capture the cocos Preview-in-Editor (PIE) gameview to a PNG._
 
-Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user's preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.
+[specialist] Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user's preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1540,9 +1540,9 @@ Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple 
 <details>
 <summary><code>debug_get_preview_mode</code> — Read preview mode</summary>
 
-_Read the cocos preview configuration._
+_[specialist] Read the cocos preview configuration._
 
-Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" \| "window" \| "simulator" \| "embedded" \| "unknown", raw: &lt;full preview config dump&gt; }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.
+[specialist] Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" \| "window" \| "simulator" \| "embedded" \| "unknown", raw: &lt;full preview config dump&gt; }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.
 
 **參數**：無
 
@@ -1569,9 +1569,9 @@ _❌ NOT SUPPORTED on cocos 3.8.7+ (landmine #17)._
 <details>
 <summary><code>debug_batch_screenshot</code> — Capture batch screenshots</summary>
 
-_Capture multiple PNGs of the editor window with optional delays between shots._
+_[specialist] Capture multiple PNGs of the editor window with optional delays between shots._
 
-Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.
+[specialist] Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1586,9 +1586,9 @@ Capture multiple PNGs of the editor window with optional delays between shots. U
 <details>
 <summary><code>debug_wait_compile</code> — Wait for compile</summary>
 
-_Block until cocos finishes its TypeScript compile pass._
+_[specialist] Block until cocos finishes its TypeScript compile pass._
 
-Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.
+[specialist] Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1601,9 +1601,9 @@ Block until cocos finishes its TypeScript compile pass. Tails temp/programming/p
 <details>
 <summary><code>debug_run_script_diagnostics</code> — Run script diagnostics</summary>
 
-_Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics._
+_[specialist] Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics._
 
-Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.
+[specialist] Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1616,9 +1616,9 @@ Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. U
 <details>
 <summary><code>debug_preview_url</code> — Resolve preview URL</summary>
 
-_Resolve the cocos browser-preview URL._
+_[specialist] Resolve the cocos browser-preview URL._
 
-Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.
+[specialist] Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1631,9 +1631,9 @@ Resolve the cocos browser-preview URL. Uses the documented Editor.Message channe
 <details>
 <summary><code>debug_query_devices</code> — List preview devices</summary>
 
-_List preview devices configured in the cocos project._
+_[specialist] List preview devices configured in the cocos project._
 
-List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.
+[specialist] List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.
 
 **參數**：無
 
@@ -1644,9 +1644,9 @@ List preview devices configured in the cocos project. Backed by Editor.Message c
 <details>
 <summary><code>debug_game_command</code> — Send game command</summary>
 
-_Send a runtime command to a connected GameDebugClient._
+_[specialist] Send a runtime command to a connected GameDebugClient._
 
-Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/active/components by name; when present also returns UITransform.contentSize/anchorPoint, Widget alignment flags/offsets, and Layout type/spacing/padding), "state" (dump global game state from the running game client), and "navigate" (switch scene/page by name through the game client's router). Custom command types are forwarded to the client's customCommands map. Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.
+[specialist] Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/active/components by name; when present also returns UITransform.contentSize/anchorPoint, Widget alignment flags/offsets, and Layout type/spacing/padding), "state" (dump global game state from the running game client), and "navigate" (switch scene/page by name through the game client's router). Custom command types are forwarded to the client's customCommands map. Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1661,9 +1661,9 @@ Send a runtime command to a connected GameDebugClient. Works inside a cocos prev
 <details>
 <summary><code>debug_record_start</code> — Start game recording</summary>
 
-_Start recording the running game canvas via the GameDebugClient (browser/PIE preview only)._
+_[specialist] Start recording the running game canvas via the GameDebugClient (browser/PIE preview only)._
 
-Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.
+[specialist] Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1678,9 +1678,9 @@ Start recording the running game canvas via the GameDebugClient (browser/PIE pre
 <details>
 <summary><code>debug_record_stop</code> — Stop game recording</summary>
 
-_Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures._
+_[specialist] Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures._
 
-Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.
+[specialist] Stop the in-progress game canvas recording and persist it under &lt;project&gt;/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1693,9 +1693,9 @@ Stop the in-progress game canvas recording and persist it under &lt;project&gt;/
 <details>
 <summary><code>debug_game_client_status</code> — Read game client status</summary>
 
-_Read GameDebugClient connection status._
+_[specialist] Read GameDebugClient connection status._
 
-Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.
+[specialist] Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.
 
 **參數**：無
 
@@ -1706,9 +1706,9 @@ Read GameDebugClient connection status. Includes connected (polled within 2s), l
 <details>
 <summary><code>debug_check_editor_health</code> — Check editor health</summary>
 
-_Probe whether the cocos editor scene-script renderer is responsive._
+_[specialist] Probe whether the cocos editor scene-script renderer is responsive._
 
-Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.
+[specialist] Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1737,9 +1737,9 @@ _⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16)._
 <details>
 <summary><code>debug_get_script_diagnostic_context</code> — Read diagnostic context</summary>
 
-_Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read._
+_[specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read._
 
-Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.
+[specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1764,9 +1764,9 @@ Read a window of source lines around a diagnostic location so AI can read the of
 <details>
 <summary><code>preferences_open_preferences_settings</code> — Open preferences settings</summary>
 
-_Open Cocos Preferences UI, optionally on a tab; UI side effect only._
+_[specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only._
 
-Open Cocos Preferences UI, optionally on a tab; UI side effect only.
+[specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1780,9 +1780,9 @@ Open Cocos Preferences UI, optionally on a tab; UI side effect only.
 <details>
 <summary><code>preferences_query_preferences_config</code> — Read preferences config</summary>
 
-_Read a Preferences config category/path/type; query before setting values._
+_[specialist] Read a Preferences config category/path/type; query before setting values._
 
-Read a Preferences config category/path/type; query before setting values.
+[specialist] Read a Preferences config category/path/type; query before setting values.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1797,9 +1797,9 @@ Read a Preferences config category/path/type; query before setting values.
 <details>
 <summary><code>preferences_set_preferences_config</code> — Set preferences config</summary>
 
-_Write a Preferences config value; mutates Cocos global/local settings._
+_[specialist] Write a Preferences config value; mutates Cocos global/local settings._
 
-Write a Preferences config value; mutates Cocos global/local settings.
+[specialist] Write a Preferences config value; mutates Cocos global/local settings.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1815,9 +1815,9 @@ Write a Preferences config value; mutates Cocos global/local settings.
 <details>
 <summary><code>preferences_get_all_preferences</code> — Read all preferences</summary>
 
-_Read common Preferences categories; may not include every extension category._
+_[specialist] Read common Preferences categories; may not include every extension category._
 
-Read common Preferences categories; may not include every extension category.
+[specialist] Read common Preferences categories; may not include every extension category.
 
 **參數**：無
 
@@ -1828,9 +1828,9 @@ Read common Preferences categories; may not include every extension category.
 <details>
 <summary><code>preferences_reset_preferences</code> — Reset preferences</summary>
 
-_Reset one Preferences category to defaults; all-category reset is unsupported._
+_[specialist] Reset one Preferences category to defaults; all-category reset is unsupported._
 
-Reset one Preferences category to defaults; all-category reset is unsupported.
+[specialist] Reset one Preferences category to defaults; all-category reset is unsupported.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1844,9 +1844,9 @@ Reset one Preferences category to defaults; all-category reset is unsupported.
 <details>
 <summary><code>preferences_export_preferences</code> — Export preferences</summary>
 
-_Return readable Preferences as JSON data; does not write a file._
+_[specialist] Return readable Preferences as JSON data; does not write a file._
 
-Return readable Preferences as JSON data; does not write a file.
+[specialist] Return readable Preferences as JSON data; does not write a file.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1859,9 +1859,9 @@ Return readable Preferences as JSON data; does not write a file.
 <details>
 <summary><code>preferences_import_preferences</code> — Import preferences</summary>
 
-_Unsupported Preferences import placeholder; never modifies settings._
+_[specialist] Unsupported Preferences import placeholder; never modifies settings._
 
-Unsupported Preferences import placeholder; never modifies settings.
+[specialist] Unsupported Preferences import placeholder; never modifies settings.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1884,9 +1884,9 @@ MCP server 自身的狀態與環境資訊。
 <details>
 <summary><code>server_query_server_ip_list</code> — Read server IP list</summary>
 
-_Read IPs reported by the Cocos Editor server._
+_[specialist] Read IPs reported by the Cocos Editor server._
 
-Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.
+[specialist] Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.
 
 **參數**：無
 
@@ -1897,9 +1897,9 @@ Read IPs reported by the Cocos Editor server. No project side effects; use to bu
 <details>
 <summary><code>server_query_sorted_server_ip_list</code> — Read sorted server IPs</summary>
 
-_Read the Editor server IP list in preferred order._
+_[specialist] Read the Editor server IP list in preferred order._
 
-Read the Editor server IP list in preferred order. No project side effects.
+[specialist] Read the Editor server IP list in preferred order. No project side effects.
 
 **參數**：無
 
@@ -1910,9 +1910,9 @@ Read the Editor server IP list in preferred order. No project side effects.
 <details>
 <summary><code>server_query_server_port</code> — Read server port</summary>
 
-_Read the current Cocos Editor server port._
+_[specialist] Read the current Cocos Editor server port._
 
-Read the current Cocos Editor server port. Does not start or stop any server.
+[specialist] Read the current Cocos Editor server port. Does not start or stop any server.
 
 **參數**：無
 
@@ -1923,9 +1923,9 @@ Read the current Cocos Editor server port. Does not start or stop any server.
 <details>
 <summary><code>server_get_server_status</code> — Read server status</summary>
 
-_Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info._
+_[specialist] Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info._
 
-Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.
+[specialist] Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.
 
 **參數**：無
 
@@ -1936,9 +1936,9 @@ Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runti
 <details>
 <summary><code>server_check_server_connectivity</code> — Check server connectivity</summary>
 
-_Probe Editor.Message connectivity with server/query-port and a timeout._
+_[specialist] Probe Editor.Message connectivity with server/query-port and a timeout._
 
-Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.
+[specialist] Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1951,9 +1951,9 @@ Probe Editor.Message connectivity with server/query-port and a timeout. No proje
 <details>
 <summary><code>server_get_network_interfaces</code> — Read network interfaces</summary>
 
-_Read OS network interfaces and compare with Editor-reported IPs._
+_[specialist] Read OS network interfaces and compare with Editor-reported IPs._
 
-Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.
+[specialist] Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.
 
 **參數**：無
 
@@ -1974,9 +1974,9 @@ Read OS network interfaces and compare with Editor-reported IPs. Diagnostics onl
 <details>
 <summary><code>broadcast_get_broadcast_log</code> — Read broadcast log</summary>
 
-_Read the extension-local broadcast log._
+_[specialist] Read the extension-local broadcast log._
 
-Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.
+[specialist] Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -1990,9 +1990,9 @@ Read the extension-local broadcast log. No project side effects; filter by messa
 <details>
 <summary><code>broadcast_listen_broadcast</code> — Listen for broadcast</summary>
 
-_Add a messageType to the extension-local active listener list._
+_[specialist] Add a messageType to the extension-local active listener list._
 
-Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.
+[specialist] Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2005,9 +2005,9 @@ Add a messageType to the extension-local active listener list. Current path is s
 <details>
 <summary><code>broadcast_stop_listening</code> — Stop broadcast listener</summary>
 
-_Remove a messageType from the extension-local listener list._
+_[specialist] Remove a messageType from the extension-local listener list._
 
-Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.
+[specialist] Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2020,9 +2020,9 @@ Remove a messageType from the extension-local listener list. Does not affect Coc
 <details>
 <summary><code>broadcast_clear_broadcast_log</code> — Clear broadcast log</summary>
 
-_Clear the extension-local broadcast log only._
+_[specialist] Clear the extension-local broadcast log only._
 
-Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.
+[specialist] Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.
 
 **參數**：無
 
@@ -2033,9 +2033,9 @@ Clear the extension-local broadcast log only. Does not modify scene, assets, or 
 <details>
 <summary><code>broadcast_get_active_listeners</code> — Read active listeners</summary>
 
-_List extension-local broadcast listener types and counts for diagnostics._
+_[specialist] List extension-local broadcast listener types and counts for diagnostics._
 
-List extension-local broadcast listener types and counts for diagnostics.
+[specialist] List extension-local broadcast listener types and counts for diagnostics.
 
 **參數**：無
 
@@ -2056,9 +2056,9 @@ List extension-local broadcast listener types and counts for diagnostics.
 <details>
 <summary><code>sceneAdvanced_reset_node_property</code> — Reset node property</summary>
 
-_Reset one node property to Cocos default; mutates scene._
+_[specialist] Reset one node property to Cocos default; mutates scene._
 
-Reset one node property to Cocos default; mutates scene.
+[specialist] Reset one node property to Cocos default; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2072,9 +2072,9 @@ Reset one node property to Cocos default; mutates scene.
 <details>
 <summary><code>sceneAdvanced_move_array_element</code> — Move array element</summary>
 
-_Move an item in a node array property such as __comps__; mutates scene._
+_[specialist] Move an item in a node array property such as __comps__; mutates scene._
 
-Move an item in a node array property such as __comps__; mutates scene.
+[specialist] Move an item in a node array property such as __comps__; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2090,9 +2090,9 @@ Move an item in a node array property such as __comps__; mutates scene.
 <details>
 <summary><code>sceneAdvanced_remove_array_element</code> — Remove array element</summary>
 
-_Remove an item from a node array property by index; mutates scene._
+_[specialist] Remove an item from a node array property by index; mutates scene._
 
-Remove an item from a node array property by index; mutates scene.
+[specialist] Remove an item from a node array property by index; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2107,9 +2107,9 @@ Remove an item from a node array property by index; mutates scene.
 <details>
 <summary><code>sceneAdvanced_copy_node</code> — Copy scene nodes</summary>
 
-_Copy nodes through the Cocos scene clipboard channel._
+_[specialist] Copy nodes through the Cocos scene clipboard channel._
 
-Copy nodes through the Cocos scene clipboard channel.
+[specialist] Copy nodes through the Cocos scene clipboard channel.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2122,9 +2122,9 @@ Copy nodes through the Cocos scene clipboard channel.
 <details>
 <summary><code>sceneAdvanced_paste_node</code> — Paste scene nodes</summary>
 
-_Paste copied nodes under a target parent; mutates scene and returns new UUIDs._
+_[specialist] Paste copied nodes under a target parent; mutates scene and returns new UUIDs._
 
-Paste copied nodes under a target parent; mutates scene and returns new UUIDs.
+[specialist] Paste copied nodes under a target parent; mutates scene and returns new UUIDs.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2139,9 +2139,9 @@ Paste copied nodes under a target parent; mutates scene and returns new UUIDs.
 <details>
 <summary><code>sceneAdvanced_cut_node</code> — Cut scene nodes</summary>
 
-_Cut nodes through the Cocos scene channel; clipboard/scene side effects._
+_[specialist] Cut nodes through the Cocos scene channel; clipboard/scene side effects._
 
-Cut nodes through the Cocos scene channel; clipboard/scene side effects.
+[specialist] Cut nodes through the Cocos scene channel; clipboard/scene side effects.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2154,9 +2154,9 @@ Cut nodes through the Cocos scene channel; clipboard/scene side effects.
 <details>
 <summary><code>sceneAdvanced_reset_node_transform</code> — Reset node transform</summary>
 
-_Reset node transform to Cocos defaults; mutates scene._
+_[specialist] Reset node transform to Cocos defaults; mutates scene._
 
-Reset node transform to Cocos defaults; mutates scene.
+[specialist] Reset node transform to Cocos defaults; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2169,9 +2169,9 @@ Reset node transform to Cocos defaults; mutates scene.
 <details>
 <summary><code>sceneAdvanced_reset_component</code> — Reset component state</summary>
 
-_Reset a component by component UUID; mutates scene._
+_[specialist] Reset a component by component UUID; mutates scene._
 
-Reset a component by component UUID; mutates scene.
+[specialist] Reset a component by component UUID; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2184,9 +2184,9 @@ Reset a component by component UUID; mutates scene.
 <details>
 <summary><code>sceneAdvanced_restore_prefab</code> — Restore prefab instance</summary>
 
-_Restore a prefab instance through scene/restore-prefab; mutates scene._
+_[specialist] Restore a prefab instance through scene/restore-prefab; mutates scene._
 
-Restore a prefab instance through scene/restore-prefab; mutates scene.
+[specialist] Restore a prefab instance through scene/restore-prefab; mutates scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2200,9 +2200,9 @@ Restore a prefab instance through scene/restore-prefab; mutates scene.
 <details>
 <summary><code>sceneAdvanced_execute_component_method</code> — Invoke component method</summary>
 
-_Execute an editor-exposed component method; side effects depend on method._
+_[specialist] Execute an editor-exposed component method; side effects depend on method._
 
-Execute an editor-exposed component method; side effects depend on method.
+[specialist] Execute an editor-exposed component method; side effects depend on method.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2217,9 +2217,9 @@ Execute an editor-exposed component method; side effects depend on method.
 <details>
 <summary><code>sceneAdvanced_execute_scene_script</code> — Run scene script</summary>
 
-_Execute a scene script method; low-level escape hatch that can mutate scene._
+_[specialist] Execute a scene script method; low-level escape hatch that can mutate scene._
 
-Execute a scene script method; low-level escape hatch that can mutate scene.
+[specialist] Execute a scene script method; low-level escape hatch that can mutate scene.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2234,9 +2234,9 @@ Execute a scene script method; low-level escape hatch that can mutate scene.
 <details>
 <summary><code>sceneAdvanced_scene_snapshot</code> — Create scene snapshot</summary>
 
-_Create a Cocos scene snapshot for undo/change tracking._
+_[specialist] Create a Cocos scene snapshot for undo/change tracking._
 
-Create a Cocos scene snapshot for undo/change tracking.
+[specialist] Create a Cocos scene snapshot for undo/change tracking.
 
 **參數**：無
 
@@ -2247,9 +2247,9 @@ Create a Cocos scene snapshot for undo/change tracking.
 <details>
 <summary><code>sceneAdvanced_scene_snapshot_abort</code> — Abort scene snapshot</summary>
 
-_Abort the current Cocos scene snapshot._
+_[specialist] Abort the current Cocos scene snapshot._
 
-Abort the current Cocos scene snapshot.
+[specialist] Abort the current Cocos scene snapshot.
 
 **參數**：無
 
@@ -2260,9 +2260,9 @@ Abort the current Cocos scene snapshot.
 <details>
 <summary><code>sceneAdvanced_begin_undo_recording</code> — Begin undo recording</summary>
 
-_Begin undo recording for a node and return undoId._
+_[specialist] Begin undo recording for a node and return undoId._
 
-Begin undo recording for a node and return undoId.
+[specialist] Begin undo recording for a node and return undoId.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2275,9 +2275,9 @@ Begin undo recording for a node and return undoId.
 <details>
 <summary><code>sceneAdvanced_end_undo_recording</code> — Commit undo recording</summary>
 
-_Commit a previously started undo recording._
+_[specialist] Commit a previously started undo recording._
 
-Commit a previously started undo recording.
+[specialist] Commit a previously started undo recording.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2290,9 +2290,9 @@ Commit a previously started undo recording.
 <details>
 <summary><code>sceneAdvanced_cancel_undo_recording</code> — Cancel undo recording</summary>
 
-_Cancel a previously started undo recording._
+_[specialist] Cancel a previously started undo recording._
 
-Cancel a previously started undo recording.
+[specialist] Cancel a previously started undo recording.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2305,9 +2305,9 @@ Cancel a previously started undo recording.
 <details>
 <summary><code>sceneAdvanced_soft_reload_scene</code> — Reload current scene</summary>
 
-_Soft reload the current scene; Editor state side effect._
+_[specialist] Soft reload the current scene; Editor state side effect._
 
-Soft reload the current scene; Editor state side effect.
+[specialist] Soft reload the current scene; Editor state side effect.
 
 **參數**：無
 
@@ -2318,9 +2318,9 @@ Soft reload the current scene; Editor state side effect.
 <details>
 <summary><code>sceneAdvanced_query_scene_ready</code> — Check scene readiness</summary>
 
-_Check whether the scene module reports ready._
+_[specialist] Check whether the scene module reports ready._
 
-Check whether the scene module reports ready.
+[specialist] Check whether the scene module reports ready.
 
 **參數**：無
 
@@ -2331,9 +2331,9 @@ Check whether the scene module reports ready.
 <details>
 <summary><code>sceneAdvanced_query_scene_dirty</code> — Check scene dirty state</summary>
 
-_Check whether the current scene has unsaved changes._
+_[specialist] Check whether the current scene has unsaved changes._
 
-Check whether the current scene has unsaved changes.
+[specialist] Check whether the current scene has unsaved changes.
 
 **參數**：無
 
@@ -2344,9 +2344,9 @@ Check whether the current scene has unsaved changes.
 <details>
 <summary><code>sceneAdvanced_query_scene_classes</code> — List scene classes</summary>
 
-_List registered scene classes, optionally filtered by base class._
+_[specialist] List registered scene classes, optionally filtered by base class._
 
-List registered scene classes, optionally filtered by base class.
+[specialist] List registered scene classes, optionally filtered by base class.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2359,9 +2359,9 @@ List registered scene classes, optionally filtered by base class.
 <details>
 <summary><code>sceneAdvanced_query_scene_components</code> — List scene components</summary>
 
-_List available scene component definitions from Cocos._
+_[specialist] List available scene component definitions from Cocos._
 
-List available scene component definitions from Cocos.
+[specialist] List available scene component definitions from Cocos.
 
 **參數**：無
 
@@ -2372,9 +2372,9 @@ List available scene component definitions from Cocos.
 <details>
 <summary><code>sceneAdvanced_query_component_has_script</code> — Check component script</summary>
 
-_Check whether a component class has an associated script._
+_[specialist] Check whether a component class has an associated script._
 
-Check whether a component class has an associated script.
+[specialist] Check whether a component class has an associated script.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2387,9 +2387,9 @@ Check whether a component class has an associated script.
 <details>
 <summary><code>sceneAdvanced_query_nodes_by_asset_uuid</code> — Find nodes by asset</summary>
 
-_Find current-scene nodes that reference an asset UUID._
+_[specialist] Find current-scene nodes that reference an asset UUID._
 
-Find current-scene nodes that reference an asset UUID.
+[specialist] Find current-scene nodes that reference an asset UUID.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2412,9 +2412,9 @@ Find current-scene nodes that reference an asset UUID.
 <details>
 <summary><code>sceneView_change_gizmo_tool</code> — Set gizmo tool</summary>
 
-_Change active scene view gizmo tool; UI side effect only._
+_[specialist] Change active scene view gizmo tool; UI side effect only._
 
-Change active scene view gizmo tool; UI side effect only.
+[specialist] Change active scene view gizmo tool; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2427,9 +2427,9 @@ Change active scene view gizmo tool; UI side effect only.
 <details>
 <summary><code>sceneView_query_gizmo_tool_name</code> — Read gizmo tool</summary>
 
-_Read active scene view gizmo tool._
+_[specialist] Read active scene view gizmo tool._
 
-Read active scene view gizmo tool.
+[specialist] Read active scene view gizmo tool.
 
 **參數**：無
 
@@ -2440,9 +2440,9 @@ Read active scene view gizmo tool.
 <details>
 <summary><code>sceneView_change_gizmo_pivot</code> — Set gizmo pivot</summary>
 
-_Change scene view transform pivot mode; UI side effect only._
+_[specialist] Change scene view transform pivot mode; UI side effect only._
 
-Change scene view transform pivot mode; UI side effect only.
+[specialist] Change scene view transform pivot mode; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2455,9 +2455,9 @@ Change scene view transform pivot mode; UI side effect only.
 <details>
 <summary><code>sceneView_query_gizmo_pivot</code> — Read gizmo pivot</summary>
 
-_Read current scene view pivot mode._
+_[specialist] Read current scene view pivot mode._
 
-Read current scene view pivot mode.
+[specialist] Read current scene view pivot mode.
 
 **參數**：無
 
@@ -2468,9 +2468,9 @@ Read current scene view pivot mode.
 <details>
 <summary><code>sceneView_query_gizmo_view_mode</code> — Read gizmo view mode</summary>
 
-_Read current scene view/select mode._
+_[specialist] Read current scene view/select mode._
 
-Read current scene view/select mode.
+[specialist] Read current scene view/select mode.
 
 **參數**：無
 
@@ -2481,9 +2481,9 @@ Read current scene view/select mode.
 <details>
 <summary><code>sceneView_change_gizmo_coordinate</code> — Set gizmo coordinate</summary>
 
-_Change scene view coordinate system to local/global; UI side effect only._
+_[specialist] Change scene view coordinate system to local/global; UI side effect only._
 
-Change scene view coordinate system to local/global; UI side effect only.
+[specialist] Change scene view coordinate system to local/global; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2496,9 +2496,9 @@ Change scene view coordinate system to local/global; UI side effect only.
 <details>
 <summary><code>sceneView_query_gizmo_coordinate</code> — Read gizmo coordinate</summary>
 
-_Read current scene view coordinate system._
+_[specialist] Read current scene view coordinate system._
 
-Read current scene view coordinate system.
+[specialist] Read current scene view coordinate system.
 
 **參數**：無
 
@@ -2509,9 +2509,9 @@ Read current scene view coordinate system.
 <details>
 <summary><code>sceneView_change_view_mode_2d_3d</code> — Set scene view mode</summary>
 
-_Switch scene view between 2D and 3D; UI side effect only._
+_[specialist] Switch scene view between 2D and 3D; UI side effect only._
 
-Switch scene view between 2D and 3D; UI side effect only.
+[specialist] Switch scene view between 2D and 3D; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2524,9 +2524,9 @@ Switch scene view between 2D and 3D; UI side effect only.
 <details>
 <summary><code>sceneView_query_view_mode_2d_3d</code> — Read scene view mode</summary>
 
-_Read whether scene view is in 2D or 3D mode._
+_[specialist] Read whether scene view is in 2D or 3D mode._
 
-Read whether scene view is in 2D or 3D mode.
+[specialist] Read whether scene view is in 2D or 3D mode.
 
 **參數**：無
 
@@ -2537,9 +2537,9 @@ Read whether scene view is in 2D or 3D mode.
 <details>
 <summary><code>sceneView_set_grid_visible</code> — Set grid visibility</summary>
 
-_Show or hide scene view grid; UI side effect only._
+_[specialist] Show or hide scene view grid; UI side effect only._
 
-Show or hide scene view grid; UI side effect only.
+[specialist] Show or hide scene view grid; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2552,9 +2552,9 @@ Show or hide scene view grid; UI side effect only.
 <details>
 <summary><code>sceneView_query_grid_visible</code> — Read grid visibility</summary>
 
-_Read scene view grid visibility._
+_[specialist] Read scene view grid visibility._
 
-Read scene view grid visibility.
+[specialist] Read scene view grid visibility.
 
 **參數**：無
 
@@ -2565,9 +2565,9 @@ Read scene view grid visibility.
 <details>
 <summary><code>sceneView_set_icon_gizmo_3d</code> — Set icon gizmo mode</summary>
 
-_Switch IconGizmo between 3D and 2D mode; UI side effect only._
+_[specialist] Switch IconGizmo between 3D and 2D mode; UI side effect only._
 
-Switch IconGizmo between 3D and 2D mode; UI side effect only.
+[specialist] Switch IconGizmo between 3D and 2D mode; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2580,9 +2580,9 @@ Switch IconGizmo between 3D and 2D mode; UI side effect only.
 <details>
 <summary><code>sceneView_query_icon_gizmo_3d</code> — Read icon gizmo mode</summary>
 
-_Read current IconGizmo 3D/2D mode._
+_[specialist] Read current IconGizmo 3D/2D mode._
 
-Read current IconGizmo 3D/2D mode.
+[specialist] Read current IconGizmo 3D/2D mode.
 
 **參數**：無
 
@@ -2593,9 +2593,9 @@ Read current IconGizmo 3D/2D mode.
 <details>
 <summary><code>sceneView_set_icon_gizmo_size</code> — Set icon gizmo size</summary>
 
-_Set IconGizmo display size; UI side effect only._
+_[specialist] Set IconGizmo display size; UI side effect only._
 
-Set IconGizmo display size; UI side effect only.
+[specialist] Set IconGizmo display size; UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2608,9 +2608,9 @@ Set IconGizmo display size; UI side effect only.
 <details>
 <summary><code>sceneView_query_icon_gizmo_size</code> — Read icon gizmo size</summary>
 
-_Read current IconGizmo display size._
+_[specialist] Read current IconGizmo display size._
 
-Read current IconGizmo display size.
+[specialist] Read current IconGizmo display size.
 
 **參數**：無
 
@@ -2621,9 +2621,9 @@ Read current IconGizmo display size.
 <details>
 <summary><code>sceneView_focus_camera_on_nodes</code> — Focus camera on nodes</summary>
 
-_Focus scene view camera on nodes or all nodes; camera UI side effect only._
+_[specialist] Focus scene view camera on nodes or all nodes; camera UI side effect only._
 
-Focus scene view camera on nodes or all nodes; camera UI side effect only.
+[specialist] Focus scene view camera on nodes or all nodes; camera UI side effect only.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2636,9 +2636,9 @@ Focus scene view camera on nodes or all nodes; camera UI side effect only.
 <details>
 <summary><code>sceneView_align_camera_with_view</code> — Align camera with view</summary>
 
-_Apply scene view camera transform to selected camera/node; may mutate selection._
+_[specialist] Apply scene view camera transform to selected camera/node; may mutate selection._
 
-Apply scene view camera transform to selected camera/node; may mutate selection.
+[specialist] Apply scene view camera transform to selected camera/node; may mutate selection.
 
 **參數**：無
 
@@ -2649,9 +2649,9 @@ Apply scene view camera transform to selected camera/node; may mutate selection.
 <details>
 <summary><code>sceneView_align_view_with_node</code> — Align view with node</summary>
 
-_Align scene view to selected node; camera UI side effect only._
+_[specialist] Align scene view to selected node; camera UI side effect only._
 
-Align scene view to selected node; camera UI side effect only.
+[specialist] Align scene view to selected node; camera UI side effect only.
 
 **參數**：無
 
@@ -2662,9 +2662,9 @@ Align scene view to selected node; camera UI side effect only.
 <details>
 <summary><code>sceneView_get_scene_view_status</code> — Read scene view status</summary>
 
-_Read combined scene view status snapshot._
+_[specialist] Read combined scene view status snapshot._
 
-Read combined scene view status snapshot.
+[specialist] Read combined scene view status snapshot.
 
 **參數**：無
 
@@ -2675,9 +2675,9 @@ Read combined scene view status snapshot.
 <details>
 <summary><code>sceneView_reset_scene_view</code> — Reset scene view</summary>
 
-_Reset scene view UI settings to defaults; UI side effects only._
+_[specialist] Reset scene view UI settings to defaults; UI side effects only._
 
-Reset scene view UI settings to defaults; UI side effects only.
+[specialist] Reset scene view UI settings to defaults; UI side effects only.
 
 **參數**：無
 
@@ -2698,9 +2698,9 @@ Reset scene view UI settings to defaults; UI side effects only.
 <details>
 <summary><code>referenceImage_manage</code> — Manage reference images</summary>
 
-_Manage scene reference images through the cocos reference-image module._
+_[specialist] Manage scene reference images through the cocos reference-image module._
 
-Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).
+[specialist] Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2733,9 +2733,9 @@ asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / �
 <details>
 <summary><code>assetAdvanced_save_asset_meta</code> — Save asset meta</summary>
 
-_Write serialized meta content for an asset URL/UUID; mutates asset metadata._
+_[specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata._
 
-Write serialized meta content for an asset URL/UUID; mutates asset metadata.
+[specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2749,9 +2749,9 @@ Write serialized meta content for an asset URL/UUID; mutates asset metadata.
 <details>
 <summary><code>assetAdvanced_generate_available_url</code> — Generate asset URL</summary>
 
-_Return a collision-free asset URL derived from the requested URL._
+_[specialist] Return a collision-free asset URL derived from the requested URL._
 
-Return a collision-free asset URL derived from the requested URL.
+[specialist] Return a collision-free asset URL derived from the requested URL.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2764,9 +2764,9 @@ Return a collision-free asset URL derived from the requested URL.
 <details>
 <summary><code>assetAdvanced_query_asset_db_ready</code> — Check asset-db readiness</summary>
 
-_Check whether asset-db reports ready before batch operations._
+_[specialist] Check whether asset-db reports ready before batch operations._
 
-Check whether asset-db reports ready before batch operations.
+[specialist] Check whether asset-db reports ready before batch operations.
 
 **參數**：無
 
@@ -2777,9 +2777,9 @@ Check whether asset-db reports ready before batch operations.
 <details>
 <summary><code>assetAdvanced_open_asset_external</code> — Open asset externally</summary>
 
-_Open an asset through the editor/OS external handler; does not edit content._
+_[specialist] Open an asset through the editor/OS external handler; does not edit content._
 
-Open an asset through the editor/OS external handler; does not edit content.
+[specialist] Open an asset through the editor/OS external handler; does not edit content.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2792,9 +2792,9 @@ Open an asset through the editor/OS external handler; does not edit content.
 <details>
 <summary><code>assetAdvanced_batch_import_assets</code> — Import assets in batch</summary>
 
-_Import files from a disk directory into asset-db; mutates project assets._
+_[specialist] Import files from a disk directory into asset-db; mutates project assets._
 
-Import files from a disk directory into asset-db; mutates project assets.
+[specialist] Import files from a disk directory into asset-db; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2811,9 +2811,9 @@ Import files from a disk directory into asset-db; mutates project assets.
 <details>
 <summary><code>assetAdvanced_batch_delete_assets</code> — Delete assets in batch</summary>
 
-_Delete multiple asset-db URLs; mutates project assets._
+_[specialist] Delete multiple asset-db URLs; mutates project assets._
 
-Delete multiple asset-db URLs; mutates project assets.
+[specialist] Delete multiple asset-db URLs; mutates project assets.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2826,9 +2826,9 @@ Delete multiple asset-db URLs; mutates project assets.
 <details>
 <summary><code>assetAdvanced_validate_asset_references</code> — Validate asset references</summary>
 
-_Lightly scan assets under a directory for broken asset-info references._
+_[specialist] Lightly scan assets under a directory for broken asset-info references._
 
-Lightly scan assets under a directory for broken asset-info references.
+[specialist] Lightly scan assets under a directory for broken asset-info references.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2841,9 +2841,9 @@ Lightly scan assets under a directory for broken asset-info references.
 <details>
 <summary><code>assetAdvanced_get_asset_dependencies</code> — Read asset dependencies</summary>
 
-_Unsupported dependency-analysis placeholder; always reports unsupported._
+_[specialist] Unsupported dependency-analysis placeholder; always reports unsupported._
 
-Unsupported dependency-analysis placeholder; always reports unsupported.
+[specialist] Unsupported dependency-analysis placeholder; always reports unsupported.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2857,9 +2857,9 @@ Unsupported dependency-analysis placeholder; always reports unsupported.
 <details>
 <summary><code>assetAdvanced_get_unused_assets</code> — Find unused assets</summary>
 
-_Unsupported unused-asset placeholder; always reports unsupported._
+_[specialist] Unsupported unused-asset placeholder; always reports unsupported._
 
-Unsupported unused-asset placeholder; always reports unsupported.
+[specialist] Unsupported unused-asset placeholder; always reports unsupported.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2873,9 +2873,9 @@ Unsupported unused-asset placeholder; always reports unsupported.
 <details>
 <summary><code>assetAdvanced_compress_textures</code> — Compress textures</summary>
 
-_Unsupported texture-compression placeholder; always reports unsupported._
+_[specialist] Unsupported texture-compression placeholder; always reports unsupported._
 
-Unsupported texture-compression placeholder; always reports unsupported.
+[specialist] Unsupported texture-compression placeholder; always reports unsupported.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2890,9 +2890,9 @@ Unsupported texture-compression placeholder; always reports unsupported.
 <details>
 <summary><code>assetAdvanced_export_asset_manifest</code> — Export asset manifest</summary>
 
-_Return asset inventory for a directory as json/csv/xml text; does not write a file._
+_[specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file._
 
-Return asset inventory for a directory as json/csv/xml text; does not write a file.
+[specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2907,9 +2907,9 @@ Return asset inventory for a directory as json/csv/xml text; does not write a fi
 <details>
 <summary><code>assetAdvanced_get_users</code> — Find asset users</summary>
 
-_Find scenes/prefabs/scripts that reference an asset by UUID._
+_[specialist] Find scenes/prefabs/scripts that reference an asset by UUID._
 
-Find scenes/prefabs/scripts that reference an asset by UUID.
+[specialist] Find scenes/prefabs/scripts that reference an asset by UUID.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2932,9 +2932,9 @@ Find scenes/prefabs/scripts that reference an asset by UUID.
 <details>
 <summary><code>validation_validate_json_params</code> — Validate/repair JSON args</summary>
 
-_Validate and lightly repair a JSON argument string before calling another tool._
+_[specialist] Validate and lightly repair a JSON argument string before calling another tool._
 
-Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.
+[specialist] Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2948,9 +2948,9 @@ Validate and lightly repair a JSON argument string before calling another tool. 
 <details>
 <summary><code>validation_safe_string_value</code> — Escape string for JSON</summary>
 
-_Escape a raw string for safe use inside JSON arguments._
+_[specialist] Escape a raw string for safe use inside JSON arguments._
 
-Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.
+[specialist] Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2963,9 +2963,9 @@ Escape a raw string for safe use inside JSON arguments. No Cocos side effects; u
 <details>
 <summary><code>validation_format_mcp_request</code> — Format MCP request</summary>
 
-_Format a complete MCP tools/call request and curl example._
+_[specialist] Format a complete MCP tools/call request and curl example._
 
-Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.
+[specialist] Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -2989,9 +2989,9 @@ Inspector 面板與選取狀態查詢，用於讀取目前編輯器 UI context�
 <details>
 <summary><code>inspector_get_common_types_definition</code> — Read cocos common types</summary>
 
-_Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape._
+_[specialist] Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape._
 
-Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query. Supports both node and component instance dumps including @property decorators and enum types.
+[specialist] Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query. Supports both node and component instance dumps including @property decorators and enum types.
 
 **參數**：無
 
@@ -3002,9 +3002,9 @@ Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color,
 <details>
 <summary><code>inspector_get_instance_definition</code> — Read instance TS definition</summary>
 
-_Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump._
+_[specialist] Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump._
 
-Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. Supports both node and component instance dumps including @property decorators and enum types.
+[specialist] Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. Supports both node and component instance dumps including @property decorators and enum types.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3027,9 +3027,9 @@ Generate a TypeScript class declaration for a scene node, derived from the live 
 <details>
 <summary><code>assetMeta_list_interpreters</code> — List asset interpreters</summary>
 
-_List the asset importer types this server has specialized interpreters for._
+_[specialist] List the asset importer types this server has specialized interpreters for._
 
-List the asset importer types this server has specialized interpreters for. The "*" entry is the read-only fallback used for any importer not in the list. Use to plan assetMeta_set_properties calls — writes against the fallback always reject. No side effects.
+[specialist] List the asset importer types this server has specialized interpreters for. The "*" entry is the read-only fallback used for any importer not in the list. Use to plan assetMeta_set_properties calls — writes against the fallback always reject. No side effects.
 
 **參數**：無
 
@@ -3040,9 +3040,9 @@ List the asset importer types this server has specialized interpreters for. The 
 <details>
 <summary><code>assetMeta_get_properties</code> — Read asset meta properties</summary>
 
-_Read an asset's meta + sub-meta userData via its importer-specific interpreter._
+_[specialist] Read an asset's meta + sub-meta userData via its importer-specific interpreter._
 
-Read an asset's meta + sub-meta userData via its importer-specific interpreter. Returns {properties: {path: {type, value, tooltip?, enumList?}}, arrays: {path: {type}}}. Use BEFORE assetMeta_set_properties so AI sees the real property names + types instead of guessing. Pair `includeTooltips: true` when AI needs context for unfamiliar importers. Note: useAdvancedInspection is reserved — full material editing is deferred to v2.5+, so the flag has no effect in v2.4.x.
+[specialist] Read an asset's meta + sub-meta userData via its importer-specific interpreter. Returns {properties: {path: {type, value, tooltip?, enumList?}}, arrays: {path: {type}}}. Use BEFORE assetMeta_set_properties so AI sees the real property names + types instead of guessing. Pair `includeTooltips: true` when AI needs context for unfamiliar importers. Note: useAdvancedInspection is reserved — full material editing is deferred to v2.5+, so the flag has no effect in v2.4.x.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3058,9 +3058,9 @@ Read an asset's meta + sub-meta userData via its importer-specific interpreter. 
 <details>
 <summary><code>assetMeta_set_properties</code> — Write asset meta properties</summary>
 
-_Batch-write asset meta fields._
+_[specialist] Batch-write asset meta fields._
 
-Batch-write asset meta fields. Each entry is {propertyPath, propertyType, propertyValue}; the interpreter validates the path against an allow-list (userData.*, subMetas.*, platformSettings.*) and rejects unknown roots, prototype-pollution segments (__proto__, constructor, prototype), and empty segments. On commit the interpreter calls asset-db save-asset-meta + refresh-asset so cocos re-imports with the new settings. Use after assetMeta_get_properties to ensure paths/types are correct. Returns per-entry success/error so partial failures are visible; entries that succeeded on disk but failed re-import carry a `warning` field instead of being flipped to failure.
+[specialist] Batch-write asset meta fields. Each entry is {propertyPath, propertyType, propertyValue}; the interpreter validates the path against an allow-list (userData.*, subMetas.*, platformSettings.*) and rejects unknown roots, prototype-pollution segments (__proto__, constructor, prototype), and empty segments. On commit the interpreter calls asset-db save-asset-meta + refresh-asset so cocos re-imports with the new settings. Use after assetMeta_get_properties to ensure paths/types are correct. Returns per-entry success/error so partial failures are visible; entries that succeeded on disk but failed re-import carry a `warning` field instead of being flipped to failure.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3085,9 +3085,9 @@ Batch-write asset meta fields. Each entry is {propertyPath, propertyType, proper
 <details>
 <summary><code>animation_check_animation_finished</code> — Check animation finished</summary>
 
-_Check whether a named cc.AnimationState has reached its end time._
+_[specialist] Check whether a named cc.AnimationState has reached its end time._
 
-Check whether a named cc.AnimationState has reached its end time.
+[specialist] Check whether a named cc.AnimationState has reached its end time.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3101,9 +3101,9 @@ Check whether a named cc.AnimationState has reached its end time.
 <details>
 <summary><code>animation_get_animation_state_info</code> — Get animation state info</summary>
 
-_Get speed and timing info for a named cc.AnimationState._
+_[specialist] Get speed and timing info for a named cc.AnimationState._
 
-Get speed and timing info for a named cc.AnimationState.
+[specialist] Get speed and timing info for a named cc.AnimationState.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3117,9 +3117,9 @@ Get speed and timing info for a named cc.AnimationState.
 <details>
 <summary><code>animation_list_clips</code> — List animation clips</summary>
 
-_List animation clips registered on a node's cc.Animation component._
+_[specialist] List animation clips registered on a node's cc.Animation component._
 
-List animation clips registered on a node's cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.
+[specialist] List animation clips registered on a node's cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3133,9 +3133,9 @@ List animation clips registered on a node's cc.Animation component. Returns clip
 <details>
 <summary><code>animation_list_animation_states</code> — List animation states</summary>
 
-_List cc.AnimationState entries on a node's cc.Animation component._
+_[specialist] List cc.AnimationState entries on a node's cc.Animation component._
 
-List cc.AnimationState entries on a node's cc.Animation component.
+[specialist] List cc.AnimationState entries on a node's cc.Animation component.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3148,9 +3148,9 @@ List cc.AnimationState entries on a node's cc.Animation component.
 <details>
 <summary><code>animation_play</code> — Play animation clip</summary>
 
-_Play an animation clip on a node's cc.Animation component._
+_[specialist] Play an animation clip on a node's cc.Animation component._
 
-Play an animation clip on a node's cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).
+[specialist] Play an animation clip on a node's cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3165,9 +3165,9 @@ Play an animation clip on a node's cc.Animation component. Omits clipName → pl
 <details>
 <summary><code>animation_set_animation_speed</code> — Set animation speed</summary>
 
-_Set speed on a named cc.AnimationState._
+_[specialist] Set speed on a named cc.AnimationState._
 
-Set speed on a named cc.AnimationState.
+[specialist] Set speed on a named cc.AnimationState.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3182,9 +3182,9 @@ Set speed on a named cc.AnimationState.
 <details>
 <summary><code>animation_stop</code> — Stop animation</summary>
 
-_Stop the currently playing animation on a node's cc.Animation component._
+_[specialist] Stop the currently playing animation on a node's cc.Animation component._
 
-Stop the currently playing animation on a node's cc.Animation component. No-op if nothing is playing.
+[specialist] Stop the currently playing animation on a node's cc.Animation component. No-op if nothing is playing.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
@@ -3198,9 +3198,9 @@ Stop the currently playing animation on a node's cc.Animation component. No-op i
 <details>
 <summary><code>animation_set_clip</code> — Configure animation clip</summary>
 
-_Configure a node's cc.Animation: defaultClip name and/or playOnLoad._
+_[specialist] Configure a node's cc.Animation: defaultClip name and/or playOnLoad._
 
-Configure a node's cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.
+[specialist] Configure a node's cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|

@@ -50,7 +50,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'clear_console',
                 title: 'Clear console',
-                description: 'Clear the Cocos Editor Console UI. No project side effects.',
+                description: '[specialist] Clear the Cocos Editor Console UI. No project side effects.',
                 inputSchema: z.object({}),
                 handler: () => this.clearConsole(),
             },
@@ -76,7 +76,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_node_tree',
                 title: 'Read debug node tree',
-                description: 'Read a debug node tree from a root or scene root for hierarchy/component inspection.',
+                description: '[specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection.',
                 inputSchema: z.object({
                     rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
                     maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
@@ -86,14 +86,14 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_performance_stats',
                 title: 'Read performance stats',
-                description: 'Try to read scene query-performance stats; may return unavailable in edit mode.',
+                description: '[specialist] Try to read scene query-performance stats; may return unavailable in edit mode.',
                 inputSchema: z.object({}),
                 handler: () => this.getPerformanceStats(),
             },
             {
                 name: 'validate_scene',
                 title: 'Validate current scene',
-                description: 'Run basic current-scene health checks for missing assets and node-count warnings.',
+                description: '[specialist] Run basic current-scene health checks for missing assets and node-count warnings.',
                 inputSchema: z.object({
                     checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
                     checkPerformance: z.boolean().default(true).describe('Run basic performance checks such as high node count warnings.'),
@@ -103,14 +103,14 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_editor_info',
                 title: 'Read editor info',
-                description: 'Read Editor/Cocos/project/process information and memory summary.',
+                description: '[specialist] Read Editor/Cocos/project/process information and memory summary.',
                 inputSchema: z.object({}),
                 handler: () => this.getEditorInfo(),
             },
             {
                 name: 'get_project_logs',
                 title: 'Read project logs',
-                description: 'Read temp/logs/project.log tail with optional level/keyword filters.',
+                description: '[specialist] Read temp/logs/project.log tail with optional level/keyword filters.',
                 inputSchema: z.object({
                     lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of temp/logs/project.log. Default 100.'),
                     filterKeyword: z.string().optional().describe('Optional case-insensitive keyword filter.'),
@@ -121,14 +121,14 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_log_file_info',
                 title: 'Read log file info',
-                description: 'Read temp/logs/project.log path, size, line count, and timestamps.',
+                description: '[specialist] Read temp/logs/project.log path, size, line count, and timestamps.',
                 inputSchema: z.object({}),
                 handler: () => this.getLogFileInfo(),
             },
             {
                 name: 'search_project_logs',
                 title: 'Search project logs',
-                description: 'Search temp/logs/project.log for string/regex and return line context.',
+                description: '[specialist] Search temp/logs/project.log for string/regex and return line context.',
                 inputSchema: z.object({
                     pattern: z.string().describe('Search string or regex. Invalid regex is treated as a literal string.'),
                     maxResults: z.number().min(1).max(100).default(20).describe('Maximum matches to return. Default 20.'),
@@ -139,7 +139,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'screenshot',
                 title: 'Capture editor screenshot',
-                description: 'Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
+                description: '[specialist] Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
                 inputSchema: z.object({
                     savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
                     windowTitle: z.string().optional().describe('Optional substring match on window title to pick a specific Electron window. Default: focused window.'),
@@ -150,7 +150,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'capture_preview_screenshot',
                 title: 'Capture preview screenshot',
-                description: 'Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user\'s preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
+                description: '[specialist] Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user\'s preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
                 inputSchema: z.object({
                     savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
                     mode: z.enum(['auto', 'window', 'embedded']).default('auto').describe('Capture target. "auto" (default) tries Preview-titled window then falls back to the main editor window. "window" only matches Preview-titled windows (fails if none). "embedded" captures the main editor window directly (skip Preview-window probe).'),
@@ -162,7 +162,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_preview_mode',
                 title: 'Read preview mode',
-                description: 'Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
+                description: '[specialist] Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
                 inputSchema: z.object({}),
                 handler: () => this.getPreviewMode(),
             },
@@ -179,7 +179,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'batch_screenshot',
                 title: 'Capture batch screenshots',
-                description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
+                description: '[specialist] Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
                 inputSchema: z.object({
                     savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Must resolve inside the cocos project root (containment check via realpath). Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
                     delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
@@ -190,7 +190,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'wait_compile',
                 title: 'Wait for compile',
-                description: 'Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.',
+                description: '[specialist] Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(500).max(120000).default(15000).describe('Max wait time in ms before giving up. Default 15000.'),
                 }),
@@ -199,7 +199,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'run_script_diagnostics',
                 title: 'Run script diagnostics',
-                description: 'Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.',
+                description: '[specialist] Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.',
                 inputSchema: z.object({
                     tsconfigPath: z.string().optional().describe('Optional override (absolute or project-relative). Default: tsconfig.json or temp/tsconfig.cocos.json.'),
                 }),
@@ -208,7 +208,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'preview_url',
                 title: 'Resolve preview URL',
-                description: 'Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
+                description: '[specialist] Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
                 inputSchema: z.object({
                     action: z.enum(['query', 'open']).default('query').describe('"query" returns the URL; "open" returns the URL AND opens it in the user default browser via electron.shell.openExternal.'),
                 }),
@@ -217,14 +217,14 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'query_devices',
                 title: 'List preview devices',
-                description: 'List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
+                description: '[specialist] List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
                 inputSchema: z.object({}),
                 handler: () => this.queryDevices(),
             },
             {
                 name: 'game_command',
                 title: 'Send game command',
-                description: 'Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/active/components by name; when present also returns UITransform.contentSize/anchorPoint, Widget alignment flags/offsets, and Layout type/spacing/padding), "state" (dump global game state from the running game client), and "navigate" (switch scene/page by name through the game client\'s router). Custom command types are forwarded to the client\'s customCommands map. Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
+                description: '[specialist] Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/active/components by name; when present also returns UITransform.contentSize/anchorPoint, Widget alignment flags/offsets, and Layout type/spacing/padding), "state" (dump global game state from the running game client), and "navigate" (switch scene/page by name through the game client\'s router). Custom command types are forwarded to the client\'s customCommands map. Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
                 inputSchema: z.object({
                     type: z.string().min(1).describe('Command type. Built-ins: screenshot, click, inspect, state, navigate. Customs: any string the GameDebugClient registered in customCommands.'),
                     args: z.any().optional().describe('Command-specific arguments. For "click"/"inspect": {name: string} node name. For "navigate": {pageName: string} or {page: string}. For "state"/"screenshot": {} (no args).'),
@@ -235,7 +235,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'record_start',
                 title: 'Start game recording',
-                description: 'Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.',
+                description: '[specialist] Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.',
                 inputSchema: z.object({
                     mimeType: z.enum(['video/webm', 'video/mp4']).optional().describe('Container/codec hint for MediaRecorder. Default: browser auto-pick (webm preferred where supported, falls back to mp4). Some browsers reject unsupported types — record_start surfaces a clear error in that case.'),
                     videoBitsPerSecond: z.number().min(100_000).max(20_000_000).optional().describe('Optional MediaRecorder bitrate hint in bits/sec. Lower → smaller files but lower quality. Browser default if omitted.'),
@@ -246,7 +246,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'record_stop',
                 title: 'Stop game recording',
-                description: 'Stop the in-progress game canvas recording and persist it under <project>/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.',
+                description: '[specialist] Stop the in-progress game canvas recording and persist it under <project>/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(1000).max(120000).default(30000).describe('Max wait for the client to assemble + return the recording blob. Recordings of several seconds at high bitrate may need longer than the default 30s — raise on long recordings.'),
                 }),
@@ -255,14 +255,14 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'game_client_status',
                 title: 'Read game client status',
-                description: 'Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
+                description: '[specialist] Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
                 handler: () => this.gameClientStatus(),
             },
             {
                 name: 'check_editor_health',
                 title: 'Check editor health',
-                description: 'Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.',
+                description: '[specialist] Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.',
                 inputSchema: z.object({
                     sceneTimeoutMs: z.number().min(200).max(10000).default(1500).describe('Timeout for the scene-script probe in ms. Below this scene is considered frozen. Default 1500ms.'),
                 }),
@@ -281,7 +281,7 @@ export class DebugTools implements ToolExecutor {
             {
                 name: 'get_script_diagnostic_context',
                 title: 'Read diagnostic context',
-                description: 'Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.',
+                description: '[specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.',
                 inputSchema: z.object({
                     file: z.string().describe('Absolute or project-relative path to the source file. Diagnostics from run_script_diagnostics already use a path tsc emitted, which is suitable here.'),
                     line: z.number().min(1).describe('1-based line number that the diagnostic points at.'),

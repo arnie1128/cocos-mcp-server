@@ -74,7 +74,7 @@ export class InspectorTools implements ToolExecutor {
     @mcpTool({
         name: 'get_common_types_definition',
         title: 'Read cocos common types',
-        description: 'Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query. Supports both node and component instance dumps including @property decorators and enum types.',
+        description: '[specialist] Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query. Supports both node and component instance dumps including @property decorators and enum types.',
         inputSchema: z.object({}),
     })
     async getCommonTypesDefinition(): Promise<ToolResponse> {
@@ -84,7 +84,7 @@ export class InspectorTools implements ToolExecutor {
     @mcpTool({
         name: 'get_instance_definition',
         title: 'Read instance TS definition',
-        description: 'Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. Supports both node and component instance dumps including @property decorators and enum types.',
+        description: '[specialist] Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. Supports both node and component instance dumps including @property decorators and enum types.',
         inputSchema: z.object({
             reference: instanceReferenceSchema.describe('Target node or component. {id} = instance UUID, {type} optional cc class label.'),
         }),

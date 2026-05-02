@@ -30,7 +30,7 @@ import { logger } from '../lib/log';
 const animationListClips: ToolDef = {
     name: 'list_clips',
     title: 'List animation clips',
-    description: 'List animation clips registered on a node\'s cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.',
+    description: '[specialist] List animation clips registered on a node\'s cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.',
     inputSchema: z.object({
         ...nodeReferenceShape,
     }),
@@ -44,7 +44,7 @@ const animationListClips: ToolDef = {
 const animationPlay: ToolDef = {
     name: 'play',
     title: 'Play animation clip',
-    description: 'Play an animation clip on a node\'s cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).',
+    description: '[specialist] Play an animation clip on a node\'s cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).',
     inputSchema: z.object({
         ...nodeReferenceShape,
         clipName: z.string().optional().describe('Clip name registered on the Animation component. Omit to play defaultClip.'),
@@ -59,7 +59,7 @@ const animationPlay: ToolDef = {
 const animationStop: ToolDef = {
     name: 'stop',
     title: 'Stop animation',
-    description: 'Stop the currently playing animation on a node\'s cc.Animation component. No-op if nothing is playing.',
+    description: '[specialist] Stop the currently playing animation on a node\'s cc.Animation component. No-op if nothing is playing.',
     inputSchema: z.object({
         ...nodeReferenceShape,
     }),
@@ -73,7 +73,7 @@ const animationStop: ToolDef = {
 const animationSetClip: ToolDef = {
     name: 'set_clip',
     title: 'Configure animation clip',
-    description: 'Configure a node\'s cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.',
+    description: '[specialist] Configure a node\'s cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.',
     inputSchema: z.object({
         ...nodeReferenceShape,
         defaultClip: z.string().optional().describe('Name of the clip to use as defaultClip. Must already be registered in the component\'s clips array.'),
@@ -140,7 +140,7 @@ const animationSetClip: ToolDef = {
 const animationListStates: ToolDef = {
     name: 'list_animation_states',
     title: 'List animation states',
-    description: 'List cc.AnimationState entries on a node\'s cc.Animation component.',
+    description: '[specialist] List cc.AnimationState entries on a node\'s cc.Animation component.',
     inputSchema: z.object({
         nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
     }),
@@ -152,7 +152,7 @@ const animationListStates: ToolDef = {
 const animationGetStateInfo: ToolDef = {
     name: 'get_animation_state_info',
     title: 'Get animation state info',
-    description: 'Get speed and timing info for a named cc.AnimationState.',
+    description: '[specialist] Get speed and timing info for a named cc.AnimationState.',
     inputSchema: z.object({
         nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
         stateName: z.string().describe('Animation state name.'),
@@ -165,7 +165,7 @@ const animationGetStateInfo: ToolDef = {
 const animationSetSpeed: ToolDef = {
     name: 'set_animation_speed',
     title: 'Set animation speed',
-    description: 'Set speed on a named cc.AnimationState.',
+    description: '[specialist] Set speed on a named cc.AnimationState.',
     inputSchema: z.object({
         nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
         stateName: z.string().describe('Animation state name.'),
@@ -179,7 +179,7 @@ const animationSetSpeed: ToolDef = {
 const animationCheckFinished: ToolDef = {
     name: 'check_animation_finished',
     title: 'Check animation finished',
-    description: 'Check whether a named cc.AnimationState has reached its end time.',
+    description: '[specialist] Check whether a named cc.AnimationState has reached its end time.',
     inputSchema: z.object({
         nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
         stateName: z.string().describe('Animation state name.'),

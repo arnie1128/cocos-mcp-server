@@ -19,7 +19,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'get_prefab_list',
                 title: 'List prefab assets',
-                description: 'List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.',
+                description: '[specialist] List .prefab assets under a folder with name/path/uuid. No scene or asset mutation. Also exposed as resource cocos://prefabs (default folder=db://assets) and cocos://prefabs{?folder} template; prefer the resource when the client supports MCP resources.',
                 inputSchema: z.object({
                     folder: z.string().default('db://assets').describe('db:// folder to scan for prefabs. Default db://assets.'),
                 }),
@@ -28,7 +28,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'load_prefab',
                 title: 'Read prefab metadata',
-                description: 'Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or create_node assetUuid/assetPath to add one to the scene.',
+                description: '[specialist] Read prefab asset metadata only. Does not instantiate; use instantiate_prefab or create_node assetUuid/assetPath to add one to the scene.',
                 inputSchema: z.object({
                     prefabPath: z.string().describe('Prefab db:// path. Reads metadata only; does not instantiate.'),
                 }),
@@ -37,7 +37,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'instantiate_prefab',
                 title: 'Instantiate prefab',
-                description: 'Instantiate a prefab into the current scene; mutates scene and preserves prefab link.',
+                description: '[specialist] Instantiate a prefab into the current scene; mutates scene and preserves prefab link.',
                 inputSchema: z.object({
                     prefabPath: z.string().describe('Prefab db:// path to instantiate.'),
                     parentUuid: z.string().optional().describe('Parent node UUID. Omit to let Cocos choose the default parent.'),
@@ -48,7 +48,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'create_prefab',
                 title: 'Create prefab asset',
-                description: 'Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.',
+                description: '[specialist] Create a prefab asset from a scene node via cce.Prefab.createPrefab facade.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Source node UUID to convert into a prefab, including children and components.'),
                     savePath: z.string().describe('Target prefab db:// path. Pass a full .prefab path or a folder.'),
@@ -59,7 +59,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'update_prefab',
                 title: 'Apply prefab edits',
-                description: 'Apply prefab instance edits back to its linked prefab asset; prefabPath is context only.',
+                description: '[specialist] Apply prefab instance edits back to its linked prefab asset; prefabPath is context only.',
                 inputSchema: z.object({
                     prefabPath: z.string().describe('Prefab asset path for response context; apply uses nodeUuid linked prefab data.'),
                     nodeUuid: z.string().describe('Modified prefab instance node UUID to apply back to its linked prefab.'),
@@ -69,7 +69,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'revert_prefab',
                 title: 'Revert prefab instance',
-                description: 'Restore a prefab instance from its linked asset; discards unapplied overrides.',
+                description: '[specialist] Restore a prefab instance from its linked asset; discards unapplied overrides.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Prefab instance node UUID to restore from its linked asset.'),
                 }),
@@ -78,7 +78,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'get_prefab_info',
                 title: 'Read prefab info',
-                description: 'Read prefab meta/dependency summary before apply/revert.',
+                description: '[specialist] Read prefab meta/dependency summary before apply/revert.',
                 inputSchema: z.object({
                     prefabPath: z.string().describe('Prefab asset db:// path.'),
                 }),
@@ -87,7 +87,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'validate_prefab',
                 title: 'Validate prefab asset',
-                description: 'Run basic prefab JSON structural checks; not byte-level Cocos equivalence.',
+                description: '[specialist] Run basic prefab JSON structural checks; not byte-level Cocos equivalence.',
                 inputSchema: z.object({
                     prefabPath: z.string().describe('Prefab db:// path whose JSON structure should be checked.'),
                 }),
@@ -96,7 +96,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'restore_prefab_node',
                 title: 'Restore prefab node',
-                description: 'Restore a prefab instance through scene/restore-prefab; assetUuid is context only.',
+                description: '[specialist] Restore a prefab instance through scene/restore-prefab; assetUuid is context only.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Prefab instance node UUID passed to scene/restore-prefab.'),
                     assetUuid: z.string().describe('Prefab asset UUID kept for response context; Cocos restore-prefab uses nodeUuid only.'),
@@ -106,7 +106,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'set_link',
                 title: 'Set prefab link',
-                description: 'Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.',
+                description: '[specialist] Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.',
                 inputSchema: z.object({
                     mode: z.enum(['link', 'unlink']).describe('Operation: "link" attaches a regular node to a prefab asset; "unlink" detaches a prefab instance.'),
                     nodeUuid: z.string().describe('Node UUID. For mode="link", the node to attach; for mode="unlink", the prefab instance to detach.'),
@@ -118,7 +118,7 @@ export class PrefabTools implements ToolExecutor {
             {
                 name: 'get_prefab_data',
                 title: 'Read prefab data',
-                description: 'Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.',
+                description: '[specialist] Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Prefab instance node UUID whose prefab dump should be read.'),
                 }),
