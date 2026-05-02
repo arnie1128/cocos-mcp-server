@@ -499,6 +499,61 @@ v2.1.6 after measure showed lossy-only gains).
       no clean editor-side equivalent and forcing a renderer
       reload from outside risks losing unsaved state worse than
       the freeze itself.
+    - **`debug_check_editor_health` does NOT reliably detect this
+      freeze** (verified v2.9.1 retest). The `getCurrentSceneInfo`
+      probe inside `runSceneMethodAsToolResponse` returned
+      `sceneAlive: true` with 1ms latency even when the user
+      reported the cocos editor was visibly frozen and required
+      Ctrl+R to recover. Hypothesis: `getCurrentSceneInfo` reads
+      cached `director.getScene()` state without going through
+      the wedged code path, so it doesn't probe deep enough.
+      The probe needs a different path that exercises whichever
+      part of scene-script is actually hung. Pending reference-
+      project comparison to identify a more sensitive probe.
+
+17. **`preferences/set-config 'preview' …'current.platform'`
+    silently no-ops on cocos 3.8.7** (verified v2.9.1 retest /
+    2026-05-02).
+
+    `query-config 'preview'` returns the active mode at
+    `preview.current.platform` (e.g. "browser" / "gameView" /
+    "simulator"). The symmetric write through
+    `Editor.Message.request('preferences', 'set-config', 'preview',
+    <key>, <value>, [protocol])` returns truthy but does not
+    actually persist the value — read-back after the write still
+    shows the old mode.
+
+    v2.9.1 `debug_set_preview_mode` probes four shapes and
+    verifies each with a fresh read-back; all four fail on
+    cocos 3.8.7:
+
+    | Strategy | setResult | observedMode |
+    |---|---|---|
+    | `('preview','current',{platform:value})` | `true` | unchanged |
+    | `('preview','current.platform',v,'global')` | `true` | unchanged |
+    | `('preview','current.platform',v,'local')` | `true` | unchanged |
+    | `('preview','current.platform',v)` | `true` | unchanged |
+
+    Hypotheses for why none works:
+    - cocos may treat `preview` as a readonly preference category
+      that only the cocos UI dropdown can write
+    - `current.platform` may be a runtime-derived field, not a
+      stored pref — the actual selector lives elsewhere (project
+      profile? open-preview-with action?)
+    - set-config requires a non-typed protocol parameter we
+      haven't found
+
+    Practical guidance:
+    - The setter currently surfaces all 4 attempt results in
+      `data.attempts` for diagnostics — it doesn't lie about
+      success.
+    - For AI workflows that need to switch preview mode, route
+      the user to the cocos preview dropdown manually until a
+      working shape is found.
+    - v2.9 spillover candidate: compare against reference projects
+      (harady / RomaRogov / cocos-cli / FunplayAI / Spaydo /
+      cocos-code-mode) to see if any of them ship a working
+      preview-mode setter.
 
 ## Conventions
 
