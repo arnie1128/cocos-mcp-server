@@ -227,22 +227,26 @@ export async function runScriptDiagnostics(
     const result = await execAsync(binary, args, projectPath);
     const merged = [result.stdout, result.stderr, result.error].filter(Boolean).join('\n').trim();
     const diagnostics = parseTscOutput(merged);
-    // v2.4.9 review fix: spawnFailed (binary not found) was being silently
-    // collapsed to ok:true. Now ok requires both a clean exit AND no spawn
-    // failure. summary calls out the spawn failure separately so the AI
-    // sees "binary not found" instead of "no errors".
-    const ok = !result.spawnFailed && result.code === 0 && diagnostics.length === 0;
+    // v2.4.10 round-2 review fix (claude + codex + gemini 🟡): `ok` should
+    // reflect compilation success. tsc exits 0 on warnings-only runs
+    // (warnings don't fail the build); the diagnostics array carries them
+    // for visibility but they shouldn't flip the boolean. Count by severity:
+    // only `error` severity (default when severity is missing — pre-v2.4.10
+    // diagnostics had no severity field) blocks `ok`.
+    const errCount = diagnostics.filter(d => (d.severity ?? 'error') === 'error').length;
+    const warnCount = diagnostics.filter(d => d.severity === 'warning').length;
+    const ok = !result.spawnFailed && result.code === 0 && errCount === 0;
     let summary: string;
     if (result.spawnFailed) {
         summary = `tsc binary failed to spawn (${result.error || 'unknown error'}). Resolved binary: ${binary}.`;
     } else if (ok) {
-        summary = 'TypeScript diagnostics completed with no errors.';
-    } else if (diagnostics.length) {
-        const errCount = diagnostics.filter(d => (d.severity ?? 'error') === 'error').length;
-        const warnCount = diagnostics.filter(d => d.severity === 'warning').length;
+        summary = warnCount
+            ? `TypeScript diagnostics completed with no errors (${warnCount} warning(s) reported).`
+            : 'TypeScript diagnostics completed with no errors.';
+    } else if (errCount) {
         summary = warnCount
             ? `Found ${errCount} error(s), ${warnCount} warning(s).`
-            : `Found ${diagnostics.length} TypeScript error(s).`;
+            : `Found ${errCount} TypeScript error(s).`;
     } else {
         summary = merged || `TypeScript diagnostics reported exit code ${result.code} but no parsed diagnostics.`;
     }

@@ -1,5 +1,73 @@
 # Changelog
 
+## v2.4.10 — 2026-05-03
+
+Three-way review patch round 2 on v2.4.9. Codex elevated one round-1
+🟡 to 🔴 on round 2 (the `_topSlot()`-only model still misattributed
+interleaved async logs); Claude and Gemini concurred at 🟡 severity.
+One additional 🟡 raised by all three reviewers on round 2 also
+addressed.
+
+### 🔴 must-fix #1 — Async-interleaving log misattribution (Codex 🔴; Claude+Gemini 🟡)
+
+`source/scene.ts:runWithCapture` v2.4.9 isolated cross-call leakage
+via `_topSlot()` (only the current top-of-stack slot received entries
+from the console hook), but that only worked for strictly LIFO-nested
+calls. Two `runWithCapture` calls that interleave via `await` could
+still misattribute: A pushes slot A, A awaits, B pushes slot B; A's
+post-await `console.log` would route to slot B (now top-of-stack)
+instead of slot A.
+
+Fix: replace the manual stack with Node.js's built-in
+`AsyncLocalStorage`:
+
+- `_captureALS = new AsyncLocalStorage<CaptureSlot>()` at module head.
+- `runWithCapture` does `await _captureALS.run(slot, async () => {...})`,
+  which binds `slot` to the call's logical async chain.
+- Console hook reads `_captureALS.getStore()` instead of stack top —
+  the store is automatically scoped to the originating call's async
+  context regardless of stack interleaving.
+- Hook lifecycle: keep `_activeSlotCount` as a refcount so the hook
+  uninstalls when no slot is active (ALS doesn't expose store count
+  directly).
+
+Available in Node.js ≥ 12.17, which the cocos editor's Electron host
+satisfies.
+
+### 🟡 worth-considering — Warnings-only runs reported as failure (Claude + Codex + Gemini)
+
+`source/lib/ts-diagnostics.ts:runScriptDiagnostics` v2.4.9 now parses
+warnings into `diagnostics[]` (severity field added in round-1 fix
+#6). But `ok` was still `code === 0 && diagnostics.length === 0` —
+so a project that compiled cleanly but had `warning` severity
+diagnostics (typically from TypeScript plugins, since plain tsc
+doesn't emit warnings) flipped `ok` to `false` and bubbled up as
+`success: false` on the tool envelope. tsc itself exits 0 on
+warnings-only runs (warnings are non-fatal); the boolean should
+match.
+
+Fix: count diagnostics by severity. `errCount = filter(severity ===
+'error' || severity == null).length`. `ok = !spawnFailed && code ===
+0 && errCount === 0`. Summary still names warning count for
+visibility.
+
+### 🟡 worth-considering — Truncation marker bytes uncounted (Codex + Claude)
+
+`source/scene.ts:_appendBounded` v2.4.9 pushed the `[capture
+truncated]` marker but didn't increment `slot.bytes`. Benign because
+no further appends occur after `truncated=true`, but inconsistent —
+the cap accounting silently undercounts the marker's ~64 byte
+contribution.
+
+Fix: count the marker against `slot.bytes` after the push so the
+field stays monotonically accurate.
+
+### Test runs after fixes
+
+- `tsc --noEmit`: clean.
+- `scripts/smoke-mcp-sdk.js`: ✅ all smoke checks passed.
+- Tool count unchanged: 17 categories / 177 tools.
+
 ## v2.4.9 — 2026-05-03
 
 Three-way review patch round 1 on v2.4.8 (Claude + Codex + Gemini).

@@ -91,35 +91,39 @@ function serializeEventHandler(eh: any) {
     };
 }
 
-// v2.4.8 A3 + v2.4.9 review fix: scene-side log capture (RomaRogov
-// pattern adapted).
+// v2.4.8 A3 + v2.4.9 + v2.4.10 review fix: scene-side log capture
+// (RomaRogov pattern adapted).
 //
-// Concurrency model — v2.4.9 (claude + codex 🟡):
-//   The v2.4.8 implementation pushed each call's capture array onto a
-//   stack and fanned every console.log to ALL active arrays, which
-//   meant overlapping runSceneMethod calls leaked log entries across
-//   each other's results. Real risk was low in single-client setups but
-//   the doc-comment claimed isolation that didn't exist.
-//
-//   v2.4.9 fixes this with cooperative async-token tracking: each call
-//   gets a Symbol token; we maintain a "current" token (top of stack)
-//   that the console hook uses to attribute entries. Concurrent calls
-//   are still possible because cocos's IPC dispatcher is single-threaded
-//   per scene-script package — they overlap only via `await` boundaries
-//   inside the inner method. Between awaits, only ONE call holds the
-//   active token; logs emitted in that window go to that call only.
+// Concurrency model — v2.4.10 (claude + codex 🔴 round-2):
+//   v2.4.8 fanned every console.log to ALL active capture arrays.
+//   v2.4.9 attempted to isolate via _topSlot() (current top of stack)
+//   but that only worked for strictly LIFO-nested calls; two calls
+//   that interleave via `await` could still misattribute (call A
+//   awaits, B pushes its slot, A's post-await logs would route to B).
+//   v2.4.10 uses Node's built-in `AsyncLocalStorage` so each call's
+//   logical async chain keeps its OWN slot regardless of stack order.
+//   When console.log fires, the hook reads ALS.getStore() — which is
+//   bound to the originating call's async context — and writes there.
 //
 // Bound — v2.4.9 (claude + codex 🟡):
 //   Cap entries per capture (default 500) and total bytes (default
-//   64 KB) to prevent a noisy scene-script from blowing memory or
-//   inflating the IPC envelope. Excess entries are dropped and a final
-//   `{ level: 'warn', message: '[capture truncated]', ts }` marker is
-//   appended once.
+//   64 KB). Excess entries are dropped; a single `[capture truncated]`
+//   marker is appended once. v2.4.10: marker bytes counted against
+//   the cap (codex round-2 🟡) so the slot's bytes field stays
+//   monotonically accurate.
+//
+// Hook lifecycle:
+//   The console hook is installed on first `runWithCapture` invocation
+//   and uninstalled when no slot is active. Each invocation `als.run()`s
+//   with its slot, so the hook just reads the store. We still keep
+//   `_activeSlotCount` as a refcount to know when to unhook (ALS
+//   doesn't expose store count directly).
+import { AsyncLocalStorage } from 'async_hooks';
+
 type CapturedEntry = { level: 'log' | 'warn' | 'error'; message: string; ts: number };
 type ConsoleSnapshot = { log: typeof console.log; warn: typeof console.warn; error: typeof console.error };
 
 interface CaptureSlot {
-    token: symbol;
     entries: CapturedEntry[];
     bytes: number;
     truncated: boolean;
@@ -127,7 +131,8 @@ interface CaptureSlot {
 
 const CAPTURE_MAX_ENTRIES = 500;
 const CAPTURE_MAX_BYTES = 64 * 1024;
-const _captureSlots: CaptureSlot[] = [];
+const _captureALS = new AsyncLocalStorage<CaptureSlot>();
+let _activeSlotCount = 0;
 let _origConsole: ConsoleSnapshot | null = null;
 
 function _formatArgs(a: unknown[]): string {
@@ -144,15 +149,15 @@ function _appendBounded(slot: CaptureSlot, entry: CapturedEntry): void {
     const entryBytes = entry.message.length + 32; // ~level + ts overhead
     if (slot.entries.length >= CAPTURE_MAX_ENTRIES || slot.bytes + entryBytes > CAPTURE_MAX_BYTES) {
         slot.truncated = true;
-        slot.entries.push({ level: 'warn', message: '[capture truncated — exceeded entry/byte cap]', ts: Date.now() });
+        const marker: CapturedEntry = { level: 'warn', message: '[capture truncated — exceeded entry/byte cap]', ts: Date.now() };
+        slot.entries.push(marker);
+        // v2.4.10 codex round-2 🟡: track marker bytes too so cap accounting
+        // stays accurate even though no further appends will follow.
+        slot.bytes += marker.message.length + 32;
         return;
     }
     slot.entries.push(entry);
     slot.bytes += entryBytes;
-}
-
-function _topSlot(): CaptureSlot | null {
-    return _captureSlots.length > 0 ? _captureSlots[_captureSlots.length - 1] : null;
 }
 
 function _ensureConsoleHook(): void {
@@ -160,7 +165,7 @@ function _ensureConsoleHook(): void {
     _origConsole = { log: console.log, warn: console.warn, error: console.error };
     const make = (level: CapturedEntry['level'], orig: (...a: any[]) => void) =>
         (...a: any[]): void => {
-            const slot = _topSlot();
+            const slot = _captureALS.getStore();
             if (slot) {
                 const message = _formatArgs(a);
                 _appendBounded(slot, { level, message, ts: Date.now() });
@@ -173,7 +178,7 @@ function _ensureConsoleHook(): void {
 }
 
 function _maybeUnhookConsole(): void {
-    if (_captureSlots.length > 0 || !_origConsole) return;
+    if (_activeSlotCount > 0 || !_origConsole) return;
     console.log = _origConsole.log;
     console.warn = _origConsole.warn;
     console.error = _origConsole.error;
@@ -198,38 +203,45 @@ export const methods: { [key: string]: (...any: any) => any } = {
      */
     async runWithCapture(methodName: string, methodArgs?: unknown[]) {
         const slot: CaptureSlot = {
-            token: Symbol('mcp-capture'),
             entries: [],
             bytes: 0,
             truncated: false,
         };
-        _captureSlots.push(slot);
+        _activeSlotCount += 1;
         _ensureConsoleHook();
         try {
-            const fn = methods[methodName];
-            if (typeof fn !== 'function') {
-                return {
-                    success: false,
-                    error: `runWithCapture: method ${methodName} not found`,
-                    capturedLogs: slot.entries,
-                };
-            }
-            try {
-                const result = await fn(...(methodArgs ?? []));
-                if (result && typeof result === 'object' && !Array.isArray(result)) {
-                    return { ...result, capturedLogs: (result as any).capturedLogs ?? slot.entries };
+            // v2.4.10 round-2 codex 🔴 + claude 🟡 + gemini 🟡: AsyncLocalStorage
+            // binds `slot` to this call's logical async context, so any
+            // console.log emitted by the inner method (or any descendant
+            // microtask, even after `await` boundaries when other calls are
+            // also active) routes to THIS slot — not whichever was
+            // top-of-stack at the moment the log fired. Eliminates
+            // cross-call leakage from interleaved async runs.
+            return await _captureALS.run(slot, async () => {
+                const fn = methods[methodName];
+                if (typeof fn !== 'function') {
+                    return {
+                        success: false,
+                        error: `runWithCapture: method ${methodName} not found`,
+                        capturedLogs: slot.entries,
+                    };
                 }
-                return { success: true, data: result, capturedLogs: slot.entries };
-            } catch (err: any) {
-                return {
-                    success: false,
-                    error: err?.message ?? String(err),
-                    capturedLogs: slot.entries,
-                };
-            }
+                try {
+                    const result = await fn(...(methodArgs ?? []));
+                    if (result && typeof result === 'object' && !Array.isArray(result)) {
+                        return { ...result, capturedLogs: (result as any).capturedLogs ?? slot.entries };
+                    }
+                    return { success: true, data: result, capturedLogs: slot.entries };
+                } catch (err: any) {
+                    return {
+                        success: false,
+                        error: err?.message ?? String(err),
+                        capturedLogs: slot.entries,
+                    };
+                }
+            });
         } finally {
-            const idx = _captureSlots.findIndex(s => s.token === slot.token);
-            if (idx >= 0) _captureSlots.splice(idx, 1);
+            _activeSlotCount = Math.max(0, _activeSlotCount - 1);
             _maybeUnhookConsole();
         }
     },
