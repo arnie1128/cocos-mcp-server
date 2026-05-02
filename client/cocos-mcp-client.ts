@@ -380,7 +380,7 @@ function cleanupRecording(stream?: MediaStream): void {
     _recState = null;
 }
 
-async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: number }): Promise<{ success: boolean; data?: any; error?: string }> {
+async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: number; quality?: string; videoCodec?: string }): Promise<{ success: boolean; data?: any; error?: string }> {
     if (_recState) {
         return { success: false, error: 'A recording is already in progress; call record_stop first.' };
     }
@@ -395,18 +395,62 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
         return { success: false, error: 'canvas.captureStream() not supported in this browser.' };
     }
     const stream: MediaStream = (canvas as any).captureStream();
-    const mimeType = args.mimeType ?? (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
-    if (!MediaRecorder.isTypeSupported(mimeType)) {
+    
+    let baseMimeType = args.mimeType ?? (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
+    let codec = args.videoCodec;
+    if (!codec && baseMimeType === 'video/mp4') {
+        codec = 'h264';
+    }
+
+    let finalMimeType = baseMimeType;
+    let warning: string | undefined;
+
+    if (codec) {
+        const targetMime = `${baseMimeType};codecs=${codec}`;
+        if (MediaRecorder.isTypeSupported(targetMime)) {
+            finalMimeType = targetMime;
+        } else {
+            let fallbackCodec: string | undefined;
+            if (baseMimeType === 'video/mp4' && codec === 'h264') fallbackCodec = 'av1';
+            if (baseMimeType === 'video/webm' && codec === 'vp9') fallbackCodec = 'vp8';
+
+            if (fallbackCodec) {
+                const fallbackMime = `${baseMimeType};codecs=${fallbackCodec}`;
+                if (MediaRecorder.isTypeSupported(fallbackMime)) {
+                    finalMimeType = fallbackMime;
+                    warning = `Requested codec ${codec} not supported, fell back to ${fallbackCodec}`;
+                } else if (MediaRecorder.isTypeSupported(baseMimeType)) {
+                    finalMimeType = baseMimeType;
+                    warning = `Requested codec ${codec} and fallback ${fallbackCodec} not supported, fell back to base ${baseMimeType}`;
+                }
+            } else if (MediaRecorder.isTypeSupported(baseMimeType)) {
+                finalMimeType = baseMimeType;
+                warning = `Requested codec ${codec} not supported, fell back to base ${baseMimeType}`;
+            } else {
+                finalMimeType = targetMime; // Let it fail below
+            }
+        }
+    }
+
+    if (!MediaRecorder.isTypeSupported(finalMimeType)) {
         // v2.9.5 review fix (Codex 🔴): release the stream we just opened
         // before bailing on unsupported mimeType.
         cleanupRecording(stream);
-        return { success: false, error: `mimeType "${mimeType}" not supported by this browser's MediaRecorder.` };
+        return { success: false, error: `mimeType "${finalMimeType}" not supported by this browser's MediaRecorder.` };
     }
+
+    let bps = args.videoBitsPerSecond;
+    if (bps === undefined && args.quality) {
+        if (args.quality === 'low') bps = 1_000_000;
+        else if (args.quality === 'medium') bps = 5_000_000;
+        else if (args.quality === 'high') bps = 12_000_000;
+    }
+
     let recorder: MediaRecorder;
     try {
         recorder = new MediaRecorder(stream, {
-            mimeType,
-            ...(args.videoBitsPerSecond ? { videoBitsPerSecond: args.videoBitsPerSecond } : {}),
+            mimeType: finalMimeType,
+            ...(bps ? { videoBitsPerSecond: bps } : {}),
         });
     } catch (err: any) {
         cleanupRecording(stream);
@@ -429,7 +473,7 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
     };
     recorder.onstop = async () => {
         try {
-            const blob = new Blob(chunks, { type: mimeType });
+            const blob = new Blob(chunks, { type: finalMimeType });
             const dataUrl = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
@@ -438,7 +482,7 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
             });
             const durationMs = Date.now() - startedAt;
             cleanupRecording(stream);
-            resolveStop({ dataUrl, mimeType, durationMs, sizeBytes: blob.size });
+            resolveStop({ dataUrl, mimeType: finalMimeType, durationMs, sizeBytes: blob.size });
         } catch (err: any) {
             cleanupRecording(stream);
             rejectStop(err instanceof Error ? err : new Error(String(err)));
@@ -462,7 +506,7 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
     // re-polluted with a dead recorder reference. Pre-assigning means
     // the cleanup wins (sets to null) and the post-start error path
     // (try/catch below) just re-runs cleanup as a no-op.
-    _recState = { recorder, stream, chunks, mimeType, startedAt, stopPromise, resolveStop, rejectStop };
+    _recState = { recorder, stream, chunks, mimeType: finalMimeType, startedAt, stopPromise, resolveStop, rejectStop };
     try {
         recorder.start();
     } catch (err: any) {
@@ -472,7 +516,7 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
         cleanupRecording(stream);
         return { success: false, error: `MediaRecorder.start failed: ${err?.message ?? String(err)}` };
     }
-    return { success: true, data: { recording: true, mimeType } };
+    return { success: true, data: { recording: true, mimeType: finalMimeType, ...(warning ? { warning } : {}) } };
 }
 
 async function recordStop(): Promise<{ success: boolean; data?: any; error?: string }> {

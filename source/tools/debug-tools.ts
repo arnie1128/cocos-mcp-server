@@ -1557,10 +1557,15 @@ export class DebugTools implements ToolExecutor {
     // Keep the dispatch path identical to game_command(type='record_*') so
     // there's only one persistence pipeline and one queue. AI still picks
     // these tools first because their schemas are explicit.
-    private async recordStart(mimeType?: string, videoBitsPerSecond?: number, timeoutMs: number = 5000): Promise<ToolResponse> {
+    private async recordStart(mimeType?: string, videoBitsPerSecond?: number, timeoutMs: number = 5000, quality?: string, videoCodec?: string): Promise<ToolResponse> {
+        if (quality && videoBitsPerSecond !== undefined) {
+            return fail('quality and videoBitsPerSecond are mutually exclusive');
+        }
         const args: any = {};
         if (mimeType) args.mimeType = mimeType;
         if (typeof videoBitsPerSecond === 'number') args.videoBitsPerSecond = videoBitsPerSecond;
+        if (quality) args.quality = quality;
+        if (videoCodec) args.videoCodec = videoCodec;
         return this.gameCommand('record_start', args, timeoutMs);
     }
 
