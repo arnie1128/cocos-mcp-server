@@ -729,21 +729,51 @@ export class DebugTools implements ToolExecutor {
         return { success: true, data: getClientStatus() };
     }
 
-    private persistGameScreenshot(dataUrl: string, width?: number, height?: number): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
+    // v2.6.1 review fix (codex 🔴 + claude W1): bound the legitimate range
+    // of a screenshot payload before decoding so a misbehaving / malicious
+    // client cannot fill disk by streaming arbitrary base64 bytes.
+    // 32 MB matches the global request-body cap in mcp-server-sdk.ts so
+    // the body would already 413 before reaching here, but a
+    // belt-and-braces check stays cheap.
+    private static readonly MAX_GAME_SCREENSHOT_BYTES = 32 * 1024 * 1024;
+
+    private persistGameScreenshot(dataUrl: string, _width?: number, _height?: number): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
         const dirResult = this.ensureCaptureDir();
         if (!dirResult.ok) return { ok: false, error: dirResult.error };
         const m = /^data:image\/(png|jpeg|webp);base64,(.*)$/i.exec(dataUrl);
         if (!m) {
             return { ok: false, error: 'GameDebugClient returned screenshot dataUrl in unexpected format (expected data:image/{png|jpeg|webp};base64,...)' };
         }
+        // base64-decoded byte count = ~ceil(b64Len * 3 / 4); reject early
+        // before allocating a multi-GB Buffer.
+        const b64Len = m[2].length;
+        const approxBytes = Math.ceil(b64Len * 3 / 4);
+        if (approxBytes > DebugTools.MAX_GAME_SCREENSHOT_BYTES) {
+            return { ok: false, error: `screenshot payload too large: ~${approxBytes} bytes exceeds cap ${DebugTools.MAX_GAME_SCREENSHOT_BYTES}` };
+        }
         const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
         const buf = Buffer.from(m[2], 'base64');
+        if (buf.length > DebugTools.MAX_GAME_SCREENSHOT_BYTES) {
+            return { ok: false, error: `screenshot payload too large after decode: ${buf.length} bytes exceeds cap ${DebugTools.MAX_GAME_SCREENSHOT_BYTES}` };
+        }
         const filePath = path.join(dirResult.dir, `game-${Date.now()}.${ext}`);
-        // ensureCaptureDir already roots under Editor.Project.path; re-resolve
-        // both paths via realpath to catch a symlinked temp dir escaping the
-        // project root (defensive — same pattern as v2.5.0 file-editor).
-        const realDir = fs.realpathSync(dirResult.dir);
-        const realParent = path.dirname(filePath);
+        // v2.6.1 review fix (claude M2 + codex 🟡 + gemini 🟡): the v2.6.0
+        // version realpath'd `dirResult.dir` but compared to the *unresolved*
+        // `path.dirname(filePath)`. With `filePath = path.join(dir, basename)`
+        // dirname collapses to the original dir string, so the comparison
+        // really asked "does dir contain a symlink anywhere in its path?"
+        // — which fail-rejected legitimate symlinked temp dirs (macOS
+        // /var → /private/var, network mounts). Realpath both sides for a
+        // true containment check.
+        let realDir: string;
+        let realParent: string;
+        try {
+            const rp: any = fs.realpathSync as any;
+            realDir = (rp.native ?? rp)(dirResult.dir);
+            realParent = (rp.native ?? rp)(path.dirname(filePath));
+        } catch (err: any) {
+            return { ok: false, error: `screenshot path realpath failed: ${err?.message ?? String(err)}` };
+        }
         if (path.resolve(realParent) !== path.resolve(realDir)) {
             return { ok: false, error: 'screenshot save path resolved outside the capture directory' };
         }

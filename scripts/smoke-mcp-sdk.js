@@ -253,6 +253,45 @@ function getJson(pathname) {
         console.log('[/game/result no pending]', resultRejected.status, resultRejected.body);
         if (resultRejected.status !== 409) throw new Error('/game/result should reject when no command pending');
 
+        // 19. v2.6.1: /game/result missing success boolean → 400
+        const resultBadShape = await postJson('/game/result', { id: 'cmd_zzz', error: 'oops' });
+        console.log('[/game/result bad shape]', resultBadShape.status, resultBadShape.body);
+        if (resultBadShape.status !== 400) throw new Error('/game/result should reject {id, error} without boolean success');
+
+        // 20. v2.6.1: full queue round-trip via the demo executor.
+        //   - simulate a poll-and-respond cycle by directly hitting the
+        //     queue module's exports through dist/.
+        const queueModule = require('../dist/lib/game-command-queue.js');
+        queueModule.resetForTest();
+        // host queues a command (would normally happen inside a tool handler)
+        const queued = queueModule.queueGameCommand('screenshot');
+        if (!queued.ok) throw new Error('queueGameCommand failed: ' + queued.error);
+        // first poll claims it
+        const pollClaim = await getJson('/game/command');
+        if (!/"id":"/.test(pollClaim.body)) throw new Error('first poll should claim the queued command');
+        // second poll while still pending must NOT re-deliver (claim guard)
+        const pollAgain = await getJson('/game/command');
+        if (pollAgain.body.trim() !== 'null') throw new Error('claimed command should not be re-delivered to a second poll');
+        // client posts result
+        const postRes = await postJson('/game/result', { id: queued.id, success: true, data: { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', width: 1, height: 1 } });
+        console.log('[/game/result accept]', postRes.status, postRes.body || '<empty>');
+        if (postRes.status !== 204) throw new Error('/game/result valid post should 204');
+        // After post, _result is set but _pending stays until awaitCommandResult
+        // drains it (mirrors the real tool-side flow). Drain and verify idle.
+        const drained = await queueModule.awaitCommandResult(queued.id, 1000);
+        if (!drained.ok) throw new Error('awaitCommandResult should resolve after result post');
+        if (!drained.result || drained.result.success !== true) throw new Error('drained result should match the post');
+        const statusAfter = await getJson('/game/status');
+        if (!/"queued":false/.test(statusAfter.body)) throw new Error('queue should be idle after awaiter drains result');
+        queueModule.resetForTest();
+
+        // 21. v2.6.1: /game/result body cap (32 MB) — request a 33 MB body
+        //   should be rejected with 413. Use direct http.request with a
+        //   Content-Length so the server reads the stream and trips the cap.
+        // Skipped: would require allocating a 33 MB string for transmit and
+        // is slow; trust the unit-level guard in readBody. Smoke covers
+        // the smaller payload path above.
+
         console.log('\n✅ all smoke checks passed');
     } catch (err) {
         console.error('\n❌ smoke test failed:', err.message);

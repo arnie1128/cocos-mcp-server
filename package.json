@@ -2,17 +2,19 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.6.0",
+    "version": "2.6.1",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
         "preinstall": "node ./scripts/preinstall.js",
         "build": "tsc",
-        "watch": "tsc -w"
+        "watch": "tsc -w",
+        "smoke": "node scripts/smoke-mcp-sdk.js",
+        "check:gemini": "node scripts/check-gemini-compat.js"
     },
     "description": "i18n:cocos-mcp-server.description",
     "main": "./dist/main.js",
-    "releaseDate": "2026-05-04T12:45:23+08:00",
+    "releaseDate": "2026-05-02T13:55:00+08:00",
     "homepage": "https://github.com/arnie1128/cocos-mcp-server",
     "repository": {
         "type": "git",

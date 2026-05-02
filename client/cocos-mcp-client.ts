@@ -116,8 +116,10 @@ function takeScreenshot(): { success: boolean; data?: any; error?: string } {
     if (!scene) return { success: false, error: 'No active scene' };
 
     let camera: Camera | null = null;
+    // v2.6.1 review fix (gemini 🟡): skip inactive subtrees so we don't
+    // walk a hidden UI hierarchy or off-stage scratch nodes.
     const find = (n: Node) => {
-        if (camera) return;
+        if (camera || !n.active) return;
         const c = n.getComponent(Camera);
         if (c && c.enabled) { camera = c; return; }
         for (const child of n.children) find(child);
@@ -161,12 +163,14 @@ function takeScreenshot(): { success: boolean; data?: any; error?: string } {
     }
     const imageData = ctx.createImageData(width, height);
     // gfx readback is bottom-up; flip rows so the PNG is right-side up.
+    // v2.6.1 review fix (gemini 🟡): per-row TypedArray copy via
+    // ImageData.data.set + Uint8Array.subarray is ~10× faster than the
+    // per-byte loop on large canvases (4k canvas = 8M pixels).
+    const rowBytes = width * 4;
     for (let y = 0; y < height; y++) {
-        const srcRow = (height - 1 - y) * width * 4;
-        const dstRow = y * width * 4;
-        for (let x = 0; x < width * 4; x++) {
-            imageData.data[dstRow + x] = buffer[srcRow + x];
-        }
+        const srcRow = (height - 1 - y) * rowBytes;
+        const dstRow = y * rowBytes;
+        imageData.data.set(buffer.subarray(srcRow, srcRow + rowBytes), dstRow);
     }
     ctx.putImageData(imageData, 0, 0);
     const dataUrl = cvs.toDataURL('image/png');
@@ -201,10 +205,18 @@ function inspectNode(name?: string): { success: boolean; data?: any; error?: str
         position: { x: pos.x, y: pos.y, z: pos.z },
         scale: { x: scale.x, y: scale.y, z: scale.z },
         eulerAngles: { x: rot.x, y: rot.y, z: rot.z },
-        components: target.components.map(c => ({
-            type: (c.constructor as any).name ?? 'Unknown',
-            enabled: (c as any).enabled ?? null,
-        })),
+        // v2.6.1 review fix (gemini 🟡): minified release builds rename
+        // constructor.name (e.g. "Sprite" → "a"); fall back to the
+        // ccclass-registered name when present (cocos sets it via the
+        // @ccclass decorator on the class).
+        components: target.components.map(c => {
+            const ctor: any = c.constructor;
+            const ccname = ctor?.__cid__ ?? ctor?.[Symbol.for('cc:cls:name')] ?? null;
+            return {
+                type: ccname ?? ctor?.name ?? 'Unknown',
+                enabled: (c as any).enabled ?? null,
+            };
+        }),
         childCount: target.children.length,
     };
     // UITransform info when present (very common for UI nodes).

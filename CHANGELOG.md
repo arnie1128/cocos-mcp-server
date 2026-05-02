@@ -1,6 +1,116 @@
 # Changelog
 
-## v2.6.0 — 2026-05-04
+## v2.6.1 — 2026-05-02
+
+Three-way review patch round 1 on v2.6.0 (Claude + Codex + Gemini).
+**5 🔴 must-fix** + **6 ≥1-reviewer 🟡** addressed. No new tools; tool
+count stays at 18 categories / 183 tools. `SERVER_VERSION` bumped to
+`'2.6.1'`.
+
+### 🔴 must-fix #1 — `consumePendingCommand` re-delivery race (Codex)
+
+`source/lib/game-command-queue.ts:60` — `consumePendingCommand()` returned
+the pending slot without marking it claimed. Two GameDebugClient
+instances (or a client that re-poll-loops faster than the host
+processes results) could both see the same command and execute it
+twice. Single-flight invariant was real for the host queue but leaked
+into the client side.
+
+Fix: wrap `_pending` in `{cmd, claimed}` and flip `claimed` on first
+consume; subsequent consumes return null until either
+`setCommandResult` resolves or `awaitCommandResult` times out.
+
+### 🔴 must-fix #2 — `/game/result` body unbounded → DoS (Codex + Claude)
+
+`source/mcp-server-sdk.ts:696` `readBody()` accumulated chunks with no
+byte cap. With CORS wildcard, any local browser tab could POST
+gigabytes and OOM the host. Pre-existing for `/mcp` and `/api/*` too.
+
+Fix: hoist `readBody` to enforce a 32 MB cap and throw
+`BodyTooLargeError`; the HTTP error handler maps it to `413`. Cap is
+generous enough for legitimate 4k-canvas screenshot data URLs.
+
+### 🔴 must-fix #3 — screenshot base64 size unbounded → disk fill (Codex)
+
+`source/tools/debug-tools.ts persistGameScreenshot` decoded any base64
+length the client sent and `writeFileSync`'d it. Combined with #2
+this made it easy to fill disk via `/game/result`.
+
+Fix: cap at 32 MB (matches request-body cap); approximate decoded byte
+count from base64 length BEFORE allocating Buffer; double-check the
+decoded buffer length post-decode.
+
+### 🔴 must-fix #4 — `decodeUuid` false-positive on base64-shaped strings (Claude + Codex)
+
+`source/lib/uuid-compat.ts` v2.6.0 predicate "decoded contains `@`"
+hit an empirical 5-7% false-positive rate at length 20/24/28 because
+random base64 occasionally decodes to bytes containing 0x40. Cocos
+internal importer-generated keys or third-party UUIDs in those length
+buckets would be silently mangled before reaching `query-asset-info`.
+
+Fix: tighten the predicate to require the decoded value match a
+canonical cocos sub-asset UUID shape
+(`<8-4-4-4-12 hex>@<sub-key>`). Plain UUIDs and email-shaped base64
+both pass through unchanged.
+
+### 🔴 must-fix #5 — `persistGameScreenshot` symlink check broken (Claude + Codex + Gemini)
+
+`source/tools/debug-tools.ts persistGameScreenshot` realpath'd
+`dirResult.dir` but compared against `path.dirname(filePath)` raw.
+Since `filePath = path.join(dir, basename)`, `path.dirname(filePath)`
+collapses back to the original `dir` string, so the comparison really
+asked "does `dir` contain a symlink anywhere?" — fail-rejecting
+legitimate symlinked temp dirs (macOS `/var → /private/var`, custom
+mounts).
+
+Fix: realpath BOTH sides via `realpathSync.native ?? realpathSync`
+(the v2.5.1 file-editor pattern). True containment check.
+
+### 🟡 worth-considering — also addressed
+
+- `source/mcp-server-sdk.ts /game/result` payload now requires
+  `typeof success === 'boolean'`, not just an `id`. Prevents a
+  buggy client posting `{id, error}` from sneaking past as success
+  (Claude W2).
+- `source/lib/game-command-queue.ts awaitCommandResult` clears the
+  slot on timeout even if `_pending.id` no longer matches the
+  awaiter — defensive against future reuse paths (Claude W3).
+- `CLAUDE.md` tool count synced to 183 with version bump rule
+  (Claude W4).
+- `package.json` adds `npm run check:gemini` and `npm run smoke`
+  scripts. Gemini guard is now a one-liner away from CI integration
+  (Claude W5).
+- `client/cocos-mcp-client.ts takeScreenshot` skips `!n.active`
+  subtrees during camera DFS (Gemini).
+- `client/cocos-mcp-client.ts takeScreenshot` row-flip uses
+  `imageData.data.set(buffer.subarray(...))` instead of per-byte
+  loop — meaningful for 4k canvases (Gemini).
+- `client/cocos-mcp-client.ts inspectNode` reads `__cid__` /
+  `Symbol.for('cc:cls:name')` before falling back to
+  `constructor.name` so minified release builds still produce
+  meaningful component types (Gemini).
+- `source/lib/game-command-queue.ts POLL_TIMESTAMP_FRESH_MS` raised
+  from 2000 → 5000 to tolerate remote-device debugging and laggy
+  networks (Gemini).
+- `package.json releaseDate` + `CHANGELOG` v2.6.0 header date
+  corrected from `2026-05-04` (typo / wrong dateformat output) to
+  the actual release day (Codex).
+- `scripts/smoke-mcp-sdk.js` adds full queue round-trip (queue → poll
+  → re-poll-rejected → result → status idle) and a 400 case for
+  bad-shape `/game/result` (Codex).
+
+### Deferred to later patch / docs
+
+- CORS scoping for `/game/*` endpoints (Claude W7) — needs design
+  before applying because the same wildcard is shared with
+  `/api/*`/`/health` and serves the panel webview.
+- `silent` flag wording mismatch in `client/README.md` (Claude W8) —
+  cosmetic.
+- `GameDebugClient` doc note for native (Android/iOS) builds where
+  `document` is undefined (Claude W9) — docs only, will fold into
+  the next docs commit.
+
+## v2.6.0 — 2026-05-02
 
 Cross-LLM compat + runtime QA milestone. Three deliverables, all derived
 from the cross-repo survey:

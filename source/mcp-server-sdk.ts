@@ -33,7 +33,7 @@ const SERVER_NAME = 'cocos-mcp-server';
 // version on every minor/major bump. SDK Server initialize response carries
 // this string; clients see it during MCP handshake. Drift since v2.0.0 has
 // been confusing review rounds and live-test verification.
-const SERVER_VERSION = '2.6.0';
+const SERVER_VERSION = '2.6.1';
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.
@@ -434,9 +434,13 @@ export class MCPServer {
                     res.end(JSON.stringify({ ok: false, error: `Invalid JSON: ${err.message}` }));
                     return;
                 }
-                if (!parsed || typeof parsed.id !== 'string') {
+                // v2.6.1 review fix (claude W2): require both id (string) and
+                // success (boolean). Without the success check, a buggy client
+                // posting {id, error} would slip through and downstream code
+                // would treat success !== false as truthy.
+                if (!parsed || typeof parsed.id !== 'string' || typeof parsed.success !== 'boolean') {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ ok: false, error: 'expected {id, success, data?, error?}' }));
+                    res.end(JSON.stringify({ ok: false, error: 'expected {id: string, success: boolean, data?, error?}' }));
                     return;
                 }
                 const accepted = setCommandResult(parsed);
@@ -463,6 +467,13 @@ export class MCPServer {
         } catch (error: any) {
             logger.error('[MCPServer] HTTP request error:', error);
             if (!res.headersSent) {
+                // v2.6.1: 413 surface for body-cap rejections so clients
+                // can distinguish "you sent too much" from server faults.
+                if (error instanceof BodyTooLargeError) {
+                    res.writeHead(413, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: error.message }));
+                    return;
+                }
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Internal server error', details: error?.message }));
             }
@@ -693,11 +704,32 @@ export class MCPServer {
     }
 }
 
+// v2.6.1 review fix (codex 🔴 + claude W1): cap request bodies at 32 MB.
+// Screenshots come back as data URLs that can legitimately be a few MB on
+// 4k canvases, so we set the cap generously rather than per-endpoint.
+// Above the cap we destroy the connection so the client sees a hard close
+// rather than a slow truthful 413 (avoids them continuing to stream).
+const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
+
+class BodyTooLargeError extends Error {
+    readonly statusCode = 413;
+    constructor() { super(`Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`); }
+}
+
 function readBody(req: http.IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', () => resolve(body));
+        const chunks: Buffer[] = [];
+        let total = 0;
+        req.on('data', (chunk: Buffer) => {
+            total += chunk.length;
+            if (total > MAX_REQUEST_BODY_BYTES) {
+                req.destroy();
+                reject(new BodyTooLargeError());
+                return;
+            }
+            chunks.push(chunk);
+        });
+        req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         req.on('error', reject);
     });
 }

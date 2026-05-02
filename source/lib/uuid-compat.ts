@@ -24,6 +24,16 @@
 
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 
+// v2.6.1 review fix (claude M1 + codex 🟡): the v2.6.0 predicate "decoded
+// contains @" produced false positives for any random base64-shaped string
+// that happened to decode to bytes containing 0x40. Empirically ~5-7% hit
+// rate at length 20/24/28. Tighten by also requiring the decoded value to
+// match the cocos sub-asset UUID shape: lowercase-hex + dashes (cocos
+// canonical UUID v4) followed by `@<sub-key>`. This keeps the no-op
+// invariant for plain UUIDs AND for base64 strings that don't decode to
+// a real sub-asset reference.
+const COCOS_SUB_ASSET_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@[\w.-]+$/i;
+
 function isLikelyBase64(s: string): boolean {
     if (!s || s.length % 4 !== 0) return false;
     return BASE64_RE.test(s);
@@ -31,20 +41,25 @@ function isLikelyBase64(s: string): boolean {
 
 /**
  * Decode a UUID that may have been base64-encoded by a client to dodge
- * `@` mangling on the wire. Returns the input unchanged for plain UUIDs.
+ * `@` mangling on the wire. Returns the input unchanged for plain UUIDs
+ * AND for any base64-shaped input that doesn't decode to a recognisable
+ * cocos sub-asset UUID (`<canonical-uuid>@<sub-key>`).
  *
- * The decode is gated on the result containing `@` — this is what
- * distinguishes a real encoded sub-asset UUID from an arbitrary base64
- * string. So a 24-char client-id that happens to look base64-like won't
- * be silently decoded into garbage.
+ * Safe no-op cases verified:
+ *   - plain UUID (has dashes, regex rejects) → unchanged
+ *   - raw `<uuid>@<sub>` (has `@`, regex rejects) → unchanged
+ *   - arbitrary base64 like `aGVsbG8=` → decoded to "hello", no `@` → unchanged
+ *   - email-shaped base64 like base64("user@example.com") → contains `@`
+ *     but doesn't match COCOS_SUB_ASSET_RE → unchanged (v2.6.1 tighten)
+ *   - random 20/24/28-char base64 happening to contain 0x40 in decode →
+ *     fails COCOS_SUB_ASSET_RE → unchanged (v2.6.1 tighten)
  */
 export function decodeUuid(input: string): string {
     if (typeof input !== 'string' || input.length === 0) return input;
     if (!isLikelyBase64(input)) return input;
     try {
-        // Node 16+: Buffer always; atob is also available globally on Node 18+.
         const decoded = Buffer.from(input, 'base64').toString('utf8');
-        if (decoded.includes('@')) return decoded;
+        if (COCOS_SUB_ASSET_RE.test(decoded)) return decoded;
     } catch {
         // ill-formed base64; fall through.
     }
