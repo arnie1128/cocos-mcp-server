@@ -322,6 +322,49 @@ token cost is measured.
    add tools that programmatically flip this flag — the opt-in is meant
    to be a deliberate human gesture in the panel UI.
 
+14. **Cocos scene dirty flag is cumulative and not programmatically
+    clearable** (verified v2.4.7 / 2026-05-03). The cocos editor
+    tracks every `set-property` / `create-node` / `remove-node` /
+    `paste-node` etc. as a discrete operation in its undo stack. The
+    "scene dirty" state is the union of all those ops since last
+    save — it does NOT diff against on-disk state, so a strict
+    `create-node` → `remove-node` round-trip leaves the scene marked
+    dirty even though net node count is unchanged.
+
+    **No discard channel exists**. `scene/@types/message.d.ts` only
+    exposes `query-dirty`; there is no `clear-dirty`, `discard`,
+    `revert`, or equivalent. `scene-facade-interface.d.ts` only
+    exposes `querySceneDirty`. The only paths back to a clean state:
+
+    - `save_scene` (writes to disk; changes file mtime + may rewrite
+      cocos's serialization variance even when content is unchanged)
+    - User clicks "Discard changes" in the cocos modal (manual)
+    - Close + reopen the project (manual)
+    - `open-scene` to a different scene + accept the modal (manual)
+
+    Implications for AI tool design:
+
+    - `scene_open_scene`, `scene_close_scene`, and any other tool
+      that triggers cocos's "save unsaved changes?" modal will
+      **block the IPC reply until the user dismisses the modal**
+      whenever the current scene has cumulative dirty state. This is
+      the same blocking pattern as landmine #12 (asset-db dialogs),
+      different channel.
+    - AI workflows that "create scratch state, then switch scenes"
+      are inherently dialog-prone. Either save first explicitly, or
+      isolate scratch work to a throwaway scene that you opened
+      first.
+    - Test harnesses (`scripts/live-test.js`) should query dirty
+      RIGHT BEFORE any scene-switch step, not once at startup, so
+      they can skip / save / discard before tripping the modal. The
+      v2.4.7 live-test fix (`ebab029` + this entry) does this; copy
+      the pattern for any future write-flow + scene-switch test.
+    - There is no clean automated "flush dirty without writing to
+      disk" path. If a future need arises, the only known
+      workaround is `cce.SceneFacade` low-level reload via
+      `execute-scene-script`, but that's both unverified and a
+      sledgehammer.
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.

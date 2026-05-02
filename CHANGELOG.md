@@ -1,5 +1,66 @@
 # Changelog
 
+## v2.4.7 — 2026-05-03
+
+Live-test cleanup fixes + CLAUDE.md landmine #14 covering cocos's
+non-clearable scene dirty flag. No `source/` change; bump exists so
+`cocos_cs_349` plugin panel reflects the live-test fix and so future
+audits can see the version that includes the dirty-flag landmine doc.
+
+### Live-test cleanup bugs (commit `ebab029`, pre-bump)
+
+Two bugs in `scripts/live-test.js` triggered cocos' "save unsaved
+changes?" modal and left orphan / `(Missing Node)` residue in the
+scene tree:
+
+- **Pasted nodes never deleted** — read `paste.data.uuids` but the
+  tool returns `data.newUuids`. Stale read meant the cleanup loop
+  iterated an empty array; pasted node lingered + scene stayed
+  dirty.
+- **Prefab instance became Missing Node** — finally block deleted
+  the prefab ASSET first, then tried to delete the in-scene node
+  by the pre-createPrefab UUID. Per CLAUDE.md landmine #8
+  `createPrefab` repurposes the source node and surfaces the new
+  instance UUID as `data.instanceNodeUuid`; live-test never
+  captured it. Asset deletion before instance deletion broke the
+  prefab link → `(Missing Node)`.
+
+Defense-in-depth: re-query `scene_dirty` immediately before the
+scene-switch test (was only checked at startup) so write-flow
+mutations that dirtied the scene mid-test trigger a skip with
+clear message instead of the modal.
+
+### CLAUDE.md landmine #14
+
+Documents the cocos scene dirty flag's cumulative non-clearable
+behaviour:
+
+- Cocos tracks every set-property / create-node / remove-node /
+  paste-node as a discrete op in its undo stack. A `create` →
+  `remove` round-trip leaves the scene dirty even when net node
+  count is unchanged.
+- No `clear-dirty` / `discard` / `revert` channel exists in
+  `scene/@types/message.d.ts` or `scene-facade-interface.d.ts`. The
+  only paths to a clean state involve writing to disk OR a manual
+  user action in the cocos modal.
+- Tools that trigger the cocos modal (`scene_open_scene`,
+  `scene_close_scene`, etc.) **block the IPC reply** until the user
+  dismisses the modal — same blocking pattern as landmine #12
+  (asset-db dialogs), different channel.
+- AI workflows that "create scratch state then switch scenes" are
+  inherently dialog-prone. Either save first or isolate scratch
+  work to a throwaway scene.
+
+### Verification
+
+- `npm run build` tsc clean (no source change, version-only bump)
+- `node scripts/live-test.js` 54 pass / 1 fail (pre-existing
+  `get_console_logs` placeholder) / 1 skip (scene-switch dirty
+  guard kicks in)
+- Tool count unchanged: 16 categories / 170 tools
+
+---
+
 ## v2.4.6 — 2026-05-03
 
 Round-3 review fixes on v2.4.5. One 🔴 (Codex) + one consensus 🟡 in
