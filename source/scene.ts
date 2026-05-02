@@ -91,7 +91,98 @@ function serializeEventHandler(eh: any) {
     };
 }
 
+// v2.4.8 A3: scene-side log capture (RomaRogov pattern adapted).
+// Stack-based so concurrent runSceneMethod calls each get an isolated
+// capture array; the console hook is installed once and writes to every
+// active capture array on the stack. When the last call pops, the hook
+// is removed so non-MCP scene activity logs through normally again.
+type CapturedEntry = { level: 'log' | 'warn' | 'error'; message: string; ts: number };
+type ConsoleSnapshot = { log: typeof console.log; warn: typeof console.warn; error: typeof console.error };
+
+const _captureStack: CapturedEntry[][] = [];
+let _origConsole: ConsoleSnapshot | null = null;
+
+function _formatArgs(a: unknown[]): string {
+    return a
+        .map(x => {
+            if (typeof x === 'string') return x;
+            try { return JSON.stringify(x); } catch { return String(x); }
+        })
+        .join(' ');
+}
+
+function _ensureConsoleHook(): void {
+    if (_origConsole) return;
+    _origConsole = { log: console.log, warn: console.warn, error: console.error };
+    const make = (level: CapturedEntry['level'], orig: (...a: any[]) => void) =>
+        (...a: any[]): void => {
+            const message = _formatArgs(a);
+            const ts = Date.now();
+            for (const arr of _captureStack) arr.push({ level, message, ts });
+            try { orig.apply(console, a); } catch { /* swallow */ }
+        };
+    console.log = make('log', _origConsole.log);
+    console.warn = make('warn', _origConsole.warn);
+    console.error = make('error', _origConsole.error);
+}
+
+function _maybeUnhookConsole(): void {
+    if (_captureStack.length > 0 || !_origConsole) return;
+    console.log = _origConsole.log;
+    console.warn = _origConsole.warn;
+    console.error = _origConsole.error;
+    _origConsole = null;
+}
+
 export const methods: { [key: string]: (...any: any) => any } = {
+    /**
+     * v2.4.8 A3: invoke another scene-script method by name, capturing
+     * console.{log,warn,error} during the call and returning capturedLogs
+     * alongside the method's normal return envelope. Single round-trip.
+     *
+     * Behaviour:
+     *  - If `methodName` does not exist, returns
+     *    `{ success: false, error: "..." , capturedLogs: [] }` (empty).
+     *  - If the inner method throws, the throw is caught and converted to
+     *    `{ success: false, error, capturedLogs }` so the host always sees
+     *    a structured envelope plus the logs that ran up to the throw.
+     *  - If the inner method returns an object, capturedLogs is merged
+     *    alongside its keys without overwriting (we use `?? captures`
+     *    semantics: only set if not already present).
+     */
+    async runWithCapture(methodName: string, methodArgs?: unknown[]) {
+        const captures: CapturedEntry[] = [];
+        _captureStack.push(captures);
+        _ensureConsoleHook();
+        try {
+            const fn = methods[methodName];
+            if (typeof fn !== 'function') {
+                return {
+                    success: false,
+                    error: `runWithCapture: method ${methodName} not found`,
+                    capturedLogs: captures,
+                };
+            }
+            try {
+                const result = await fn(...(methodArgs ?? []));
+                if (result && typeof result === 'object' && !Array.isArray(result)) {
+                    return { ...result, capturedLogs: (result as any).capturedLogs ?? captures };
+                }
+                return { success: true, data: result, capturedLogs: captures };
+            } catch (err: any) {
+                return {
+                    success: false,
+                    error: err?.message ?? String(err),
+                    capturedLogs: captures,
+                };
+            }
+        } finally {
+            const idx = _captureStack.indexOf(captures);
+            if (idx >= 0) _captureStack.splice(idx, 1);
+            _maybeUnhookConsole();
+        }
+    },
+
     /**
      * Add component to a node
      */

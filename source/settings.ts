@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS: MCPServerSettings = {
     enableDebugLog: false,
     allowedOrigins: ['*'],
     maxConnections: 10,
-    enableEditorContextEval: false
+    enableEditorContextEval: false,
+    enableSceneLogCapture: true
 };
 
 const DEFAULT_TOOL_MANAGER_SETTINGS: ToolManagerSettings = {

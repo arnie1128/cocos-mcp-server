@@ -13,7 +13,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
 import { setDebugLogEnabled, logger } from './lib/log';
-import { setEditorContextEvalEnabled } from './lib/runtime-flags';
+import { setEditorContextEvalEnabled, setSceneLogCaptureEnabled } from './lib/runtime-flags';
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 
@@ -61,6 +61,7 @@ export class MCPServer {
         this.resources = createResourceRegistry(registry);
         setDebugLogEnabled(settings.enableDebugLog);
         setEditorContextEvalEnabled(settings.enableEditorContextEval ?? false);
+        setSceneLogCaptureEnabled(settings.enableSceneLogCapture ?? true);
         logger.debug(`[MCPServer] Using shared tool registry (${Object.keys(registry).length} categories)`);
     }
 
@@ -497,6 +498,10 @@ export class MCPServer {
             // editor-context eval would keep accepting AI-generated host-side
             // code despite the user's panel choice.
             setEditorContextEvalEnabled(settings.enableEditorContextEval ?? false);
+            // v2.4.8 A3: re-apply scene-log-capture flag on every settings
+            // change so panel toggle takes effect immediately, mirroring the
+            // editorContextEval re-apply pattern.
+            setSceneLogCaptureEnabled(settings.enableSceneLogCapture ?? true);
             if (this.httpServer) {
                 await this.stop();
                 await this.start();

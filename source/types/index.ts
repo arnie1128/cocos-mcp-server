@@ -9,6 +9,12 @@ export interface MCPServerSettings {
     // AI code there is a prompt-injection risk. Default false; user flips on
     // in panel UI when they explicitly want broad host-side scripting.
     enableEditorContextEval?: boolean;
+    // v2.4.8 A3: when true, scene-bridge wraps every scene-script invocation
+    // through `runWithCapture`, monkey-patching console.{log,warn,error} on
+    // the scene side and attaching `capturedLogs` to the ToolResponse so AI
+    // sees Cocos engine console output for the operation. Default true —
+    // overhead is one extra envelope on the scene-script side, no extra IPC.
+    enableSceneLogCapture?: boolean;
 }
 
 export interface ServerStatus {
@@ -32,6 +38,15 @@ export interface ToolResponse {
     warning?: string;
     verificationData?: any;
     updatedProperties?: string[];
+    // v2.4.8 A3: cocos console output captured during the underlying
+    // scene-script run. Present only when enableSceneLogCapture is on.
+    capturedLogs?: CapturedLogEntry[];
+}
+
+export interface CapturedLogEntry {
+    level: 'log' | 'warn' | 'error';
+    message: string;
+    ts: number;
 }
 
 export interface NodeInfo {
