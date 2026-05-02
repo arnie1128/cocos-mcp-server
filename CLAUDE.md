@@ -365,6 +365,41 @@ token cost is measured.
       `execute-scene-script`, but that's both unverified and a
       sledgehammer.
 
+15. **Gemini-compat: keep zod 4 + `target: 'draft-7'` for inline
+    schemas** (verified v2.6.0 / 2026-05-03). Gemini's tool-call parser
+    rejects JSON Schema `$ref` / `$defs` / `definitions` — Claude /
+    OpenAI accept them, so the bug is silent until a Gemini client
+    issues `tools/list`.
+
+    cocos-cli (270+ stars, official) hits this exact problem and
+    works around it via `mcp.middleware.ts:218` middleware that
+    re-converts zod schemas to inline JSON Schema 7. They use the
+    older `zod-to-json-schema` package which produces `$ref` for
+    reused subschemas by default.
+
+    **We don't need that middleware** because `source/lib/schema.ts`
+    `toInputSchema()` calls **zod 4's built-in**
+    `z.toJSONSchema(schema, { target: 'draft-7' })`, which inlines
+    reused subschemas (verified empirically: same `vec3` instance used
+    3× in `position`/`rotation`/`scale` produces three full inline
+    copies, no `$ref`). All 181 v2.6.0 tool schemas are confirmed
+    inline.
+
+    Regression guard: `node scripts/check-gemini-compat.js` walks
+    every tool's `inputSchema` and fails if any contains `$ref` /
+    `$defs` / `definitions`. Run after `npm run build` whenever
+    touching `lib/schema.ts`, the zod dep, or any hand-rolled
+    `inputSchema`. Adding this to CI would catch silent regressions.
+
+    What would re-introduce the bug:
+    - Downgrading zod to v3 (different `toJSONSchema` semantics).
+    - Switching from `target: 'draft-7'` to `target: 'draft-2020-12'`
+      (the default for some zod versions emits `$defs`).
+    - Hand-writing `inputSchema` literals that contain `$ref` (e.g.
+      copying schemas from external doc tools).
+    - Adopting the `zod-to-json-schema` npm package (different from
+      zod's built-in `toJSONSchema`).
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.
