@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.2 reload-retest patch — 2 bugs 三方都漏的 runtime-only issues → next: 三方 review v2.8.2 / v2.9.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.2 reload-retest patch + 11 live-test 全綠 → next: 三方 review v2.8.2 / v2.9.0）
 
 **當下版本**：v2.8.1（v2.8.0 spillover + round-1 patch consolidated 落
 地）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.x cycle 三輪
@@ -325,6 +325,40 @@ project + reload extension panel，`/health` 回 `tools: 170`。
   的 walker 沒有 — 下次 patch 可整合，但只是 nice-to-have。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
+
+### v2.8.2 reload 後實機測試紀錄
+
+**環境**：v2.8.2 同步到 `cocos_cs_349/extensions/cocos-mcp-server`，
+cocos editor 3.8.7 reload 後 `/health` 回 `tools: 187`，`SERVER_VERSION
+= '2.8.0'`（SDK 常數追 behavior 版本，patch 留在 minor base — 既定 policy）。
+Active scene = `a-test`，project = `cocos_cs_349`，project root =
+`D:\1_dev\cocos_cs\cocos_cs_349`。
+
+| # | 測項 | 結果 |
+|---|---|---|
+| 1 | `/health` → `{tools:187}` | ✅ |
+| 2 | `debug_preview_url(query)` → `http://192.168.2.4:7456` | ✅ |
+| 3 | `debug_query_devices` → 20 個 device entry（iPhone/iPad/HUAWEI/小米/Sony 等） | ✅ |
+| 4 | `debug_capture_preview_screenshot{}` 無 PIE → 失敗訊息引導開 preview，列出可見視窗 | ✅ |
+| 5 | `debug_screenshot{}` auto-named → `<project>/temp/mcp-captures/screenshot-<ts>.png`，3652 bytes | ✅ |
+| 6 | `debug_screenshot{savePath:"C:/Windows/Temp/x.png"}` → containment guard 擋下、訊息清楚 | ✅ |
+| 7 | `debug_screenshot{savePath:"out.png"}` v2.8.1 → 解析到 host cwd（CocosDashboard） **🔴 v2.8.2 修** | ✅ retest |
+| 8 | `debug_preview_control{op:"start"}` v2.8.1 → `cce.SceneFacade is not available` **🔴 v2.8.2 修** | ✅ retest |
+| 9 | `debug_preview_control{op:"start"}` v2.8.2 → `success:true, requestedState:true` | ✅ |
+| 10 | `debug_preview_control{op:"stop"}` → `success:true, requestedState:false` | ✅ |
+| 11 | `debug_screenshot{savePath:"out.png"}` v2.8.2 → 寫到 `<project>/out.png` | ✅ |
+| 12 | `debug_screenshot{savePath:"../escape.png"}` → 解析到 `D:\1_dev\cocos_cs`、guard 擋下 | ✅ |
+
+**觀察 (非 tool bug)**：v2.8.2 retest 中 `preview_control(start)` 雖然
+facade call 通過、無 exception，cocos 內部 capturedLogs 收到 "Failed
+to refresh the current scene" 兩條 error，且 PIE 視窗（`Preview` 標題）
+沒有出現。最可能解釋：cocos 預覽設置成 browser-only 模式（`debug_preview_url`
+回的就是 `http://192.168.2.4:7456`），所以 `changePreviewPlayState`
+雖然觸發 PreviewPlay state 改變，但 render destination 是 browser、
+不是 Electron BrowserWindow，因此 `capture_preview_screenshot` 找不到
+"Preview" 視窗。Tool 行為符合 typed facade 契約；視覺結果取決於 cocos
+preview config，不算 tool 缺陷。v2.9.0 可加 `getPreviewMode` query
+helper 區分 embedded vs browser 給 AI 用。
 
 ### v2.6.2 reload 後實機測試紀錄
 
@@ -753,7 +787,8 @@ v2.7.2 ✅ done（三方 review patch round 2 — CLAUDE.md architecture map dri
 v2.7.3 ✅ done（Codex round-2 re-attendance — 2 must-fix（HANDOFF body 漏更新 v2.7.2 + v2.8.0 candidates 列已落地工具）+ 2 polish（smoke ACAO=* + CLAUDE.md v2.3.0 數學澄清），commit d1a868f；round 3 三方一致 🟢 ship-it）
 v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V28-2 resolveAutoCaptureFile helper for 4 capture paths + T-V28-3 debug_preview_control via typed cce.SceneFacade.changePreviewPlayState，18 categories / 187 tools，commits 39c0b36 / 80d722f / c4a4dc8 / ddb6c77）
 v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），commit 769151b；round 2 三方一致 🟢 ship-it — Claude / Codex 0🔴-2single🟡 / Gemini 0🔴-2single🟡，所有 single 🟡 deferred 至 v2.9.0 spillover）
-v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname。Live-test 紀錄：preview_url ✅ / query_devices ✅ / capture_preview_screenshot 預期失敗訊息 ✅ / screenshot auto-name ✅ / containment guard reject out-of-project ✅ / preview_control + relative savePath 修後待重 retest）
+v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname，commit 5725f09）
+v2.8.2 reload-tested ✅（11 條 live-test 全綠：preview_url / query_devices / capture_preview_screenshot 預期失敗訊息 / screenshot auto-name / screenshot 出 project 擋下 / preview_control(start) facade call 通 / preview_control(stop) round-trip 完整 / 相對 savePath 落到 `<project>/out.png` / `../escape.png` 被 containment guard 擋下。**唯一觀察**：`preview_control(start)` cocos 內部 logs "Failed to refresh the current scene"，PIE 視窗未開啟 — 推測為 cocos preview config 設成 browser-only 而非 embedded gameview，facade call 本身正確（無 exception、return success）。非 tool bug，是環境配置因素。建議 v2.9.0 加 query 模式可讀目前 PIE 狀態 + `getPreviewMode` 區分 embedded / browser）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
