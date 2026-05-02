@@ -1,5 +1,78 @@
 # Changelog
 
+## v2.7.0 — 2026-05-02
+
+Preview-QA + security hardening minor. Four sub-tasks landed across
+four commits; tool count 183 → 186 (+3: debug_preview_url,
+debug_query_devices, debug_capture_preview_screenshot). 18 categories
+unchanged. `SERVER_VERSION` bumped to `'2.7.0'`. Three-way review
+pending.
+
+### #1 — close `reflect-metadata` cleanup verification
+
+v2.4.0 step 5 already adopted the descriptor-capture decorator pattern
+without `reflect-metadata`; the v2.7.0 candidate listed this for a
+follow-up cleanup, but verification confirms there is nothing to clean:
+`emitDecoratorMetadata` was never set, `reflect-metadata` was never
+installed, and `source/` has zero `Reflect.*` references.
+`experimentalDecorators` stays — it is required by the stage-2
+`@mcpTool` signature. Strike from spillover candidate list with
+rationale inline (HANDOFF + roadmap 06).
+
+### #2 — CORS scoping for `/game/*` endpoints (Claude W7 from v2.6.0 review)
+
+`source/mcp-server-sdk.ts handleHttpRequest`: the wildcard ACAO that
+the panel webview needs is no longer applied to `/game/*`. Instead a
+per-request origin allowlist (`file:`, `devtools:`,
+`http://localhost:*`, `http://127.0.0.1:*`, no-Origin) decides whether
+to echo back the Origin or omit ACAO; preflight from disallowed
+origins gets `403`, and the actual GET/POST also rejects 403 to defend
+against simple-request CORS bypass. Mitigates the cross-tab race
+attack against the single-flight queue (a malicious local browser tab
+could time `/game/result` to free `_pending` mid-cycle in v2.6.x).
+
+`/api/*`, `/mcp`, `/health` keep wildcard CORS — the panel webview is
+still on the original trust footing. Smoke step 21 covers
+disallowed-origin 403 + allowed-origin echo + no-Origin pass.
+
+### #3 — `debug_preview_url` + `debug_query_devices` (+2 tools)
+
+Both backed by **public** `Editor.Message` channels:
+
+- `preview / query-preview-url` returns the cocos browser-preview URL
+  (e.g. `http://localhost:7456`). With `action='open'` we also
+  `electron.shell.openExternal` it. Useful as a setup step before
+  `debug_game_command` since the GameDebugClient must reach the
+  preview.
+- `device / query` returns configured `cc.IDeviceItem` entries
+  (`{name, width, height, ratio}`); enables batch-screenshot pipelines
+  targeting multiple resolutions.
+
+Editor-side Preview-in-Editor play/stop is **NOT** shipped. The harady
+route uses the undocumented `scene/editor-preview-set-play` channel
+plus a toolbar-window `executeJavaScript` shim — both depend on
+private state. CLAUDE.md convention is to avoid try-catch through
+fallback paths on undocumented channels.
+
+### #4 — `debug_capture_preview_screenshot` (+1 tool)
+
+`source/tools/debug-tools.ts capturePreviewScreenshot`: thin wrapper
+around the existing `screenshot` impl with `windowTitle='Preview'`
+default, friendlier error when no PIE window exists (lists visible
+window titles to aid AI diagnosis), and a project-rooted
+`preview-<ts>.png` name so PIE captures don't collide with editor
+screenshots in `<project>/temp/mcp-captures/`.
+
+Pairs with `debug_screenshot` (editor window) and
+`debug_game_command(type='screenshot')` (game canvas via RenderTexture
+readback through GameDebugClient) to form the three-tier capture set:
+
+| Tool | Surface |
+|---|---|
+| `debug_screenshot` | main editor window (focused or by title) |
+| `debug_capture_preview_screenshot` | Preview-in-Editor window |
+| `debug_game_command screenshot` | game canvas pixels (camera RT) |
+
 ## v2.6.2 — 2026-05-02
 
 Three-way review patch round 2 on v2.6.1 (Claude + Codex + Gemini).

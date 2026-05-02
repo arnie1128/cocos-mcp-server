@@ -103,6 +103,16 @@ export class DebugTools implements ToolExecutor {
                 handler: a => this.screenshot(a.savePath, a.windowTitle, a.includeBase64),
             },
             {
+                name: 'capture_preview_screenshot',
+                description: 'Capture the cocos Preview-in-Editor (PIE) window to a PNG. Targets an Electron BrowserWindow whose title contains "Preview" — covers PIE windows opened by the cocos toolbar play button. Returns saved file path; pair with debug_preview_url before launching to confirm preview is reachable. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
+                inputSchema: z.object({
+                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
+                    windowTitle: z.string().default('Preview').describe('Substring matched against window titles (default "Preview" for PIE).'),
+                    includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false).'),
+                }),
+                handler: a => this.capturePreviewScreenshot(a.savePath, a.windowTitle, a.includeBase64),
+            },
+            {
                 name: 'batch_screenshot',
                 description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
                 inputSchema: z.object({
@@ -661,6 +671,41 @@ export class DebugTools implements ToolExecutor {
                 data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
             }
             return { success: true, data, message: `Screenshot saved to ${filePath}` };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    // v2.7.0 #4: Preview-window screenshot. Wraps screenshot() with a
+    // PIE-focused default title and a friendlier error when no Preview
+    // window exists (the underlying pickWindow throws "No Electron window
+    // title matched" — that doesn't tell AI to launch preview first).
+    private async capturePreviewScreenshot(savePath?: string, windowTitle: string = 'Preview', includeBase64: boolean = false): Promise<ToolResponse> {
+        try {
+            // Pre-check so failure mode is informative, not the generic
+            // "No Electron window title matched" from pickWindow.
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const electron = require('electron');
+            const BW = electron.BrowserWindow;
+            const matches = BW?.getAllWindows?.()?.filter((w: any) =>
+                w && !w.isDestroyed() && (w.getTitle?.() || '').includes(windowTitle)) ?? [];
+            if (matches.length === 0) {
+                return {
+                    success: false,
+                    error: `No Electron window title contains "${windowTitle}". Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). Visible window titles: ${
+                        BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean).join(', ') ?? '(none)'
+                    }`,
+                };
+            }
+            // Override the default save name so PIE captures don't clobber
+            // editor screenshots in the same directory.
+            let filePath = savePath;
+            if (!filePath) {
+                const dirResult = this.ensureCaptureDir();
+                if (!dirResult.ok) return { success: false, error: dirResult.error };
+                filePath = path.join(dirResult.dir, `preview-${Date.now()}.png`);
+            }
+            return this.screenshot(filePath, windowTitle, includeBase64);
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
