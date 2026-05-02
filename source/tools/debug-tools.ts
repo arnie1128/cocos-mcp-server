@@ -9,6 +9,34 @@ import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// v2.9.x polish: containment helper that handles drive-root edges
+// (C:\), prefix-collision (C:\foo vs C:\foobar), and cross-volume paths
+// (D:\... when root is C:\). Uses path.relative which returns a relative
+// expression — if the result starts with `..` or is absolute, the
+// candidate is outside the root.
+//
+// TOCTOU note (Codex r1 + Gemini r1 single-🟡 from v2.8.1 review,
+// reviewed v2.9.x and accepted as residual risk): there is a small
+// race window between realpathSync containment check and the
+// subsequent writeFileSync — a malicious symlink swap during that
+// window could escape. Full mitigation needs O_NOFOLLOW which Node's
+// fs API doesn't expose directly. Given this is a local dev tool, not
+// a network-facing service, and the attack window is microseconds,
+// the risk is accepted for now. A future v2.x patch could add
+// `fs.openSync(filePath, 'wx')` for AUTO-named paths only (caller-
+// provided savePath needs overwrite semantics). Don't rely on
+// containment for security-critical writes.
+function isPathWithinRoot(candidate: string, root: string): boolean {
+    const candAbs = path.resolve(candidate);
+    const rootAbs = path.resolve(root);
+    if (candAbs === rootAbs) return true;
+    const rel = path.relative(rootAbs, candAbs);
+    if (!rel) return true;                         // identical
+    if (rel.startsWith('..')) return false;        // outside root
+    if (path.isAbsolute(rel)) return false;        // different drive
+    return true;
+}
+
 export class DebugTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
@@ -730,12 +758,14 @@ export class DebugTools implements ToolExecutor {
         // Primary protection: capture dir itself must resolve inside the
         // project root, so a symlink chain on `temp/mcp-captures` cannot
         // pivot writes to e.g. /etc or C:\Windows.
-        const realDirNormalized = path.resolve(realDir);
-        const realRootNormalized = path.resolve(realProjectRoot);
-        const withinRoot = realDirNormalized === realRootNormalized
-            || realDirNormalized.startsWith(realRootNormalized + path.sep);
-        if (!withinRoot) {
-            return { ok: false, error: `capture dir resolved outside the project root: ${realDirNormalized} not within ${realRootNormalized}` };
+        // v2.9.x polish (Codex r2 single-🟡 from v2.8.1 review): use
+        // path.relative instead of `root + path.sep` prefix check —
+        // when root is a drive root (`C:\`), path.resolve normalises it
+        // to `C:\\` and `path.sep` adds another `\`, producing `C:\\\\`
+        // which a candidate like `C:\\foo` does not match. path.relative
+        // also handles the C:\foo vs C:\foobar prefix-collision case.
+        if (!isPathWithinRoot(realDir, realProjectRoot)) {
+            return { ok: false, error: `capture dir resolved outside the project root: ${path.resolve(realDir)} not within ${path.resolve(realProjectRoot)}` };
         }
         return { ok: true, filePath, dir: dirResult.dir };
     }
@@ -775,14 +805,12 @@ export class DebugTools implements ToolExecutor {
             } catch (err: any) {
                 return { ok: false, error: `savePath parent dir missing or unreadable: ${err?.message ?? String(err)}` };
             }
-            const realParentNormalized = path.resolve(realParent);
-            const realRootNormalized = path.resolve(realProjectRoot);
-            const within = realParentNormalized === realRootNormalized
-                || realParentNormalized.startsWith(realRootNormalized + path.sep);
-            if (!within) {
+            // v2.9.x polish (Codex r2 single-🟡 from v2.8.1 review): same
+            // path.relative-based containment as resolveAutoCaptureFile.
+            if (!isPathWithinRoot(realParent, realProjectRoot)) {
                 return {
                     ok: false,
-                    error: `savePath resolved outside the project root: ${realParentNormalized} not within ${realRootNormalized}. Use a path inside <project>/ or omit savePath to auto-name into <project>/temp/mcp-captures.`,
+                    error: `savePath resolved outside the project root: ${path.resolve(realParent)} not within ${path.resolve(realProjectRoot)}. Use a path inside <project>/ or omit savePath to auto-name into <project>/temp/mcp-captures.`,
                 };
             }
             return { ok: true, resolvedPath: absoluteSavePath };
@@ -1378,7 +1406,29 @@ export class DebugTools implements ToolExecutor {
         };
     }
 
+    // v2.9.x polish (Codex r1 single-🟡 from v2.8.1 review): module-level
+    // in-flight guard prevents AI workflows from firing two PIE state
+    // changes concurrently. The cocos engine race in landmine #16 makes
+    // double-fire particularly dangerous — the second call would hit
+    // a partially-initialised PreviewSceneFacade. Reject overlap.
+    private static previewControlInFlight = false;
+
     private async previewControl(op: 'start' | 'stop'): Promise<ToolResponse> {
+        if (DebugTools.previewControlInFlight) {
+            return {
+                success: false,
+                error: 'Another debug_preview_control call is already in flight. PIE state changes go through cocos\' SceneFacadeFSM and double-firing during the in-flight window risks compounding the landmine #16 freeze. Wait for the previous call to resolve, then retry.',
+            };
+        }
+        DebugTools.previewControlInFlight = true;
+        try {
+            return await this.previewControlInner(op);
+        } finally {
+            DebugTools.previewControlInFlight = false;
+        }
+    }
+
+    private async previewControlInner(op: 'start' | 'stop'): Promise<ToolResponse> {
         const state = op === 'start';
         const result: ToolResponse = await runSceneMethodAsToolResponse('changePreviewPlayState', [state]);
         if (result.success) {
@@ -1405,7 +1455,15 @@ export class DebugTools implements ToolExecutor {
                     : baseMessage,
             };
         }
-        return result;
+        // v2.9.x polish (Claude r1 single-🟡 from v2.8.1 review):
+        // failure-branch was returning the bridge's envelope verbatim
+        // without a message field, while success branch carried a clear
+        // message. Add a symmetric message so streaming AI clients see
+        // a consistent envelope shape on both paths.
+        return {
+            ...result,
+            message: result.message ?? `Failed to ${op} Preview-in-Editor play mode — see error.`,
+        };
     }
 
     private async queryDevices(): Promise<ToolResponse> {
@@ -1562,37 +1620,17 @@ export class DebugTools implements ToolExecutor {
             if (!projectPath) {
                 return { success: false, error: 'get_script_diagnostic_context: editor context unavailable' };
             }
-            const absPath = path.isAbsolute(file) ? file : path.join(projectPath, file);
-            // Path safety: ensure absolute path resolves under projectPath
-            // to prevent reads outside the cocos project.
-            //
-            // v2.4.9 review fix (codex 🔴): plain path.resolve+startsWith only
-            // catches `..` traversal — a SYMLINK inside the project pointing
-            // outside is still readable because path.resolve doesn't follow
-            // symlinks. Use fs.realpathSync on both sides so we compare the
-            // real on-disk paths (Windows is case-insensitive; both sides go
-            // through realpathSync so casing is normalised consistently).
-            const resolvedRaw = path.resolve(absPath);
-            const projectResolvedRaw = path.resolve(projectPath);
-            let resolved: string;
-            let projectResolved: string;
-            try {
-                resolved = fs.realpathSync.native(resolvedRaw);
-            } catch {
-                return { success: false, error: `get_script_diagnostic_context: file not found or unreadable: ${resolvedRaw}` };
+            // v2.9.x polish (Gemini r2 single-🟡 from v2.8.1 review): converge
+            // on assertSavePathWithinProject. The previous bespoke realpath
+            // + toLowerCase + path.sep check is functionally subsumed by the
+            // shared helper (which itself moved to the path.relative-based
+            // isPathWithinRoot in v2.9.x polish #1, handling drive-root and
+            // prefix-collision edges uniformly).
+            const guard = this.assertSavePathWithinProject(file);
+            if (!guard.ok) {
+                return { success: false, error: `get_script_diagnostic_context: ${guard.error}` };
             }
-            try {
-                projectResolved = fs.realpathSync.native(projectResolvedRaw);
-            } catch {
-                projectResolved = projectResolvedRaw;
-            }
-            // Case-insensitive comparison on Windows; sep guard against
-            // /proj-foo vs /proj prefix confusion.
-            const cmpResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-            const cmpProject = process.platform === 'win32' ? projectResolved.toLowerCase() : projectResolved;
-            if (!cmpResolved.startsWith(cmpProject + path.sep) && cmpResolved !== cmpProject) {
-                return { success: false, error: `get_script_diagnostic_context: path ${resolved} resolves outside the project root (symlink-aware check)` };
-            }
+            const resolved = guard.resolvedPath;
             if (!fs.existsSync(resolved)) {
                 return { success: false, error: `get_script_diagnostic_context: file not found: ${resolved}` };
             }
@@ -1611,11 +1649,12 @@ export class DebugTools implements ToolExecutor {
             const start = Math.max(1, line - contextLines);
             const end = Math.min(allLines.length, line + contextLines);
             const window = allLines.slice(start - 1, end);
+            const projectResolvedNorm = path.resolve(projectPath);
             return {
                 success: true,
-                message: `Read ${window.length} lines of context around ${path.relative(projectResolved, resolved)}:${line}`,
+                message: `Read ${window.length} lines of context around ${path.relative(projectResolvedNorm, resolved)}:${line}`,
                 data: {
-                    file: path.relative(projectResolved, resolved),
+                    file: path.relative(projectResolvedNorm, resolved),
                     absolutePath: resolved,
                     targetLine: line,
                     startLine: start,

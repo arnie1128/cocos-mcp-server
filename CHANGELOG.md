@@ -1,5 +1,83 @@
 # Changelog
 
+## v2.9.2 — 2026-05-02
+
+T-V29-3 polish batch — lands the 8 deferred single-reviewer 🟡
+items from v2.8.1 round-2 (the ones never promoted because no
+≥2-reviewer overlap).
+
+### #1 — `Vary: Origin` on non-game CORS branch
+
+`source/mcp-server-sdk.ts` now emits `Vary: Origin` uniformly on both
+the `/game/*` (added v2.8.0) and the non-game branches. v2.8.x only
+set Vary on `/game/*`. A future change introducing dynamic ACAO on
+`/mcp` would have quietly resurfaced the cache-poisoning issue
+T-V28-1 hardened against — Vary on all branches keeps the invariant
+file-wide. (Claude r1 single-🟡 from v2.8.1 review.)
+
+### #2 — `previewControl` failure-branch message symmetry
+
+`source/tools/debug-tools.ts` `previewControl` failure branch now
+attaches a default message so streaming AI clients see a consistent
+envelope shape on both success and failure paths. (Claude r1.)
+
+### #3 — `cce.SceneFacade` vs `SceneFacadeManager` comment unify
+
+Comments in `source/scene.ts` referencing the prefab facade now use
+`SceneFacadeManager` consistently — that is the canonical runtime
+name; `cce.SceneFacade` is the type-doc alias. (Gemini r1.)
+
+### #4 — `package.json` `contributions.scene.methods` alignment
+
+The list now includes every method exported by
+`source/scene.ts` `methods` (was missing `createNode`,
+`getAnimationClips`, `playAnimation`, `queryAnimationSetTargets`,
+`runWithCapture`, `stopAnimation`). Empirically the editor doesn't
+strictly enforce the list (animation tools worked without being
+listed since v2.4.8) but the declaration is self-documenting.
+(Gemini r2.)
+
+### #5 — `isPathWithinRoot` helper using `path.relative`
+
+Replaces `realRoot + path.sep` prefix check at both
+`resolveAutoCaptureFile` and `assertSavePathWithinProject` with a
+shared helper that handles drive-root edges (`C:\`), prefix-collision
+(`C:\foo` vs `C:\foobar`), and cross-volume paths (`D:\…` when root
+is `C:\`). `path.relative` returns `'..\\foobar'` for the prefix-
+collision case, correctly rejecting it. (Codex r2.)
+
+### #6 — `previewControlInFlight` guard
+
+Module-level `DebugTools.previewControlInFlight` flag rejects
+overlapping `debug_preview_control` calls. The cocos engine race in
+landmine #16 makes double-fire particularly dangerous — second call
+hits a partially-initialised `PreviewSceneFacade`. Reject with a
+clear "wait for previous to resolve" error. (Codex r1.)
+
+### #7 — `getScriptDiagnosticContext` converges on shared helper
+
+The bespoke realpath + `toLowerCase()` + `path.sep` containment
+check in `getScriptDiagnosticContext` is functionally subsumed by
+`assertSavePathWithinProject` (which itself uses the new
+`isPathWithinRoot` helper). Replaces ~25 lines with a single call.
+(Gemini r2.)
+
+### #8 — TOCTOU acknowledgement comment
+
+The race window between `realpathSync` containment check and
+`writeFileSync` is documented as accepted residual risk in a comment
+on `isPathWithinRoot`. Full mitigation needs `O_NOFOLLOW` which
+Node's `fs` API doesn't expose; given this is a local dev tool with
+microsecond attack windows, the risk is accepted. A future patch
+could add `fs.openSync('wx')` for AUTO-named paths only (caller-
+provided savePath needs overwrite semantics). (Codex r1 + Gemini r1.)
+
+### Tool-count + landmines unchanged
+
+Still 18 categories / 190 tools. Landmines #16 (preview_control freeze)
+and #17 (set_preview_mode no-op) remain — both pending the v2.9
+reference-project comparison phase.
+
 ## v2.9.1 — 2026-05-02
 
 Setter live-test fix.

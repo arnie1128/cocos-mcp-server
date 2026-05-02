@@ -427,6 +427,12 @@ export class MCPServer {
             }
         } else {
             res.setHeader('Access-Control-Allow-Origin', '*');
+            // v2.9.x polish (Claude r1 single-🟡 from v2.8.1 review):
+            // emit Vary: Origin uniformly across all branches so a future
+            // change introducing dynamic ACAO on /mcp can't quietly
+            // resurface the cache-poisoning issue T-V28-1 just hardened
+            // against on /game/*. Cheap to set; never harmful.
+            res.setHeader('Vary', 'Origin');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
             res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');

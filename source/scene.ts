@@ -613,11 +613,15 @@ export const methods: { [key: string]: (...any: any) => any } = {
             return { success: false, error: prefabMgr.error };
         }
         try {
-            // Note: facadeReturn from cce.SceneFacade.applyPrefab is observed
-            // to be `false` even when the apply genuinely writes to disk
-            // (verified during P4 v2.1.0 real-editor testing). Treat
-            // "no exception thrown" as success and surface the raw return
-            // value as metadata only.
+            // Note: facadeReturn from cce.SceneFacadeManager.applyPrefab is
+            // observed to be `false` even when the apply genuinely writes
+            // to disk (verified during P4 v2.1.0 real-editor testing).
+            // Treat "no exception thrown" as success and surface the raw
+            // return value as metadata only.
+            // (v2.9.x polish — Gemini r1 single-🟡 from v2.8.1 review:
+            // canonical name is SceneFacadeManager; cce.SceneFacade is
+            // the type-doc alias. Use SceneFacadeManager throughout
+            // comments so the runtime identity is unambiguous.)
             const facadeReturn = await prefabMgr.value.applyPrefab(nodeUuid);
             return { success: true, data: { facadeReturn, nodeUuid } };
         } catch (error: any) {

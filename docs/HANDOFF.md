@@ -861,7 +861,8 @@ v2.8.4 ✅ done（browser-mode retest 又抓到 2 件 — landmine #16 廣域化
 v2.9.0 ⏳ in-progress（T-V29-1 check_editor_health + T-V29-2 set_preview_mode 落地 → 188 → 190 tools，commit 2c277b4 已 push）
 v2.9.1 ⚠ partial（setter 落地但 cocos 3.8.7 拒絕所有 4 種 set-config 寫入 shape — `setResult: true` 但 read-back 永遠不變。記為 landmine #17、tool description 改為 ⚠ EXPERIMENTAL，user 改走 cocos UI dropdown，待 v2.9 後續對比參考專案找到正確 write path 再恢復）
 v2.9.1 retest 觀察（freeze 偵測）：`check_editor_health` 在 cocos 凍結後仍回 `sceneAlive: true, sceneLatencyMs: 1ms`。getCurrentSceneInfo probe 沒抓到 freeze — 推測 cocos cached director state，沒走過 wedged code path。記在 landmine #16 補註，待對比參考專案後找更敏感的 probe。
-剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing；preview-mode 兩件問題先停手；三方 review batch 收尾在最後
+v2.9.2 ✅ done（T-V29-3 polish batch — 8 件 v2.8.1 deferred single-reviewer 🟡 全部處理：Vary 全檔一致、previewControl 失敗訊息對稱、cce.SceneFacade 用詞統一、scene methods alignment、isPathWithinRoot helper（drive-root + prefix-collision + 跨 volume 邊界）、previewControlInFlight guard、getScriptDiagnosticContext 收斂到 shared helper、TOCTOU 文件化）
+剩 T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing / preview-mode 對比參考專案；三方 review batch 收尾在最後
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
