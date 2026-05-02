@@ -1,5 +1,37 @@
 # Changelog
 
+## v2.4.11 — 2026-05-03
+
+Three-way review patch round 3 on v2.4.10. Codex elevated one round-3
+🟡 to 🔴 (refcount leak if `_ensureConsoleHook` throws); Claude and
+Gemini concurred at 🟡. Single line change.
+
+### 🔴 must-fix — refcount leak path on hook-install failure (Codex 🔴; Claude+Gemini 🟡)
+
+`source/scene.ts:runWithCapture` had:
+
+```ts
+_activeSlotCount += 1;
+_ensureConsoleHook();         // outside the try
+try { ... } finally { _activeSlotCount -= 1; ... }
+```
+
+If `_ensureConsoleHook()` ever threw (today it's pure property
+assignments and won't, but defensive matters for future growth),
+`_activeSlotCount` would remain incremented and `_maybeUnhookConsole`
+would never run, leaving the console hook installed permanently.
+
+Fix: move `_ensureConsoleHook()` INSIDE the `try` block so the
+`finally` decrement guards both the increment and the hook install.
+Increment stays outside `try` per the standard "increment then
+guarded decrement" pattern, matching the slot lifecycle.
+
+### Test runs after fix
+
+- `tsc --noEmit`: clean.
+- `scripts/smoke-mcp-sdk.js`: ✅ all smoke checks passed.
+- Tool count unchanged: 17 categories / 177 tools.
+
 ## v2.4.10 — 2026-05-03
 
 Three-way review patch round 2 on v2.4.9. Codex elevated one round-1

@@ -207,9 +207,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
             bytes: 0,
             truncated: false,
         };
+        // v2.4.11 round-3 codex 🔴 + claude 🟡 + gemini 🟡: increment INSIDE
+        // the try so _ensureConsoleHook throwing (today: pure assignments,
+        // so safe; defensive against future growth) cannot leak the
+        // refcount and leave the console hook installed forever.
         _activeSlotCount += 1;
-        _ensureConsoleHook();
         try {
+            _ensureConsoleHook();
             // v2.4.10 round-2 codex 🔴 + claude 🟡 + gemini 🟡: AsyncLocalStorage
             // binds `slot` to this call's logical async context, so any
             // console.log emitted by the inner method (or any descendant
