@@ -239,14 +239,20 @@ async function main() {
                     uuids: [nodeUuid],
                     keepWorldTransform: false,
                 });
-                const pastedUuids = paste.structured?.data?.uuids || paste.structured?.data;
+                // BUG fix: paste tool returns `data.newUuids` (string |
+                // string[]), not `data.uuids`. Earlier mis-read left
+                // pasted nodes orphaned in the scene → the cumulative
+                // dirty state then triggered cocos' "save changes?"
+                // dialog when the scene-switch test below ran open-scene.
+                const pasteData = paste.structured?.data;
+                const newRaw = pasteData?.newUuids ?? pasteData;
+                const pastedUuids = Array.isArray(newRaw)
+                    ? newRaw
+                    : typeof newRaw === 'string' ? [newRaw] : [];
                 record('sceneAdvanced_paste_node', paste.ok || paste.isError, abbrev(paste.text));
-                // Cleanup pasted nodes if any
-                if (Array.isArray(pastedUuids)) {
-                    for (const u of pastedUuids) {
-                        if (typeof u === 'string' && u !== nodeUuid) {
-                            try { await callTool('node_delete_node', { uuid: u }); } catch {}
-                        }
+                for (const u of pastedUuids) {
+                    if (typeof u === 'string' && u !== nodeUuid) {
+                        try { await callTool('node_delete_node', { uuid: u }); } catch {}
                     }
                 }
             }
@@ -306,6 +312,7 @@ async function main() {
 
     // --- PREFAB write flow: create node → save as prefab → cleanup
     let prefabSrcUuid = null;
+    let prefabInstanceUuid = null;
     let prefabAssetSaved = false;
     const PREFAB_PATH = 'db://assets/__mcp_livetest.prefab';
     try {
@@ -326,6 +333,11 @@ async function main() {
                     prefabName: '__mcp_livetest',
                 });
                 prefabAssetSaved = make.ok;
+                // CLAUDE.md landmine #8: createPrefab repurposes the
+                // source node — original prefabSrcUuid is invalidated.
+                // The new prefab instance UUID is surfaced as
+                // data.instanceNodeUuid; capture for cleanup.
+                prefabInstanceUuid = make.structured?.data?.instanceNodeUuid ?? null;
                 record('prefab_create_prefab', make.ok, abbrev(make.text));
 
                 if (make.ok) {
@@ -337,12 +349,32 @@ async function main() {
     } catch (e) {
         record('prefab write flow', false, e.message);
     } finally {
+        // CLAUDE.md landmine #8: delete the in-scene prefab instance
+        // BEFORE deleting the prefab asset. If the asset goes first
+        // the instance loses its prefab link and becomes
+        // "(Missing Node)" in the scene tree, leaving an orphan.
+        if (prefabInstanceUuid) {
+            try { await callTool('node_delete_node', { uuid: prefabInstanceUuid }); } catch {}
+        }
+        // Belt + braces by name in case instanceNodeUuid wasn't
+        // captured (older builds where the helper returns null).
+        try {
+            const found = await callTool('node_find_nodes', { pattern: 'mcp-livetest-prefab-src' });
+            const list = Array.isArray(found.structured?.data) ? found.structured.data : [];
+            for (const it of list) {
+                if (it?.uuid) {
+                    try { await callTool('node_delete_node', { uuid: it.uuid }); } catch {}
+                }
+            }
+        } catch { /* best-effort */ }
+        // Original UUID as last resort (createPrefab may not repurpose
+        // on every build).
+        if (prefabSrcUuid && prefabSrcUuid !== prefabInstanceUuid) {
+            try { await callTool('node_delete_node', { uuid: prefabSrcUuid }); } catch {}
+        }
         if (prefabAssetSaved) {
             const del = await callTool('project_delete_asset', { url: PREFAB_PATH });
             record('project_delete_asset (prefab cleanup)', del.ok, abbrev(del.text));
-        }
-        if (prefabSrcUuid) {
-            try { await callTool('node_delete_node', { uuid: prefabSrcUuid }); } catch {}
         }
     }
 
@@ -372,11 +404,27 @@ async function main() {
     let switched = false;
     try {
         const forceSwitch = process.argv.includes('--force-switch');
-        if (sceneDirtyAtStart && !forceSwitch) {
-            record('scene switch flow', 'skip', 'original scene is dirty (pass --force-switch to save+switch)');
+        // Re-check dirty NOW — earlier write-flow tests (create_node /
+        // copy_node / paste_node / delete_node etc.) leave the scene
+        // dirty in cocos's view even after the test's own cleanup
+        // restored the node tree to its starting shape. Querying once
+        // at startup misses that. Without this re-check, the scene
+        // switch below pops cocos' "save unsaved changes?" dialog and
+        // blocks the user.
+        let dirtyNow = sceneDirtyAtStart;
+        try {
+            const dirtyCheck = await callTool('sceneAdvanced_query_scene_dirty', {});
+            dirtyNow = dirtyCheck.structured?.data?.dirty === true;
+        } catch { /* fall through to startup snapshot */ }
+
+        if (dirtyNow && !forceSwitch) {
+            const reason = sceneDirtyAtStart
+                ? 'original scene was dirty at start'
+                : 'live-test mutations dirtied the scene; skip to avoid Cocos save-prompt dialog (pass --force-switch to save+switch)';
+            record('scene switch flow', 'skip', reason);
             throw new Error('__skip__');
         }
-        if (sceneDirtyAtStart && forceSwitch) {
+        if (dirtyNow && forceSwitch) {
             const saved = await callTool('scene_save_scene', {});
             record('scene_save_scene (pre-switch)', saved.ok, abbrev(saved.text));
         }
