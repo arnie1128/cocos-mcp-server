@@ -78,7 +78,10 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 180 (v2.10.4 collapsed preferences 7 tools into
+Total tool count today: 181 (v2.11.2 added 1: `component_resolve_script_class`
+— resolves a TS script asset URL/UUID to its `@ccclass()` class name(s) so AI
+can name custom-script componentType correctly before add_component;
+v2.10.4 collapsed preferences 7 tools into
 1 macro `preferences_manage` op-router; v2.10.3 added 1:
 `assetAdvanced_get_users` asset reference lookup; v2.10.2 added 4
 animation-state tools: `animation_list_animation_states`,

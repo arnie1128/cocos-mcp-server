@@ -6,6 +6,7 @@ import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import { resolveOrToolError } from '../lib/resolve-node';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
+import { resolveCcclassFromAsset } from '../lib/ccclass-extractor';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -219,6 +220,34 @@ export class ComponentTools implements ToolExecutor {
     })
     async attachScript(a: any): Promise<ToolResponse> {
         return this.attachScriptImpl(a.nodeUuid, a.scriptPath);
+    }
+
+    @mcpTool({
+        name: 'resolve_script_class',
+        title: 'Resolve script class name',
+        description: '[specialist] Resolve a Cocos TypeScript script asset URL or UUID to @ccclass class names. Use before add_component, add_event_handler, or other calls that need a custom script class name.',
+        inputSchema: z.object({
+            script: z.string().describe('Script asset db:// URL or asset UUID, e.g. db://assets/scripts/MyScript.ts.'),
+        }),
+    })
+    async resolveScriptClass(a: any): Promise<ToolResponse> {
+        try {
+            const result = await resolveCcclassFromAsset(a.script);
+            const response = ok({
+                classNames: result.classNames,
+                assetPath: result.assetPath,
+                assetUuid: result.assetUuid,
+                assetUrl: result.assetUrl,
+            });
+            if (result.classNames.length === 0) {
+                response.warning = 'No @ccclass("ClassName") decorator was found in this script.';
+            } else if (result.classNames.length > 1) {
+                response.warning = `Multiple @ccclass decorators found: ${result.classNames.join(', ')}`;
+            }
+            return response;
+        } catch (err: any) {
+            return fail(err?.message ?? String(err));
+        }
     }
 
     @mcpTool({

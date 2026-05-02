@@ -3,17 +3,18 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.1 done — v2.11.x cycle live）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.2 done — v2.11.x cycle live）
 
-**當下版本**：v2.11.1（decorator unification + narrative 外化 ship）。**18 categories / 180 tools / 16 asset-interpreters / 5 prompt templates / 16,439 source LOC**。沒有 in-flight work；候選見下方 v2.11.2 清單。
+**當下版本**：v2.11.2（`@ccclass` extractor ship）。**18 categories / 181 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方 v2.11.3+ 清單（共 8 項）。
 
-**v2.11 cycle 開頭兩 ship**：
+**v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
 - v2.11.1 — 中型檔案 narrative 外化（project / scene / scene-advanced / asset-advanced / scene-view / file-editor → `source/data/<category>-docs.ts`），由 3 支並行 codex 處理
+- v2.11.2 — #6 `component_resolve_script_class` + `lib/ccclass-extractor.ts` 純 helper（regex 解析 `@ccclass('Name')` / `("Name")` / `` (`Name`) ``，dedup，含 multi-class 警告 / no-match 警告）。1 支 codex；本機 7 種 fixture pass
 
 完整 v2.10.x 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 
-**v2.11.2+ 候選清單**（依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
+**v2.11.3+ 候選清單**（剩 8 項；#6 已於 v2.11.2 ship；依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
 
 | # | 來源 | 項目 | 估時 | 風險 |
 |---|---|---|---|---|
@@ -22,7 +23,7 @@
 | 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（content-level diff，非 cocos undo snapshot） | 1 天 | 低 |
 | 4 | Spaydo | 資產清查兩件：`asset_get_tree` 樹狀 + 升級 `assetAdvanced_get_unused_assets` placeholder 為真正實作。`export_asset_manifest` 已 ship 不算 | 0.7 天 | 低 |
 | 5 | cocos-code-mode | inspector 補四條缺口（場景 instance class 主路 v2.10.2 已 ship）：Settings 內省 / Asset Importer suffix / `i18n:` tooltip 解析 / 通用 `setInstanceProperties` | 1.5 天 | 低 |
-| 6 | RomaRogov | `@ccclass` URL → class name 萃取 helper | 0.3 天 | 低 |
+| ~~6~~ | ~~RomaRogov~~ | ~~`@ccclass` URL → class name 萃取 helper~~ | ✅ v2.11.2 ship | — |
 | 7 | harady | `server_check_code_sync` + `server_get_build_hash` | 0.5 天 | 中 |
 | 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
 | 9 | FunplayAI | core/full tool profile（tool-manager 第二層輕量 profile） | 0.5 天 | 中 |
@@ -49,6 +50,9 @@
 
 | SHA | 內容 |
 |---|---|
+| `e05b889` | docs: tighten v2.11.x candidate list after re-verification against codebase |
+| `0d4c3cf` | docs: correct v2.11 candidate #6 — TS class definition generation already shipped in v2.10.2 |
+| `5a3f857` | docs: refresh cross-repo-survey for v2.11.1 + archive v2.10 snapshot |
 | `5861bd0` | refactor(v2.11.1 #2): externalize tool descriptions for 6 mid-size files |
 | `3f62c7f` | refactor(v2.11.0 #1): unify 16 tool files to @mcpTool decorator pattern |
 | `d48d834` | docs(v2.10): cycle wrap — release notes + handoff archive + HANDOFF v2.11 entry point |
@@ -100,11 +104,11 @@ P0 ✅ done
 P1 ✅ done
 P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
 v2.1.2 — v2.1.7 ✅ done（修補 + audit + P2 close + B-1 description sweep；見 docs/archive/handoff/v2.1.md）
-v2.2.0 — v2.11.1 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
+v2.2.0 — v2.11.2 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.11.2+ — 跨 repo gap 9 項候選（harady 批次節點 / Spaydo snapshot+資產清查 / cocos-code-mode TS def 完整化 等，依 docs/research/cross-repo-survey.md）
+B-2 ⏳ v2.11.3+ — 跨 repo gap 8 項候選（harady 批次節點 + auto_bind + code_sync / Spaydo snapshot diff + 資產清查 / cocos-code-mode inspector 4 條缺口 / FunplayAI input simulation + tool profile，依 docs/research/cross-repo-survey.md）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -162,6 +166,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.11.2 改動前（v2.11.1 docs refresh 點）→ `git reset --hard e05b889`
 - v2.11.1 改動前（v2.11.0 ship 點）→ `git reset --hard 3f62c7f`
 - v2.11.0 改動前（v2.10.x cycle wrap 點）→ `git reset --hard d48d834`
 - v2.10.5 改動前（v2.10.4 cycle wrap 點）→ `git reset --hard 211bfb7`
