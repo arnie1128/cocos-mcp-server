@@ -115,16 +115,17 @@ export class PromptRegistry {
         }));
     }
 
-    get(name: string): PromptContent {
+    /**
+     * Returns rendered prompt content, or `null` when the name is unknown.
+     * Caller (mcp-server-sdk.ts) maps `null` to a JSON-RPC error so MCP
+     * clients see a proper `-32602 Invalid params` instead of a successful
+     * "Prompt not found" body that masquerades as real prompt text.
+     * (v2.5.1 round-1 review fix: codex 🔴 + claude 🟡.)
+     */
+    get(name: string): PromptContent | null {
         const def = PROMPT_DEFS.find(d => d.name === name);
+        if (!def) return null;
         const ctx = this.getContext();
-        if (!def) {
-            const text = `Prompt not found: ${name}\n\nAvailable: ${PROMPT_DEFS.map(d => d.name).join(', ')}`;
-            return {
-                description: text,
-                messages: [{ role: 'user', content: { type: 'text', text } }],
-            };
-        }
         const header =
             `Target Cocos project: ${ctx.projectName}\n` +
             `Project path: ${ctx.projectPath}\n\n`;
@@ -133,6 +134,11 @@ export class PromptRegistry {
             description: fullText,
             messages: [{ role: 'user', content: { type: 'text', text: fullText } }],
         };
+    }
+
+    /** Names of currently registered templates — used by the not-found error. */
+    knownNames(): string[] {
+        return PROMPT_DEFS.map(d => d.name);
     }
 }
 

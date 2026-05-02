@@ -24,7 +24,11 @@ import { BroadcastBridge } from './lib/broadcast-bridge';
 import { PromptRegistry, createPromptRegistry } from './prompts/registry';
 
 const SERVER_NAME = 'cocos-mcp-server';
-const SERVER_VERSION = '2.0.0';
+// v2.5.1 round-1 review fix (gemini 🔴): keep this in sync with package.json's
+// version on every minor/major bump. SDK Server initialize response carries
+// this string; clients see it during MCP handshake. Drift since v2.0.0 has
+// been confusing review rounds and live-test verification.
+const SERVER_VERSION = '2.5.1';
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.
@@ -164,11 +168,21 @@ export class MCPServer {
         }));
         sdkServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
             const { name } = request.params;
+            const content = this.prompts.get(name);
+            if (!content) {
+                // v2.5.1 round-1 review fix (codex 🔴 + claude 🟡): unknown
+                // prompt names must surface as JSON-RPC errors per MCP spec,
+                // not as successful "Prompt not found" content bodies.
+                // SDK's RequestHandler converts thrown Errors into
+                // -32603 Internal Error by default; we throw a plain Error
+                // with a helpful message including the available names.
+                throw new Error(`Unknown prompt: ${name}. Available: ${this.prompts.knownNames().join(', ')}`);
+            }
             // SDK's GetPromptResult type carries a discriminated union
             // (one branch requires a `task` field). Our content matches
             // the simple-prompt branch; cast through unknown to satisfy
             // the structural check without buying into the task branch.
-            return this.prompts.get(name) as unknown as any;
+            return content as unknown as any;
         });
         return sdkServer;
     }
@@ -198,22 +212,24 @@ export class MCPServer {
      * Called by BroadcastBridge after its per-URI debounce fires.
      */
     private notifyResourceUpdated(uri: string): void {
-        let pushed = 0;
-        for (const session of this.sessions.values()) {
-            if (!session.subscriptions.has(uri)) continue;
-            try {
-                session.sdkServer.notification({
-                    method: 'notifications/resources/updated',
-                    params: { uri },
-                });
-                pushed += 1;
-            } catch (err: any) {
+        // v2.5.1 round-1 review fix (codex 🔴): sdkServer.notification(...)
+        // returns a Promise. Without await/catch, transport-level failures
+        // become unhandled rejections (Node prints scary "UnhandledPromiseRejection"
+        // and may exit on --unhandled-rejections=strict). Use void+catch so
+        // the loop continues even if one session's transport is half-closed.
+        // Snapshot session list (claude 🟡) so a session removed mid-iteration
+        // doesn't skew the queued notifications.
+        const targets = Array.from(this.sessions.values()).filter(s => s.subscriptions.has(uri));
+        if (targets.length === 0) return;
+        for (const session of targets) {
+            void session.sdkServer.notification({
+                method: 'notifications/resources/updated',
+                params: { uri },
+            }).catch((err: any) => {
                 logger.warn(`[MCPServer] notification push failed for ${uri}:`, err?.message ?? err);
-            }
+            });
         }
-        if (pushed > 0) {
-            logger.debug(`[MCPServer] resources/updated ${uri} → ${pushed} session(s)`);
-        }
+        logger.debug(`[MCPServer] resources/updated ${uri} → ${targets.length} session(s)`);
     }
 
     // T-P1-5: ToolResponse → MCP CallToolResult. Failures carry the error

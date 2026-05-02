@@ -1,5 +1,79 @@
 # Changelog
 
+## v2.5.1 — 2026-05-03
+
+Three-way review patch round 1 on v2.5.0 (Claude + Codex + Gemini).
+4 🔴 must-fix + 5 ≥2-reviewer 🟡, all addressed.
+
+### 🔴 must-fix #1 — `SERVER_VERSION` stale at '2.0.0' (Gemini)
+
+`source/mcp-server-sdk.ts:25` was hardcoded as `'2.0.0'` since the
+v2.0 era. MCP clients see this string during the initialize handshake;
+drifted across all subsequent releases. Fix: bump to `'2.5.1'` and
+add a comment to keep in sync on minor/major bumps.
+
+### 🔴 must-fix #2 — `notifyResourceUpdated` dropped Promise rejections (Codex)
+
+`session.sdkServer.notification(...)` returns a Promise; the v2.5.0
+version called it without await/catch, so transport-level failures
+became unhandled rejections (Node prints scary warnings; can exit on
+`--unhandled-rejections=strict`). Fix: `void
+session.sdkServer.notification(...).catch(err => logger.warn(...))`.
+Bonus: snapshot the session list before iterating (claude 🟡) so a
+session removed mid-fanout doesn't skew the dispatch count.
+
+### 🔴 must-fix #3 — `prompts/get` unknown name returned success body (Codex 🔴 + Claude 🟡)
+
+`prompts.get(name)` previously returned a `PromptContent` whose
+`description` was literally "Prompt not found: X". Per MCP spec,
+unknown prompt names must surface as JSON-RPC errors so clients can
+distinguish "no such prompt" from a real prompt that contains
+helpful text. Fix: `PromptRegistry.get` now returns `null` for
+unknown names; the handler in `mcp-server-sdk.ts` throws an Error
+with the available names so the SDK converts it to a proper
+JSON-RPC error.
+
+### 🔴 must-fix #4 — `replace_text` regex backreferences silently broken (Codex)
+
+`source/tools/file-editor-tools.ts` `content.replace(regex, () =>
+args.replace)` uses a function callback whose return value is the
+literal `args.replace` string — `$1` / `$&` / `` $` `` / `$'`
+backreferences NEVER expand because the function form bypasses
+String.replace's substitution-string parsing. The tool description
+explicitly promised backreference support. Fix: pass `args.replace`
+as a string directly to `String.replace`; count matches separately
+via a parallel `match()` pass since we no longer have the per-call
+counter.
+
+### 🟡 polish (≥2-reviewer agreement)
+
+- **Empty `search` rejected at the schema layer** (Codex + Claude):
+  `replaceAll('', x)` inserts `x` between every character; first-only
+  inserts at byte 0. Both surprising. `search: z.string().min(1)`.
+- **Regex DoS guard via per-mode size cap** (Codex + Claude + Gemini):
+  regex mode now refuses files > `REGEX_MODE_BYTE_CAP` (1 MB);
+  plain-string mode keeps `FILE_READ_BYTE_CAP` (5 MB). Catastrophic
+  backtracking on a large file would otherwise hang the editor host.
+- **CRLF preservation on file writes** (Claude): split via `/\r?\n/`
+  + detect the dominant EOL in the first 4 KB + rejoin with detected
+  EOL. Writes return `eol: "CRLF" | "LF"` in `data` for verification.
+  Without this, every edit on a Windows project silently rewrote
+  CRLF lines as LF.
+- **`fs.realpathSync.native` fallback** (Codex 🟡): some cocos-bundled
+  Node builds historically don't expose `.native`. Resolve once at
+  module load: `fs.realpathSync.native ?? fs.realpathSync`.
+- **probe-broadcast partial-cleanup safety** (Codex 🟡): if
+  `addBroadcastListener` throws partway through registration, the
+  v2.5.0 script left earlier listeners dangling past the probe's
+  lifetime. Now wrapped in try/finally that unregisters every
+  successfully-added handler.
+
+### Test runs after fixes
+
+- `tsc --noEmit`: clean.
+- `scripts/smoke-mcp-sdk.js`: ✅ all smoke checks passed.
+- Tool count unchanged: 18 categories / 181 tools.
+
 ## v2.5.0 — 2026-05-03
 
 Multi-client breadth: file-editor + Notifications + Prompts. Targets

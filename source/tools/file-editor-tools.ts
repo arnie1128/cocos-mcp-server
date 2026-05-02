@@ -38,6 +38,46 @@ const REDUNDANT_TAG = '[claude-code-redundant] Use Edit/Write tool from your IDE
 // debug_get_script_diagnostic_context.
 const FILE_READ_BYTE_CAP = 5 * 1024 * 1024;
 
+// v2.5.1 round-1 review fix (codex + claude + gemini 🟡): regex mode runs
+// on files up to FILE_READ_BYTE_CAP without a runtime cap, so a
+// catastrophic-backtracking pattern would hang the editor process. Cap
+// the regex-mode body to a smaller window. Plain-string mode is bounded
+// by V8 string ops so it doesn't need this guard.
+const REGEX_MODE_BYTE_CAP = 1 * 1024 * 1024;
+
+// v2.5.1 round-1 review fix (codex 🟡): fs.realpathSync.native is documented
+// since Node 9.2 but a few cocos-bundled Node builds historically didn't
+// expose it. Resolve once at module load with a safe fallback.
+const realpathSync: typeof fs.realpathSync = (fs.realpathSync as any).native ?? fs.realpathSync;
+
+// v2.5.1 round-1 review fix (claude 🟡): preserve dominant line ending so
+// edits don't silently rewrite a Windows project's CRLF lines as LF. We
+// detect by counting \r\n vs lone \n in the file, then re-join with the
+// dominant style. New lines added by the user (via insert_text or
+// replace_text) inherit whatever the file already uses.
+function detectEol(content: string): '\r\n' | '\n' {
+    // Count lone \n vs \r\n in the first 4KB — sample is enough; mixed
+    // files pick whichever appears more in the head. Edge case (file is
+    // all-CRLF except a single LF in the middle): we still pick CRLF.
+    const sample = content.length > 4096 ? content.slice(0, 4096) : content;
+    let crlf = 0;
+    let lf = 0;
+    for (let i = 0; i < sample.length; i++) {
+        if (sample.charCodeAt(i) === 0x0a /* \n */) {
+            if (i > 0 && sample.charCodeAt(i - 1) === 0x0d /* \r */) crlf++;
+            else lf++;
+        }
+    }
+    return crlf > lf ? '\r\n' : '\n';
+}
+
+function splitLinesNormalized(content: string): { lines: string[]; eol: '\r\n' | '\n' } {
+    return {
+        lines: content.split(/\r?\n/),
+        eol: detectEol(content),
+    };
+}
+
 interface ResolvedPath { abs: string; relProject: string; }
 
 function getProjectPath(): string | null {
@@ -75,13 +115,13 @@ function resolvePathForRead(target: string): ResolvedPath | { error: string } {
     const absRaw = path.isAbsolute(target) ? target : path.join(projectPath, target);
     let resolvedAbs: string;
     try {
-        resolvedAbs = fs.realpathSync.native(absRaw);
+        resolvedAbs = realpathSync(absRaw);
     } catch {
         return { error: `file-editor: file not found or unreadable: ${absRaw}` };
     }
     let projectAbs: string;
     try {
-        projectAbs = fs.realpathSync.native(projectPath);
+        projectAbs = realpathSync(projectPath);
     } catch {
         projectAbs = path.resolve(projectPath);
     }
@@ -136,7 +176,7 @@ const insertText: ToolDef = {
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
-        const lines = content.split('\n');
+        const { lines, eol } = splitLinesNormalized(content);
         const insertIndex = args.line - 1;
         if (insertIndex >= lines.length) {
             lines.push(args.text);
@@ -144,7 +184,7 @@ const insertText: ToolDef = {
             lines.splice(insertIndex, 0, args.text);
         }
         try {
-            fs.writeFileSync(r.abs, lines.join('\n'), 'utf-8');
+            fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
@@ -152,7 +192,7 @@ const insertText: ToolDef = {
         return {
             success: true,
             message: `Inserted text at line ${Math.min(args.line, lines.length)} of ${r.relProject}`,
-            data: { file: r.relProject, totalLines: lines.length },
+            data: { file: r.relProject, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' },
         };
     },
 };
@@ -181,7 +221,7 @@ const deleteLines: ToolDef = {
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
-        const lines = content.split('\n');
+        const { lines, eol } = splitLinesNormalized(content);
         const deleteStart = args.startLine - 1;
         const requestedCount = args.endLine - args.startLine + 1;
         const deletedCount = Math.max(0, Math.min(requestedCount, lines.length - deleteStart));
@@ -190,7 +230,7 @@ const deleteLines: ToolDef = {
         }
         lines.splice(deleteStart, deletedCount);
         try {
-            fs.writeFileSync(r.abs, lines.join('\n'), 'utf-8');
+            fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
@@ -198,18 +238,21 @@ const deleteLines: ToolDef = {
         return {
             success: true,
             message: `Deleted ${deletedCount} line(s) from line ${args.startLine} to ${args.startLine + deletedCount - 1} of ${r.relProject}`,
-            data: { file: r.relProject, deletedCount, totalLines: lines.length },
+            data: { file: r.relProject, deletedCount, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' },
         };
     },
 };
 
 const replaceText: ToolDef = {
     name: 'replace_text',
-    description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Triggers cocos asset-db refresh.',
+    description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Regex backreferences ($1, $&, $`, $\') work when useRegex:true. Triggers cocos asset-db refresh.',
     inputSchema: z.object({
         filePath: z.string().describe('Path to the file (absolute or project-relative).'),
-        search: z.string().describe('Search text or regex pattern (depends on useRegex).'),
-        replace: z.string().describe('Replacement text. Regex backreferences ($1, $&) work when useRegex:true.'),
+        // v2.5.1 round-1 review fix (codex + claude 🟡): empty search would
+        // either insert between every char (replaceAll) or insert at byte 0
+        // (first-only) — both surprising. Reject early.
+        search: z.string().min(1, 'search must be non-empty').describe('Search text or regex pattern (depends on useRegex). Must be non-empty.'),
+        replace: z.string().describe('Replacement text. Regex backreferences ($1, $&, $`, $\') expand when useRegex:true.'),
         useRegex: z.boolean().default(false).describe('Treat `search` as a JS RegExp source string. Default false.'),
         replaceAll: z.boolean().default(false).describe('Replace every occurrence. Default false (first only).'),
     }),
@@ -222,6 +265,16 @@ const replaceText: ToolDef = {
             if (stat.size > FILE_READ_BYTE_CAP) {
                 return { success: false, error: `file-editor: file too large (${stat.size} bytes); refusing to read.` };
             }
+            // v2.5.1 round-1 review fix (codex + claude + gemini 🟡): regex
+            // mode runs user-controlled patterns against the file content
+            // with no timeout. Cap to a smaller window in regex mode so
+            // catastrophic backtracking on a large file can't hang the
+            // editor's host process. Plain-string mode keeps the larger
+            // FILE_READ_BYTE_CAP because String.split/indexOf/slice are
+            // bounded by V8 internals (no regex engine path).
+            if (args.useRegex && stat.size > REGEX_MODE_BYTE_CAP) {
+                return { success: false, error: `file-editor: regex mode refuses files > ${REGEX_MODE_BYTE_CAP} bytes (${stat.size} bytes here). Switch to useRegex:false or split the file first.` };
+            }
             content = fs.readFileSync(r.abs, 'utf-8');
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
@@ -232,7 +285,15 @@ const replaceText: ToolDef = {
             if (args.useRegex) {
                 const flags = args.replaceAll ? 'g' : '';
                 const regex = new RegExp(args.search, flags);
-                newContent = content.replace(regex, () => { replacements++; return args.replace; });
+                // v2.5.1 round-1 review fix (codex 🔴): pass the replacement
+                // STRING directly so $1/$&/etc. expand. The previous
+                // function-callback form returned `args.replace` literally,
+                // breaking the documented backreference behaviour. Count
+                // matches separately via a parallel match() pass since we
+                // no longer have the per-call counter.
+                const matches = content.match(regex);
+                replacements = matches ? matches.length : 0;
+                newContent = content.replace(regex, args.replace);
             } else if (args.replaceAll) {
                 const parts = content.split(args.search);
                 replacements = parts.length - 1;
@@ -286,7 +347,7 @@ const queryText: ToolDef = {
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
-        const lines = content.split('\n');
+        const { lines, eol } = splitLinesNormalized(content);
         const totalLines = lines.length;
         const from = (args.startLine ?? 1) - 1;
         const to = args.endLine ?? totalLines;
@@ -301,7 +362,7 @@ const queryText: ToolDef = {
         return {
             success: true,
             message: `Read ${result.length} line(s) from ${r.relProject}`,
-            data: { file: r.relProject, totalLines, startLine: from + 1, endLine: from + result.length, lines: result },
+            data: { file: r.relProject, totalLines, startLine: from + 1, endLine: from + result.length, eol: eol === '\r\n' ? 'CRLF' : 'LF', lines: result },
         };
     },
 };

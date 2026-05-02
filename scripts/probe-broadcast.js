@@ -125,23 +125,32 @@ function buildSamplingExpression() {
     }
     const types = ${types};
     const entries = [];
-    const handlers = types.map(t => {
-        const fn = function () {
-            try {
-                entries.push({ type: t, ts: Date.now() });
-                if (entries.length > 5000) entries.shift();
-            } catch (_) {}
-        };
-        proto.addBroadcastListener(t, fn);
-        return [t, fn];
-    });
-    const startedAt = Date.now();
-    await new Promise(r => setTimeout(r, ${ms}));
-    const stoppedAt = Date.now();
-    handlers.forEach(([t, fn]) => {
-        try { proto.removeBroadcastListener(t, fn); } catch (_) {}
-    });
-    return { startedAt, stoppedAt, durationMs: stoppedAt - startedAt, entries };
+    // v2.5.1 round-1 review fix (codex 🟡): if addBroadcastListener
+    // throws partway through registration, listeners added before the
+    // throw would leak past the probe's lifetime. Track each
+    // successfully-registered handler and unregister all in a finally
+    // block so partial failure still cleans up.
+    const handlers = [];
+    try {
+        for (const t of types) {
+            const fn = function () {
+                try {
+                    entries.push({ type: t, ts: Date.now() });
+                    if (entries.length > 5000) entries.shift();
+                } catch (_) {}
+            };
+            proto.addBroadcastListener(t, fn);
+            handlers.push([t, fn]);
+        }
+        const startedAt = Date.now();
+        await new Promise(r => setTimeout(r, ${ms}));
+        const stoppedAt = Date.now();
+        return { startedAt, stoppedAt, durationMs: stoppedAt - startedAt, entries };
+    } finally {
+        for (const [t, fn] of handlers) {
+            try { proto.removeBroadcastListener(t, fn); } catch (_) {}
+        }
+    }
 })()
 `;
 }
