@@ -24,6 +24,7 @@ import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { instanceReferenceSchema, InstanceReference } from '../lib/instance-reference';
+import { decodeUuid } from '../lib/uuid-compat';
 import { AssetInterpreterManager } from '../asset-interpreters/manager';
 import {
     ImageInterpreter, TextureInterpreter, SpriteFrameInterpreter,
@@ -62,13 +63,18 @@ async function resolveAssetInfo(target: AssetTarget): Promise<{ assetInfo: any }
     if (target.reference && !target.reference.id) {
         return { error: 'asset-meta tool: reference.id is required when reference is provided' };
     }
-    const uuid = target.reference?.id ?? target.assetUuid;
-    if (!uuid) {
+    const rawUuid = target.reference?.id ?? target.assetUuid;
+    if (!rawUuid) {
         return { error: 'asset-meta tool: provide reference={id,type} or assetUuid' };
     }
     if (target.reference?.id && target.assetUuid && target.reference.id !== target.assetUuid) {
         return { error: `asset-meta tool: reference.id (${target.reference.id}) conflicts with assetUuid (${target.assetUuid}); pass only one` };
     }
+    // v2.6.0 T-V26-bundle: cocos sub-asset UUIDs use `<uuid>@<sub-key>`.
+    // Some clients base64-encode `@`-containing strings to dodge wire
+    // mangling — decode here so both forms reach query-asset-info as the
+    // raw cocos format. Plain UUIDs pass through unchanged.
+    const uuid = decodeUuid(rawUuid);
     try {
         const info = await Editor.Message.request('asset-db', 'query-asset-info', uuid);
         if (!info) return { error: `Asset not found: ${uuid}` };

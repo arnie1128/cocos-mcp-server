@@ -1,5 +1,44 @@
 # Changelog
 
+## v2.6.0 — 2026-05-04
+
+Cross-LLM compat + runtime QA milestone. Three deliverables, all derived
+from the cross-repo survey:
+
+- **Gemini-compat schema guard** (`scripts/check-gemini-compat.js`) —
+  walks every tool's `inputSchema` and fails if any contains
+  `$ref` / `$defs` / `definitions`. Verified: zod 4 +
+  `target: 'draft-7'` already inlines reused subschemas (no patch
+  needed unlike cocos-cli's middleware route). Guard exists to catch
+  silent regression if zod, target, or hand-written schemas change.
+  CLAUDE.md landmine #15 documents the contract.
+- **`debug_game_command` + GameDebugClient** (T-V26-1, harady route) —
+  three new HTTP endpoints (`/game/command` GET poll, `/game/result`
+  POST writeback, `/game/status` GET liveness) backed by an in-memory
+  single-flight queue (`source/lib/game-command-queue.ts`). Two new
+  MCP tools (`debug_game_command`, `debug_game_client_status`) bring
+  the count to **183 / 18 categories**. A drop-in client template
+  (`client/cocos-mcp-client.ts`) ships next to the server; users
+  import it from their game's startup. Built-in commands: screenshot
+  (RenderTexture readback → host writes PNG to
+  `<project>/temp/mcp-captures/`), click (Button.CLICK emit by node
+  name), inspect (runtime node dump). Custom commands via the
+  `customCommands` map. Single-flight is enforced at queue time
+  (second `queueGameCommand` returns an error rather than silently
+  overwriting), and result IDs are stamped so a stale slow client
+  response can't bleed into the next command's await.
+- **`decodeUuid` UUID compat layer** (RomaRogov route) — new
+  `source/lib/uuid-compat.ts` exposes `decodeUuid` /  `encodeUuid`.
+  Cocos sub-asset UUIDs use `<uuid>@<sub-key>`; clients that
+  base64-encode `@`-containing strings to dodge wire mangling now
+  work transparently. Decode is gated on the result containing `@`,
+  so plain UUIDs and arbitrary base64 strings pass through unchanged.
+  Applied at `assetMeta_*` tool entry points (the only place sub-asset
+  UUIDs reach our API today); other tools opt in by importing the
+  helper.
+
+`SERVER_VERSION` bumped to `'2.6.0'`. Three-way review pending.
+
 ## v2.5.1 — 2026-05-03
 
 Three-way review patch round 1 on v2.5.0 (Claude + Codex + Gemini).
