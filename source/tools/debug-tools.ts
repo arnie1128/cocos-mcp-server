@@ -97,7 +97,7 @@ export class DebugTools implements ToolExecutor {
                 name: 'screenshot',
                 description: 'Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
                 inputSchema: z.object({
-                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
+                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
                     windowTitle: z.string().optional().describe('Optional substring match on window title to pick a specific Electron window. Default: focused window.'),
                     includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false). When false, only the saved file path is returned.'),
                 }),
@@ -107,7 +107,7 @@ export class DebugTools implements ToolExecutor {
                 name: 'capture_preview_screenshot',
                 description: 'Capture the cocos Preview-in-Editor (PIE) window to a PNG. Targets an Electron BrowserWindow whose title contains "Preview" — covers PIE windows opened by the cocos toolbar play button. Returns saved file path; pair with debug_preview_url before launching to confirm preview is reachable. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
                 inputSchema: z.object({
-                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
+                    savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
                     windowTitle: z.string().default('Preview').describe('Substring matched against window titles (default "Preview" for PIE).'),
                     includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false).'),
                 }),
@@ -117,7 +117,7 @@ export class DebugTools implements ToolExecutor {
                 name: 'batch_screenshot',
                 description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
                 inputSchema: z.object({
-                    savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
+                    savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Must resolve inside the cocos project root (containment check via realpath). Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
                     delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
                     windowTitle: z.string().optional().describe('Optional substring match on window title.'),
                 }),
@@ -659,13 +659,20 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    // v2.8.0 T-V28-2 (carryover from v2.7.0 Codex single-reviewer 🟡):
-    // mirror the v2.6.1 persistGameScreenshot realpath containment check on
-    // every auto-named save path. Caller passes a basename that gets joined
-    // under the project-rooted capture dir; the resolved parent must equal
-    // the resolved dir, otherwise we reject before writing. Protects against
-    // the temp/mcp-captures path being a symlink chain that escapes the
-    // project tree (rare but cheap to guard).
+    // v2.8.0 T-V28-2 (carryover from v2.7.0 Codex single-reviewer 🟡)
+    // → v2.8.1 round-1 fix (Codex 🔴 + Claude 🟡): the v2.8.0 helper
+    // realpath'd `dir` and `path.dirname(path.join(dir, basename))` and
+    // compared the two — but with a fixed basename those expressions both
+    // collapse to `dir`, making the equality check tautological. The check
+    // protected nothing if `<project>/temp/mcp-captures` itself was a
+    // symlink that escapes the project tree.
+    //
+    // True escape protection requires anchoring against the project root.
+    // We now realpath BOTH the capture dir and `Editor.Project.path` and
+    // require the resolved capture dir to be inside the resolved project
+    // root (equality OR `realDir.startsWith(realProjectRoot + sep)`).
+    // The intra-dir check is kept for cheap defense-in-depth in case a
+    // future basename gets traversal characters threaded through.
     //
     // Returns { ok: true, filePath, dir } when safe to write, or
     // { ok: false, error } with the same error envelope shape as
@@ -674,20 +681,81 @@ export class DebugTools implements ToolExecutor {
     private resolveAutoCaptureFile(basename: string): { ok: true; filePath: string; dir: string } | { ok: false; error: string } {
         const dirResult = this.ensureCaptureDir();
         if (!dirResult.ok) return { ok: false, error: dirResult.error };
+        const projectPath: string | undefined = Editor?.Project?.path;
+        if (!projectPath) {
+            return { ok: false, error: 'Editor.Project.path is not available; cannot anchor capture-dir containment check.' };
+        }
         const filePath = path.join(dirResult.dir, basename);
         let realDir: string;
         let realParent: string;
+        let realProjectRoot: string;
         try {
             const rp: any = fs.realpathSync as any;
-            realDir = (rp.native ?? rp)(dirResult.dir);
-            realParent = (rp.native ?? rp)(path.dirname(filePath));
+            const resolveReal = rp.native ?? rp;
+            realDir = resolveReal(dirResult.dir);
+            realParent = resolveReal(path.dirname(filePath));
+            realProjectRoot = resolveReal(projectPath);
         } catch (err: any) {
             return { ok: false, error: `screenshot path realpath failed: ${err?.message ?? String(err)}` };
         }
+        // Defense-in-depth: parent of the resolved file must equal the
+        // resolved capture dir (catches future basenames threading `..`).
         if (path.resolve(realParent) !== path.resolve(realDir)) {
             return { ok: false, error: 'screenshot save path resolved outside the capture directory' };
         }
+        // Primary protection: capture dir itself must resolve inside the
+        // project root, so a symlink chain on `temp/mcp-captures` cannot
+        // pivot writes to e.g. /etc or C:\Windows.
+        const realDirNormalized = path.resolve(realDir);
+        const realRootNormalized = path.resolve(realProjectRoot);
+        const withinRoot = realDirNormalized === realRootNormalized
+            || realDirNormalized.startsWith(realRootNormalized + path.sep);
+        if (!withinRoot) {
+            return { ok: false, error: `capture dir resolved outside the project root: ${realDirNormalized} not within ${realRootNormalized}` };
+        }
         return { ok: true, filePath, dir: dirResult.dir };
+    }
+
+    // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): when caller passes an
+    // explicit savePath / savePathPrefix, we still need the same project-
+    // root containment guarantee that resolveAutoCaptureFile gives the
+    // auto-named branch. AI-generated absolute paths could otherwise
+    // write outside the project root.
+    //
+    // The check resolves the parent directory (the file itself may not
+    // exist yet) and requires it to be inside `realpath(Editor.Project.path)`.
+    private assertSavePathWithinProject(savePath: string): { ok: true } | { ok: false; error: string } {
+        const projectPath: string | undefined = Editor?.Project?.path;
+        if (!projectPath) {
+            return { ok: false, error: 'Editor.Project.path is not available; cannot validate explicit savePath.' };
+        }
+        try {
+            const rp: any = fs.realpathSync as any;
+            const resolveReal = rp.native ?? rp;
+            const realProjectRoot = resolveReal(projectPath);
+            const parent = path.dirname(savePath);
+            // Parent must already exist for realpath; if it doesn't, the
+            // write would fail anyway, but return a clearer error here.
+            let realParent: string;
+            try {
+                realParent = resolveReal(parent);
+            } catch (err: any) {
+                return { ok: false, error: `savePath parent dir missing or unreadable: ${err?.message ?? String(err)}` };
+            }
+            const realParentNormalized = path.resolve(realParent);
+            const realRootNormalized = path.resolve(realProjectRoot);
+            const within = realParentNormalized === realRootNormalized
+                || realParentNormalized.startsWith(realRootNormalized + path.sep);
+            if (!within) {
+                return {
+                    ok: false,
+                    error: `savePath resolved outside the project root: ${realParentNormalized} not within ${realRootNormalized}. Use a path inside <project>/ or omit savePath to auto-name into <project>/temp/mcp-captures.`,
+                };
+            }
+            return { ok: true };
+        } catch (err: any) {
+            return { ok: false, error: `savePath realpath failed: ${err?.message ?? String(err)}` };
+        }
     }
 
     private async screenshot(savePath?: string, windowTitle?: string, includeBase64: boolean = false): Promise<ToolResponse> {
@@ -697,6 +765,12 @@ export class DebugTools implements ToolExecutor {
                 const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
                 if (!resolved.ok) return { success: false, error: resolved.error };
                 filePath = resolved.filePath;
+            } else {
+                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
+                // also gets containment-checked. AI-generated paths could
+                // otherwise write outside the project root.
+                const guard = this.assertSavePathWithinProject(filePath);
+                if (!guard.ok) return { success: false, error: guard.error };
             }
             const win = this.pickWindow(windowTitle);
             const image = await win.webContents.capturePage();
@@ -763,6 +837,11 @@ export class DebugTools implements ToolExecutor {
                 const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
                 if (!resolved.ok) return { success: false, error: resolved.error };
                 filePath = resolved.filePath;
+            } else {
+                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
+                // also gets containment-checked.
+                const guard = this.assertSavePathWithinProject(filePath);
+                if (!guard.ok) return { success: false, error: guard.error };
             }
             const image = await win.webContents.capturePage();
             const png: Buffer = image.toPNG();
@@ -792,6 +871,12 @@ export class DebugTools implements ToolExecutor {
                 const resolved = this.resolveAutoCaptureFile(`batch-${Date.now()}`);
                 if (!resolved.ok) return { success: false, error: resolved.error };
                 prefix = resolved.filePath;
+            } else {
+                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit prefix
+                // also gets containment-checked. We check the prefix path
+                // itself — every emitted file lives in the same dirname.
+                const guard = this.assertSavePathWithinProject(prefix);
+                if (!guard.ok) return { success: false, error: guard.error };
             }
             const win = this.pickWindow(windowTitle);
             const captures: any[] = [];

@@ -33,7 +33,7 @@ const SERVER_NAME = 'cocos-mcp-server';
 // version on every minor/major bump. SDK Server initialize response carries
 // this string; clients see it during MCP handshake. Drift since v2.0.0 has
 // been confusing review rounds and live-test verification.
-const SERVER_VERSION = '2.7.3';
+const SERVER_VERSION = '2.8.0';
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.
@@ -771,7 +771,14 @@ export class MCPServer {
 //     attackers
 //   - null (the JS value) when the origin is disallowed → caller omits the
 //     ACAO header so browsers block the response
-function resolveGameCorsOrigin(origin: string | undefined): string | null {
+function resolveGameCorsOrigin(origin: string | string[] | undefined): string | null {
+    // v2.8.1 round-1 fix (Codex 🟡 + Gemini 🟡): node http allows duplicate
+    // Origin headers, which produces a string[] here. WHATWG URL would
+    // serialize that to "a,b" and either throw or mis-classify. Treat as
+    // disallowed — a legitimate browser sends exactly one Origin.
+    if (Array.isArray(origin)) {
+        return null;
+    }
     if (origin === undefined || origin === '') {
         // No Origin header → not a browser fetch. Allow.
         return '*';

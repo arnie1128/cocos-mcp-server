@@ -1,5 +1,94 @@
 # Changelog
 
+## v2.8.1 — 2026-05-02
+
+Three-way review patch round 1 on v2.8.0. Three reviewers (Claude /
+Codex / Gemini) ran independently against commit `ddb6c77`. Codex
+flagged 2 🔴, Gemini flagged 2 🔴, Claude flagged 4 🟡. Consolidated
+fixes below — every ≥2-reviewer 🟡 promoted to must-fix per the
+project's three-way review workflow.
+
+### 🔴 #1 — `resolveAutoCaptureFile` containment check was tautological (Codex 🔴 + Claude 🟡)
+
+The v2.8.0 helper realpath'd `dir` and `path.dirname(path.join(dir,
+basename))` and required equality. With a fixed basename containing
+no traversal characters, both expressions collapse to `dir` itself,
+so the check passed for any `dir` — including a symlinked
+`<project>/temp/mcp-captures` that resolved outside the project tree.
+The CHANGELOG/commit-message claim "protects against the temp/mcp-
+captures path being a symlink chain that escapes the project tree"
+was therefore overstated.
+
+Fix: anchor the check against `realpath(Editor.Project.path)` and
+require the resolved capture dir to equal it or live under it
+(`realDir.startsWith(realProjectRoot + sep)`). The intra-dir parent
+== dir check is kept as cheap defense-in-depth in case a future
+basename gets traversal characters threaded through. Error message
+now names both the resolved capture dir and the resolved project
+root so debugging is direct.
+
+### 🔴 #2 — `SERVER_VERSION` constant stuck at `'2.7.3'` (Codex 🔴)
+
+`source/mcp-server-sdk.ts:36` declared `SERVER_VERSION = '2.7.3'`
+while `package.json` was already at `2.8.0`. The MCP `initialize`
+handshake reports the SDK constant, so clients saw v2.7.3 even
+though they were talking to a v2.8.0 build. Bumped to `'2.8.0'`.
+v2.8.1 leaves it at `'2.8.0'` because the SDK constant tracks
+behavior compatibility, not the patch tag.
+
+### 🔴 #3 — Explicit `savePath` bypassed containment check (Gemini 🔴 + Codex 🟡)
+
+`screenshot()` / `capturePreviewScreenshot()` / `batchScreenshot()`
+all routed auto-named paths through the new helper but treated a
+caller-provided `savePath` as opaque. AI-generated absolute paths
+could write anywhere on the filesystem.
+
+Fix: new helper `assertSavePathWithinProject(savePath)` that
+realpath-resolves the savePath's parent dir and requires it to be
+inside the project root (same anchor as #1). All three
+screenshot tools now route the explicit-path branch through this
+guard. Tool schema descriptions for `savePath` / `savePathPrefix`
+updated to document the containment requirement.
+
+### 🔴 #4 — `changePreviewPlayState` not in `contributions.scene.methods` (Gemini 🔴)
+
+Gemini flagged that the new scene-script method wasn't declared in
+`package.json` `contributions.scene.methods`. Although empirically
+the cocos editor does not strictly enforce this list (existing
+v2.4.8 animation methods like `getAnimationClips` work without
+being listed), adding the new method is defensive and makes the
+declaration self-documenting. Added.
+
+### 🟡 #5 — Origin header array guard (Codex 🟡 + Gemini 🟡)
+
+Node http allows duplicate `Origin` headers, which produces a
+`string[]` on `req.headers.origin`. The v2.8.0
+`resolveGameCorsOrigin(origin: string | undefined)` signature
+silently accepted whatever was passed in; WHATWG URL would either
+serialize the array to `"a,b"` (and throw) or mis-classify. Fixed
+by widening the param type to `string | string[] | undefined` and
+returning `null` (disallowed) when the value is an array — a
+legitimate browser only sends one Origin.
+
+### 🟡 #6 — HANDOFF commit table placeholder (Codex 🟡)
+
+`docs/HANDOFF.md` commit table still showed `<v2.8.0>` as a
+placeholder for the release commit. Updated to the actual SHA
+`ddb6c77`.
+
+### Single-reviewer 🟡 deferred
+
+- TOCTOU between realpath check and writeFileSync (Codex + Gemini —
+  both noted theoretical only for a local dev tool; not pursued)
+- Vary header on non-game branches (Claude single-reviewer)
+- previewControlInFlight guard against concurrent PIE start (Codex
+  single-reviewer)
+- Failure-branch message asymmetry on previewControl (Claude single)
+- `cce.SceneFacade` vs `SceneFacadeManager` comment clarity (Gemini
+  single — both names refer to the same singleton at runtime)
+
+These are documented for v2.8.x → v2.9.0 spillover.
+
 ## v2.8.0 — 2026-05-02
 
 Spillover release: pays down the three carryover items on the v2.7.0
