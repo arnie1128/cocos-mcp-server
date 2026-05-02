@@ -4,6 +4,7 @@ import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PROJECT_DOCS } from '../data/project-docs';
 
 export class ProjectTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
@@ -15,7 +16,7 @@ export class ProjectTools implements ToolExecutor {
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    @mcpTool({ name: 'run_project', title: 'Open preview fallback', description: '[specialist] Open Build panel as preview fallback; does not launch preview automatically.',
+    @mcpTool({ name: 'run_project', title: 'Open preview fallback', description: PROJECT_DOCS.run_project,
                 inputSchema: z.object({
                     platform: z.enum(['browser', 'simulator', 'preview']).default('browser').describe('Requested preview platform. Current implementation opens the build panel instead of launching preview.'),
                 })
@@ -40,7 +41,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'build_project', title: 'Open build fallback', description: '[specialist] Open Build panel for the requested platform; does not start the build.',
+    @mcpTool({ name: 'build_project', title: 'Open build fallback', description: PROJECT_DOCS.build_project,
                 inputSchema: z.object({
                     platform: z.enum(['web-mobile', 'web-desktop', 'ios', 'android', 'windows', 'mac']).describe('Build platform to pre-contextualize the response. Actual build still requires Editor UI.'),
                     debug: z.boolean().default(true).describe('Requested debug build flag. Returned as context only; build is not started programmatically.'),
@@ -68,7 +69,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'get_project_info', title: 'Read project info', description: '[specialist] Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.',
+    @mcpTool({ name: 'get_project_info', title: 'Read project info', description: PROJECT_DOCS.get_project_info,
                 inputSchema: z.object({})
     })
     async getProjectInfo(): Promise<ToolResponse> {
@@ -94,7 +95,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'get_project_settings', title: 'Read project settings', description: '[specialist] Read one project settings category via project/query-config.',
+    @mcpTool({ name: 'get_project_settings', title: 'Read project settings', description: PROJECT_DOCS.get_project_settings,
                 inputSchema: z.object({
                     category: z.enum(['general', 'physics', 'render', 'assets']).default('general').describe('Project settings category to query via project/query-config.'),
                 })
@@ -126,7 +127,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'refresh_assets', title: 'Refresh asset folder', description: '[specialist] Refresh asset-db for a folder; affects Editor asset state, not file content.',
+    @mcpTool({ name: 'refresh_assets', title: 'Refresh asset folder', description: PROJECT_DOCS.refresh_assets,
                 inputSchema: z.object({
                     folder: z.string().optional().describe('Asset db:// folder to refresh. Omit to refresh db://assets.'),
                 })
@@ -147,7 +148,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'import_asset', title: 'Import asset file', description: '[specialist] Import one disk file into asset-db; mutates project assets.',
+    @mcpTool({ name: 'import_asset', title: 'Import asset file', description: PROJECT_DOCS.import_asset,
                 inputSchema: z.object({
                     sourcePath: z.string().describe('Absolute source file path on disk. Must exist.'),
                     targetFolder: z.string().describe('Target asset folder, either db://... or relative under db://assets.'),
@@ -180,7 +181,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'get_asset_info', title: 'Read asset info', description: '[specialist] Read basic metadata for one db:// asset path.',
+    @mcpTool({ name: 'get_asset_info', title: 'Read asset info', description: PROJECT_DOCS.get_asset_info,
                 inputSchema: z.object({
                     assetPath: z.string().describe('Asset db:// path to query.'),
                 })
@@ -218,7 +219,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'get_assets', title: 'List project assets', description: '[specialist] List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.',
+    @mcpTool({ name: 'get_assets', title: 'List project assets', description: PROJECT_DOCS.get_assets,
                 inputSchema: z.object({
                     type: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation']).default('all').describe('Asset type filter translated into filename patterns.'),
                     folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
@@ -274,7 +275,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'get_build_settings', title: 'Read build settings', description: '[specialist] Report builder readiness and MCP build limitations.',
+    @mcpTool({ name: 'get_build_settings', title: 'Read build settings', description: PROJECT_DOCS.get_build_settings,
                 inputSchema: z.object({})
     })
     async getBuildSettings(): Promise<ToolResponse> {
@@ -298,7 +299,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'open_build_panel', title: 'Open build panel', description: '[specialist] Open the Cocos Build panel; does not start a build.',
+    @mcpTool({ name: 'open_build_panel', title: 'Open build panel', description: PROJECT_DOCS.open_build_panel,
                 inputSchema: z.object({})
     })
     async openBuildPanel(): Promise<ToolResponse> {
@@ -311,7 +312,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'check_builder_status', title: 'Check builder status', description: '[specialist] Check whether the builder worker is ready.',
+    @mcpTool({ name: 'check_builder_status', title: 'Check builder status', description: PROJECT_DOCS.check_builder_status,
                 inputSchema: z.object({})
     })
     async checkBuilderStatus(): Promise<ToolResponse> {
@@ -328,7 +329,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'start_preview_server', title: 'Start preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
+    @mcpTool({ name: 'start_preview_server', title: 'Start preview server', description: PROJECT_DOCS.start_preview_server,
                 inputSchema: z.object({
                     port: z.number().default(7456).describe('Requested preview server port. Current implementation reports unsupported.'),
                 })
@@ -346,7 +347,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'stop_preview_server', title: 'Stop preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
+    @mcpTool({ name: 'stop_preview_server', title: 'Stop preview server', description: PROJECT_DOCS.stop_preview_server,
                 inputSchema: z.object({})
     })
     async stopPreviewServer(): Promise<ToolResponse> {
@@ -359,7 +360,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'create_asset', title: 'Create asset', description: '[specialist] Create an asset file or folder through asset-db; null content creates folder.',
+    @mcpTool({ name: 'create_asset', title: 'Create asset', description: PROJECT_DOCS.create_asset,
                 inputSchema: z.object({
                     url: z.string().describe('Target asset db:// URL, e.g. db://assets/newfile.json.'),
                     content: z.string().nullable().optional().describe('File content. Pass null/omit for folder creation.'),
@@ -397,7 +398,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'copy_asset', title: 'Copy asset', description: '[specialist] Copy an asset through asset-db; mutates project assets.',
+    @mcpTool({ name: 'copy_asset', title: 'Copy asset', description: PROJECT_DOCS.copy_asset,
                 inputSchema: z.object({
                     source: z.string().describe('Source asset db:// URL.'),
                     target: z.string().describe('Target asset db:// URL or folder path.'),
@@ -436,7 +437,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'move_asset', title: 'Move asset', description: '[specialist] Move or rename an asset through asset-db; mutates project assets.',
+    @mcpTool({ name: 'move_asset', title: 'Move asset', description: PROJECT_DOCS.move_asset,
                 inputSchema: z.object({
                     source: z.string().describe('Source asset db:// URL.'),
                     target: z.string().describe('Target asset db:// URL or folder path.'),
@@ -475,7 +476,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'delete_asset', title: 'Delete asset', description: '[specialist] Delete one asset-db URL; mutates project assets.',
+    @mcpTool({ name: 'delete_asset', title: 'Delete asset', description: PROJECT_DOCS.delete_asset,
                 inputSchema: z.object({
                     url: z.string().describe('Asset db:// URL to delete.'),
                 })
@@ -496,7 +497,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'save_asset', title: 'Save asset', description: '[specialist] Write serialized content to an asset URL; use only for known-good formats.',
+    @mcpTool({ name: 'save_asset', title: 'Save asset', description: PROJECT_DOCS.save_asset,
                 inputSchema: z.object({
                     url: z.string().describe('Asset db:// URL whose content should be saved.'),
                     content: z.string().describe('Serialized asset content to write.'),
@@ -527,7 +528,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'reimport_asset', title: 'Reimport asset', description: '[specialist] Ask asset-db to reimport an asset; updates imported asset state/cache.',
+    @mcpTool({ name: 'reimport_asset', title: 'Reimport asset', description: PROJECT_DOCS.reimport_asset,
                 inputSchema: z.object({
                     url: z.string().describe('Asset db:// URL to reimport.'),
                 })
@@ -548,7 +549,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'query_asset_path', title: 'Resolve asset path', description: '[specialist] Resolve an asset db:// URL to disk path.',
+    @mcpTool({ name: 'query_asset_path', title: 'Resolve asset path', description: PROJECT_DOCS.query_asset_path,
                 inputSchema: z.object({
                     url: z.string().describe('Asset db:// URL to resolve to a disk path.'),
                 })
@@ -574,7 +575,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'query_asset_uuid', title: 'Resolve asset UUID', description: '[specialist] Resolve an asset db:// URL to UUID.',
+    @mcpTool({ name: 'query_asset_uuid', title: 'Resolve asset UUID', description: PROJECT_DOCS.query_asset_uuid,
                 inputSchema: z.object({
                     url: z.string().describe('Asset db:// URL to resolve to UUID.'),
                 })
@@ -600,7 +601,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'query_asset_url', title: 'Resolve asset URL', description: '[specialist] Resolve an asset UUID to db:// URL.',
+    @mcpTool({ name: 'query_asset_url', title: 'Resolve asset URL', description: PROJECT_DOCS.query_asset_url,
                 inputSchema: z.object({
                     uuid: z.string().describe('Asset UUID to resolve to db:// URL.'),
                 })
@@ -626,7 +627,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    @mcpTool({ name: 'find_asset_by_name', title: 'Find asset by name', description: '[specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.',
+    @mcpTool({ name: 'find_asset_by_name', title: 'Find asset by name', description: PROJECT_DOCS.find_asset_by_name,
                 inputSchema: z.object({
                     name: z.string().describe('Asset name search term. Partial match unless exactMatch=true.'),
                     exactMatch: z.boolean().default(false).describe('Require exact asset name match. Default false.'),
@@ -700,7 +701,7 @@ export class ProjectTools implements ToolExecutor {
         });
     }
     
-    @mcpTool({ name: 'get_asset_details', title: 'Read asset details', description: '[specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.',
+    @mcpTool({ name: 'get_asset_details', title: 'Read asset details', description: PROJECT_DOCS.get_asset_details,
                 inputSchema: z.object({
                     assetPath: z.string().describe('Asset db:// path to inspect.'),
                     includeSubAssets: z.boolean().default(true).describe('Try to include known image sub-assets such as spriteFrame and texture UUIDs.'),

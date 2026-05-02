@@ -2,6 +2,7 @@ import { ok, fail } from '../lib/response';
 import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
+import { ASSET_ADVANCED_DOCS } from '../data/asset-advanced-docs';
 
 export class AssetAdvancedTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
@@ -16,7 +17,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'save_asset_meta',
         title: 'Save asset meta',
-        description: '[specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
+        description: ASSET_ADVANCED_DOCS.save_asset_meta,
         inputSchema: z.object({
             urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
             content: z.string().describe('Serialized asset meta content string to write.'),
@@ -29,7 +30,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'generate_available_url',
         title: 'Generate asset URL',
-        description: '[specialist] Return a collision-free asset URL derived from the requested URL.',
+        description: ASSET_ADVANCED_DOCS.generate_available_url,
         inputSchema: z.object({
             url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
         }),
@@ -41,7 +42,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'query_asset_db_ready',
         title: 'Check asset-db readiness',
-        description: '[specialist] Check whether asset-db reports ready before batch operations.',
+        description: ASSET_ADVANCED_DOCS.query_asset_db_ready,
         inputSchema: z.object({}),
     })
     async queryAssetDbReady(): Promise<ToolResponse> {
@@ -51,7 +52,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'open_asset_external',
         title: 'Open asset externally',
-        description: '[specialist] Open an asset through the editor/OS external handler; does not edit content.',
+        description: ASSET_ADVANCED_DOCS.open_asset_external,
         inputSchema: z.object({
             urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
         }),
@@ -63,7 +64,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'batch_import_assets',
         title: 'Import assets in batch',
-        description: '[specialist] Import files from a disk directory into asset-db; mutates project assets.',
+        description: ASSET_ADVANCED_DOCS.batch_import_assets,
         inputSchema: z.object({
             sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
             targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
@@ -79,7 +80,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'batch_delete_assets',
         title: 'Delete assets in batch',
-        description: '[specialist] Delete multiple asset-db URLs; mutates project assets.',
+        description: ASSET_ADVANCED_DOCS.batch_delete_assets,
         inputSchema: z.object({
             urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
         }),
@@ -91,7 +92,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'validate_asset_references',
         title: 'Validate asset references',
-        description: '[specialist] Lightly scan assets under a directory for broken asset-info references.',
+        description: ASSET_ADVANCED_DOCS.validate_asset_references,
         inputSchema: z.object({
             directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
         }),
@@ -103,7 +104,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'get_asset_dependencies',
         title: 'Read asset dependencies',
-        description: '[specialist] Unsupported dependency-analysis placeholder; always reports unsupported.',
+        description: ASSET_ADVANCED_DOCS.get_asset_dependencies,
         inputSchema: z.object({
             urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
             direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
@@ -116,7 +117,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'get_unused_assets',
         title: 'Find unused assets',
-        description: '[specialist] Unsupported unused-asset placeholder; always reports unsupported.',
+        description: ASSET_ADVANCED_DOCS.get_unused_assets,
         inputSchema: z.object({
             directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
             excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
@@ -129,7 +130,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'compress_textures',
         title: 'Compress textures',
-        description: '[specialist] Unsupported texture-compression placeholder; always reports unsupported.',
+        description: ASSET_ADVANCED_DOCS.compress_textures,
         inputSchema: z.object({
             directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
             format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
@@ -143,7 +144,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'export_asset_manifest',
         title: 'Export asset manifest',
-        description: '[specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file.',
+        description: ASSET_ADVANCED_DOCS.export_asset_manifest,
         inputSchema: z.object({
             directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
             format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
@@ -157,7 +158,7 @@ export class AssetAdvancedTools implements ToolExecutor {
     @mcpTool({
         name: 'get_users',
         title: 'Find asset users',
-        description: '[specialist] Find scenes/prefabs/scripts that reference an asset by UUID.',
+        description: ASSET_ADVANCED_DOCS.get_users,
         inputSchema: z.object({
             uuid: z.string().describe('Asset UUID to find references to.'),
         }),

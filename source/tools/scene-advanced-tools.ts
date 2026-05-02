@@ -2,6 +2,7 @@ import { ok, fail } from '../lib/response';
 import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
+import { SCENE_ADVANCED_DOCS } from '../data/scene-advanced-docs';
 
 // Several tools accept either a single UUID or an array of UUIDs.
 const stringOrStringArray = z.union([z.string(), z.array(z.string())]);
@@ -16,7 +17,7 @@ export class SceneAdvancedTools implements ToolExecutor {
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    @mcpTool({ name: 'reset_node_property', title: 'Reset node property', description: '[specialist] Reset one node property to Cocos default; mutates scene.',
+    @mcpTool({ name: 'reset_node_property', title: 'Reset node property', description: SCENE_ADVANCED_DOCS.reset_node_property,
         inputSchema: z.object({
             uuid: z.string().describe('Node UUID whose property should be reset.'),
             path: z.string().describe('Node property path to reset, e.g. position, rotation, scale, layer.'),
@@ -25,7 +26,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.resetNodePropertyImpl(args.uuid, args.path);
     }
 
-    @mcpTool({ name: 'move_array_element', title: 'Move array element', description: '[specialist] Move an item in a node array property such as __comps__; mutates scene.',
+    @mcpTool({ name: 'move_array_element', title: 'Move array element', description: SCENE_ADVANCED_DOCS.move_array_element,
         inputSchema: z.object({
             uuid: z.string().describe('Node UUID that owns the array property.'),
             path: z.string().describe('Array property path, e.g. __comps__.'),
@@ -36,7 +37,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.moveArrayElementImpl(args.uuid, args.path, args.target, args.offset);
     }
 
-    @mcpTool({ name: 'remove_array_element', title: 'Remove array element', description: '[specialist] Remove an item from a node array property by index; mutates scene.',
+    @mcpTool({ name: 'remove_array_element', title: 'Remove array element', description: SCENE_ADVANCED_DOCS.remove_array_element,
         inputSchema: z.object({
             uuid: z.string().describe('Node UUID that owns the array property.'),
             path: z.string().describe('Array property path to edit.'),
@@ -46,7 +47,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.removeArrayElementImpl(args.uuid, args.path, args.index);
     }
 
-    @mcpTool({ name: 'copy_node', title: 'Copy scene nodes', description: '[specialist] Copy nodes through the Cocos scene clipboard channel.',
+    @mcpTool({ name: 'copy_node', title: 'Copy scene nodes', description: SCENE_ADVANCED_DOCS.copy_node,
         inputSchema: z.object({
             uuids: stringOrStringArray.describe('Node UUID or UUID array to copy into the editor clipboard context.'),
         }) })
@@ -54,7 +55,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.copyNodeImpl(args.uuids);
     }
 
-    @mcpTool({ name: 'paste_node', title: 'Paste scene nodes', description: '[specialist] Paste copied nodes under a target parent; mutates scene and returns new UUIDs.',
+    @mcpTool({ name: 'paste_node', title: 'Paste scene nodes', description: SCENE_ADVANCED_DOCS.paste_node,
         inputSchema: z.object({
             target: z.string().describe('Target parent node UUID for pasted nodes.'),
             uuids: stringOrStringArray.describe('Node UUID or UUID array returned/used by copy_node.'),
@@ -64,7 +65,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.pasteNodeImpl(args.target, args.uuids, args.keepWorldTransform);
     }
 
-    @mcpTool({ name: 'cut_node', title: 'Cut scene nodes', description: '[specialist] Cut nodes through the Cocos scene channel; clipboard/scene side effects.',
+    @mcpTool({ name: 'cut_node', title: 'Cut scene nodes', description: SCENE_ADVANCED_DOCS.cut_node,
         inputSchema: z.object({
             uuids: stringOrStringArray.describe('Node UUID or UUID array to cut via editor scene channel.'),
         }) })
@@ -72,7 +73,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.cutNodeImpl(args.uuids);
     }
 
-    @mcpTool({ name: 'reset_node_transform', title: 'Reset node transform', description: '[specialist] Reset node transform to Cocos defaults; mutates scene.',
+    @mcpTool({ name: 'reset_node_transform', title: 'Reset node transform', description: SCENE_ADVANCED_DOCS.reset_node_transform,
         inputSchema: z.object({
             uuid: z.string().describe('Node UUID whose transform should be reset to default.'),
         }) })
@@ -80,7 +81,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.resetNodeTransformImpl(args.uuid);
     }
 
-    @mcpTool({ name: 'reset_component', title: 'Reset component state', description: '[specialist] Reset a component by component UUID; mutates scene.',
+    @mcpTool({ name: 'reset_component', title: 'Reset component state', description: SCENE_ADVANCED_DOCS.reset_component,
         inputSchema: z.object({
             uuid: z.string().describe('Component UUID to reset to default values.'),
         }) })
@@ -88,7 +89,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.resetComponentImpl(args.uuid);
     }
 
-    @mcpTool({ name: 'restore_prefab', title: 'Restore prefab instance', description: '[specialist] Restore a prefab instance through scene/restore-prefab; mutates scene.',
+    @mcpTool({ name: 'restore_prefab', title: 'Restore prefab instance', description: SCENE_ADVANCED_DOCS.restore_prefab,
         inputSchema: z.object({
             nodeUuid: z.string().describe('Prefab instance node UUID to restore.'),
             assetUuid: z.string().describe('Prefab asset UUID kept for context; scene/restore-prefab uses nodeUuid only.'),
@@ -97,7 +98,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.restorePrefabImpl(args.nodeUuid, args.assetUuid);
     }
 
-    @mcpTool({ name: 'execute_component_method', title: 'Invoke component method', description: '[specialist] Execute an editor-exposed component method; side effects depend on method.',
+    @mcpTool({ name: 'execute_component_method', title: 'Invoke component method', description: SCENE_ADVANCED_DOCS.execute_component_method,
         inputSchema: z.object({
             uuid: z.string().describe('Component UUID whose editor-exposed method should be invoked.'),
             name: z.string().describe('Method name to execute on the component.'),
@@ -107,7 +108,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.executeComponentMethodImpl(args.uuid, args.name, args.args);
     }
 
-    @mcpTool({ name: 'execute_scene_script', title: 'Run scene script', description: '[specialist] Execute a scene script method; low-level escape hatch that can mutate scene.',
+    @mcpTool({ name: 'execute_scene_script', title: 'Run scene script', description: SCENE_ADVANCED_DOCS.execute_scene_script,
         inputSchema: z.object({
             name: z.string().describe('Scene script package/plugin name.'),
             method: z.string().describe('Scene script method name to execute.'),
@@ -117,19 +118,19 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.executeSceneScriptImpl(args.name, args.method, args.args);
     }
 
-    @mcpTool({ name: 'scene_snapshot', title: 'Create scene snapshot', description: '[specialist] Create a Cocos scene snapshot for undo/change tracking.',
+    @mcpTool({ name: 'scene_snapshot', title: 'Create scene snapshot', description: SCENE_ADVANCED_DOCS.scene_snapshot,
         inputSchema: z.object({}) })
     async sceneSnapshot(): Promise<ToolResponse> {
         return this.sceneSnapshotImpl();
     }
 
-    @mcpTool({ name: 'scene_snapshot_abort', title: 'Abort scene snapshot', description: '[specialist] Abort the current Cocos scene snapshot.',
+    @mcpTool({ name: 'scene_snapshot_abort', title: 'Abort scene snapshot', description: SCENE_ADVANCED_DOCS.scene_snapshot_abort,
         inputSchema: z.object({}) })
     async sceneSnapshotAbort(): Promise<ToolResponse> {
         return this.sceneSnapshotAbortImpl();
     }
 
-    @mcpTool({ name: 'begin_undo_recording', title: 'Begin undo recording', description: '[specialist] Begin undo recording for a node and return undoId.',
+    @mcpTool({ name: 'begin_undo_recording', title: 'Begin undo recording', description: SCENE_ADVANCED_DOCS.begin_undo_recording,
         inputSchema: z.object({
             nodeUuid: z.string().describe('Node UUID whose changes should be covered by the undo recording.'),
         }) })
@@ -137,7 +138,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.beginUndoRecordingImpl(args.nodeUuid);
     }
 
-    @mcpTool({ name: 'end_undo_recording', title: 'Commit undo recording', description: '[specialist] Commit a previously started undo recording.',
+    @mcpTool({ name: 'end_undo_recording', title: 'Commit undo recording', description: SCENE_ADVANCED_DOCS.end_undo_recording,
         inputSchema: z.object({
             undoId: z.string().describe('Undo recording ID returned by begin_undo_recording.'),
         }) })
@@ -145,7 +146,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.endUndoRecordingImpl(args.undoId);
     }
 
-    @mcpTool({ name: 'cancel_undo_recording', title: 'Cancel undo recording', description: '[specialist] Cancel a previously started undo recording.',
+    @mcpTool({ name: 'cancel_undo_recording', title: 'Cancel undo recording', description: SCENE_ADVANCED_DOCS.cancel_undo_recording,
         inputSchema: z.object({
             undoId: z.string().describe('Undo recording ID to cancel without committing.'),
         }) })
@@ -153,25 +154,25 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.cancelUndoRecordingImpl(args.undoId);
     }
 
-    @mcpTool({ name: 'soft_reload_scene', title: 'Reload current scene', description: '[specialist] Soft reload the current scene; Editor state side effect.',
+    @mcpTool({ name: 'soft_reload_scene', title: 'Reload current scene', description: SCENE_ADVANCED_DOCS.soft_reload_scene,
         inputSchema: z.object({}) })
     async softReloadScene(): Promise<ToolResponse> {
         return this.softReloadSceneImpl();
     }
 
-    @mcpTool({ name: 'query_scene_ready', title: 'Check scene readiness', description: '[specialist] Check whether the scene module reports ready.',
+    @mcpTool({ name: 'query_scene_ready', title: 'Check scene readiness', description: SCENE_ADVANCED_DOCS.query_scene_ready,
         inputSchema: z.object({}) })
     async querySceneReady(): Promise<ToolResponse> {
         return this.querySceneReadyImpl();
     }
 
-    @mcpTool({ name: 'query_scene_dirty', title: 'Check scene dirty state', description: '[specialist] Check whether the current scene has unsaved changes.',
+    @mcpTool({ name: 'query_scene_dirty', title: 'Check scene dirty state', description: SCENE_ADVANCED_DOCS.query_scene_dirty,
         inputSchema: z.object({}) })
     async querySceneDirty(): Promise<ToolResponse> {
         return this.querySceneDirtyImpl();
     }
 
-    @mcpTool({ name: 'query_scene_classes', title: 'List scene classes', description: '[specialist] List registered scene classes, optionally filtered by base class.',
+    @mcpTool({ name: 'query_scene_classes', title: 'List scene classes', description: SCENE_ADVANCED_DOCS.query_scene_classes,
         inputSchema: z.object({
             extends: z.string().optional().describe('Optional base class filter for scene/query-classes.'),
         }) })
@@ -179,13 +180,13 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.querySceneClassesImpl(args.extends);
     }
 
-    @mcpTool({ name: 'query_scene_components', title: 'List scene components', description: '[specialist] List available scene component definitions from Cocos.',
+    @mcpTool({ name: 'query_scene_components', title: 'List scene components', description: SCENE_ADVANCED_DOCS.query_scene_components,
         inputSchema: z.object({}) })
     async querySceneComponents(): Promise<ToolResponse> {
         return this.querySceneComponentsImpl();
     }
 
-    @mcpTool({ name: 'query_component_has_script', title: 'Check component script', description: '[specialist] Check whether a component class has an associated script.',
+    @mcpTool({ name: 'query_component_has_script', title: 'Check component script', description: SCENE_ADVANCED_DOCS.query_component_has_script,
         inputSchema: z.object({
             className: z.string().describe('Script class name to check through scene/query-component-has-script.'),
         }) })
@@ -193,7 +194,7 @@ export class SceneAdvancedTools implements ToolExecutor {
         return this.queryComponentHasScriptImpl(args.className);
     }
 
-    @mcpTool({ name: 'query_nodes_by_asset_uuid', title: 'Find nodes by asset', description: '[specialist] Find current-scene nodes that reference an asset UUID.',
+    @mcpTool({ name: 'query_nodes_by_asset_uuid', title: 'Find nodes by asset', description: SCENE_ADVANCED_DOCS.query_nodes_by_asset_uuid,
         inputSchema: z.object({
             assetUuid: z.string().describe('Asset UUID to search for in scene nodes.'),
         }) })

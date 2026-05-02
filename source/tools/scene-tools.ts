@@ -5,6 +5,7 @@ import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
+import { SCENE_DOCS } from '../data/scene-docs';
 
 const LAYER_UI_2D = 33554432;
 
@@ -21,7 +22,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'get_current_scene',
         title: 'Read current scene',
-        description: '[specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
+        description: SCENE_DOCS.get_current_scene,
         inputSchema: z.object({}),
     })
     async getCurrentScene(): Promise<ToolResponse> {
@@ -31,7 +32,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'get_scene_list',
         title: 'List scene assets',
-        description: '[specialist] List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
+        description: SCENE_DOCS.get_scene_list,
         inputSchema: z.object({}),
     })
     async getSceneList(): Promise<ToolResponse> {
@@ -41,7 +42,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'open_scene',
         title: 'Open scene by path',
-        description: '[specialist] Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
+        description: SCENE_DOCS.open_scene,
         inputSchema: z.object({
             scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
         }),
@@ -53,7 +54,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'save_scene',
         title: 'Save current scene',
-        description: '[specialist] Save the currently open scene back to its scene asset. Mutates the project file on disk.',
+        description: SCENE_DOCS.save_scene,
         inputSchema: z.object({}),
     })
     async saveScene(): Promise<ToolResponse> {
@@ -63,7 +64,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'create_scene',
         title: 'Create scene asset',
-        description: '[specialist] Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
+        description: SCENE_DOCS.create_scene,
         inputSchema: z.object({
             sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
             savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
@@ -83,7 +84,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'save_scene_as',
         title: 'Copy scene asset',
-        description: '[specialist] Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
+        description: SCENE_DOCS.save_scene_as,
         inputSchema: z.object({
             path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
             openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
@@ -97,7 +98,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'close_scene',
         title: 'Close current scene',
-        description: '[specialist] Close the current scene. Editor state side effect; save first if unsaved changes matter.',
+        description: SCENE_DOCS.close_scene,
         inputSchema: z.object({}),
     })
     async closeScene(): Promise<ToolResponse> {
@@ -107,7 +108,7 @@ export class SceneTools implements ToolExecutor {
     @mcpTool({
         name: 'get_scene_hierarchy',
         title: 'Read scene hierarchy',
-        description: '[specialist] Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
+        description: SCENE_DOCS.get_scene_hierarchy,
         inputSchema: z.object({
             includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
         }),

@@ -32,6 +32,7 @@ import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { logger } from '../lib/log';
+import { FILE_EDITOR_DOCS } from '../data/file-editor-docs';
 
 const REDUNDANT_TAG = '[claude-code-redundant] Use Edit/Write tool from your IDE if available. ';
 
@@ -174,7 +175,7 @@ export class FileEditorTools implements ToolExecutor {
     @mcpTool({
         name: 'insert_text',
         title: 'Insert text at line',
-        description: REDUNDANT_TAG + 'Insert a new line at the given 1-based line number. If line exceeds total, text is appended at end of file. Triggers cocos asset-db refresh on cocos-recognised extensions (.ts/.json/.scene/.prefab/etc.) so the editor reimports.',
+        description: FILE_EDITOR_DOCS.insert_text,
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file (absolute or project-relative).'),
             line: z.number().int().min(1).describe('1-based line number to insert at; existing lines shift down.'),
@@ -204,7 +205,7 @@ export class FileEditorTools implements ToolExecutor {
     @mcpTool({
         name: 'delete_lines',
         title: 'Delete line range',
-        description: REDUNDANT_TAG + 'Delete a range of lines (1-based, inclusive). Triggers cocos asset-db refresh.',
+        description: FILE_EDITOR_DOCS.delete_lines,
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file (absolute or project-relative).'),
             startLine: z.number().int().min(1).describe('First line to delete (1-based, inclusive).'),
@@ -238,7 +239,7 @@ export class FileEditorTools implements ToolExecutor {
     @mcpTool({
         name: 'replace_text',
         title: 'Replace text in file',
-        description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Regex backreferences ($1, $&, $`, $\') work when useRegex:true. Triggers cocos asset-db refresh.',
+        description: FILE_EDITOR_DOCS.replace_text,
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file (absolute or project-relative).'),
             // v2.5.1 round-1 review fix (codex + claude 🟡): empty search would
@@ -309,7 +310,7 @@ export class FileEditorTools implements ToolExecutor {
     @mcpTool({
         name: 'query_text',
         title: 'Read line range',
-        description: REDUNDANT_TAG + 'Read a range of lines (1-based, inclusive). Returns lines with line numbers; total line count of file in data.totalLines. Read-only; no asset-db refresh.',
+        description: FILE_EDITOR_DOCS.query_text,
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file (absolute or project-relative).'),
             startLine: z.number().int().min(1).optional().describe('First line to read (1-based). Default 1.'),
