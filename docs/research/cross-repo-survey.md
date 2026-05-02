@@ -60,13 +60,13 @@ v2.11.0/v2.11.1 兩 cycle starter）。後續比對基本上是「我們持續 s
 
 | # | 來源 | 內容 | 估時 | 風險 | 備註 |
 |---|---|---|---|---|---|
-| 1 | harady | **批次節點/排版工具**：`node_create_tree`（規格 → 樹狀節點）、`node_set_layout`（cc.Layout 一次設定）、`prefab_create_from_spec`（從 spec 直建 prefab） | 1.5 天 | 低 | 高 ROI，省一連串 `create_node` + `set_property` round-trip |
-| 2 | harady | **`component_auto_bind`**：自動綁定 script 的 `@property` editor reference 到場景中對應名稱節點 | 0.5 天 | 低 | 重複勞動殺手，AI 工作流常見痛點 |
-| 3 | harady | **`server_check_code_sync`**：偵測 runtime 內存編譯 vs disk 上 build hash 是否一致 | 0.5 天 | 中 | 需注入到 GameDebugClient 並比對 build artifact hash |
-| 4 | Spaydo | **`validation_take_snapshot` / `validation_compare_snapshots`**：場景快照 + diff 比較，AI 改完場景的回歸檢查 | 1 天 | 低 | 與 v2.4 InstanceReference 配合可做 deep equality |
-| 5 | Spaydo | **資產清查三件組**：`asset_get_tree`（樹狀）/ `asset_export_manifest`（外匯出）/ `asset_get_unused`（孤兒檢測） | 1 天 | 低 | 大型專案 refactor / 上架體積優化必備 |
-| 6 | cocos-code-mode | **ProjectSettings 內省 + 通用 `setInstanceProperties`**：補上他們的 `inspectorGetSettingsDefinition` / `inspectorGetSettingsProperties` 對應；通用 instance properties writer。注意：場景 instance 的完整 TS class 定義（component dump / `@property` decorator / enum/bitmask metadata）已於 v2.10.2 #1 ship，不屬此項。 | 1 天 | 低 | inspector-tools.ts 擴充 settings 分支；不動 schema layer |
-| 7 | RomaRogov | **`@ccclass` URL → class name 萃取**：從 `db://` script URL 解析出 class name，比手填 className 可靠 | 0.3 天 | 低 | 補強 `component_add_component` 的 className 解析鏈路 |
+| 1 | harady | **批次節點/排版三件套**：`node_create_tree`（JSON spec → 樹狀節點）、`node_set_layout`（cc.Layout 一次設定）、`prefab_create_from_spec`（spec 直建 prefab + 自動 autoBind，整合 #1+#2） | 1.5 天 | 低 | 高 ROI，省一連串 `create_node` + `set_property` round-trip。`create_from_spec` 是三者集成版 |
+| 2 | harady | **`component_auto_bind`**：自動把 script `@property` editor reference 綁到場景對應名稱節點，含 `fuzzy`/`strict` 模式 + `force` flag | 0.5 天 | 低 | 重複勞動殺手；同時是 #1 的 `prefab_create_from_spec` 必要組件 |
+| 3 | Spaydo | **`validation_take_snapshot` / `validation_compare_snapshots`**：場景快照 + node-level diff（added/removed/modified），AI 改完場景的回歸檢查 | 1 天 | 低 | 注意：是 **content-level diff**，與 `sceneAdvanced_scene_snapshot`（Cocos undo snapshot）機制不同，要實作場景狀態序列化 |
+| 4 | Spaydo | **資產清查兩件**：`asset_get_tree`（樹狀層級回傳）+ 把現有 `assetAdvanced_get_unused_assets` 從 placeholder 升級成真正掃描實作。`assetAdvanced_export_asset_manifest` 已 ship 不算 | 0.7 天 | 低 | 大型專案 refactor 必備；unused 掃描需 walk 場景 + prefab 收集 reference set |
+| 5 | cocos-code-mode | **inspector 補四條缺口**（場景 instance class 主路 v2.10.2 已 ship）：(a) `inspectorGetSettingsDefinition({ settingsType: 'ProjectSettings' \| 'CurrentSceneGlobals' \| 'CommonTypes' })` Settings dump → TS class；(b) Asset reference 自動加 `Importer` suffix；(c) tooltip / displayName `'i18n:'` 前綴解析（`Editor.I18n.t()`）；(d) 通用 `setInstanceProperties` writer（取代分散在 component/assetMeta/node 三套 setter） | 1.5 天 | 低 | inspector-tools.ts 純擴充；通用 setter 要對齊 InstanceReference 與三套既有 setter 的行為差異 |
+| 6 | RomaRogov | **`@ccclass` URL → class name 萃取**：從 `db://` script URL 解析出 class name，比手填 className 可靠 | 0.3 天 | 低 | 補強 `component_add_component` 的 className 解析鏈路 |
+| 7 | harady | **`server_check_code_sync` + `server_get_build_hash`**：runtime BUILD_HASH 與 dist/ 檔案 hash 比對，告知是否需要 reload extension | 0.5 天 | 中 | 需在 build 時生成 hash 並嵌入 runtime；對 AI 工作流有清楚 staleness 訊號 |
 | 8 | FunplayAI | **OS 層輸入模擬**（`simulate_mouse_*` / `simulate_key_*`）：彌補 preview-mode 互動測試盲點 | 1 天 | 中 | 需處理跨平台（windows/macOS）IPC；landmine #16 之外的另一條路 |
 | 9 | FunplayAI | **core/full tool profile**：tool-manager 補一層輕量 profile，降低小工作流的 AI tool token 消耗 | 0.5 天 | 中 | 與 v2.7 tool-manager UI persistence 互動，schema 變動需評估 |
 
@@ -75,10 +75,10 @@ v2.11.0/v2.11.1 兩 cycle starter）。後續比對基本上是「我們持續 s
 
 ### 推薦執行順序
 
-階段一（v2.11.2，~3-4 天）：#1 + #2 + #4（user 工作流殺手三件組）
-階段二（v2.11.3，~2-3 天）：#5 + #6 + #7（資產與 inspector 補齊）
-階段三（v2.11.4，~1.5-2 天）：#3 + #9（diagnostic / profile 配套）
-階段四（v2.11.5 or v2.12，依需求）：#8（input simulation，必要時才做）
+階段一（v2.11.2，~3 天）：#2 + #1（auto_bind → batch node tree → prefab_create_from_spec，依序解鎖；高 ROI 工作流殺手）
+階段二（v2.11.3，~2.5 天）：#3 + #5（snapshot diff + inspector 四條缺口；皆 inspector/scene 工具帶）
+階段三（v2.11.4，~1.5 天）：#4 + #6（資產清查 + ccclass 萃取；輔助型工具）
+階段四（v2.11.5 or v2.12）：#7（code_sync）+ #9（tool profile）；#8（input simulation）依需求
 
 ## 我們獨有功能（v2.11.1 確認，全保留）
 

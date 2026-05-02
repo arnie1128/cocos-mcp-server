@@ -17,13 +17,13 @@
 
 | # | 來源 | 項目 | 估時 | 風險 |
 |---|---|---|---|---|
-| 1 | harady | 批次節點/排版工具：`node_create_tree` / `node_set_layout` / `prefab_create_from_spec` | 1.5 天 | 低 |
-| 2 | harady | `component_auto_bind`（自動綁定 script `@property` editor reference） | 0.5 天 | 低 |
-| 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（場景 snapshot diff 回歸） | 1 天 | 低 |
-| 4 | Spaydo | 資產清查三件組：`asset_get_tree` / `asset_export_manifest` / `asset_get_unused` | 1 天 | 低 |
-| 5 | cocos-code-mode | ProjectSettings 內省 + 通用 `setInstanceProperties`（注意：場景 instance 完整 TS class 定義已於 v2.10.2 #1 ship） | 1 天 | 低 |
+| 1 | harady | 批次節點/排版三件套（`node_create_tree` / `node_set_layout` / `prefab_create_from_spec`，後者整合 #1+#2） | 1.5 天 | 低 |
+| 2 | harady | `component_auto_bind`（fuzzy/strict + force；同時是 #1 `create_from_spec` 組件） | 0.5 天 | 低 |
+| 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（content-level diff，非 cocos undo snapshot） | 1 天 | 低 |
+| 4 | Spaydo | 資產清查兩件：`asset_get_tree` 樹狀 + 升級 `assetAdvanced_get_unused_assets` placeholder 為真正實作。`export_asset_manifest` 已 ship 不算 | 0.7 天 | 低 |
+| 5 | cocos-code-mode | inspector 補四條缺口（場景 instance class 主路 v2.10.2 已 ship）：Settings 內省 / Asset Importer suffix / `i18n:` tooltip 解析 / 通用 `setInstanceProperties` | 1.5 天 | 低 |
 | 6 | RomaRogov | `@ccclass` URL → class name 萃取 helper | 0.3 天 | 低 |
-| 7 | harady | `server_check_code_sync`（runtime/disk build hash 漂移偵測） | 0.5 天 | 中 |
+| 7 | harady | `server_check_code_sync` + `server_get_build_hash` | 0.5 天 | 中 |
 | 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
 | 9 | FunplayAI | core/full tool profile（tool-manager 第二層輕量 profile） | 0.5 天 | 中 |
 
