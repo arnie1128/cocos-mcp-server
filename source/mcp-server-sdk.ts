@@ -33,7 +33,7 @@ const SERVER_NAME = 'cocos-mcp-server';
 // version on every minor/major bump. SDK Server initialize response carries
 // this string; clients see it during MCP handshake. Drift since v2.0.0 has
 // been confusing review rounds and live-test verification.
-const SERVER_VERSION = '2.7.0';
+const SERVER_VERSION = '2.7.1';
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.
@@ -752,12 +752,12 @@ export class MCPServer {
 //   - the echo'd origin string when the origin is in our trust list
 //   - the literal 'null' string when the request has Origin: null (file://
 //     URLs send this; cocos PIE webview often runs from file://)
+//   - the wildcard '*' for no-Origin requests (curl/Node clients, same-
+//     origin requests that don't send Origin) — CORS only matters in
+//     browsers, and same-origin / no-Origin paths can't be cross-tab
+//     attackers
 //   - null (the JS value) when the origin is disallowed → caller omits the
 //     ACAO header so browsers block the response
-// No-Origin requests (typical for direct fetch from cocos preview JS or
-// curl/Node clients) get a synthetic '*'-equivalent: we echo a sentinel
-// 'null' string so direct callers without an Origin header can still see
-// the response (CORS only matters in browsers anyway).
 function resolveGameCorsOrigin(origin: string | undefined): string | null {
     if (origin === undefined || origin === '') {
         // No Origin header → not a browser fetch. Allow.
@@ -773,8 +773,13 @@ function resolveGameCorsOrigin(origin: string | undefined): string | null {
     try {
         const u = new URL(origin);
         if (u.protocol === 'file:' || u.protocol === 'devtools:') return origin;
+        // v2.7.1 review fix (claude 🟡 + gemini 🔴): WHATWG URL keeps
+        // brackets around IPv6 hostnames on Node 18+, but older bundled
+        // Node builds may strip them — accept both to be portable across
+        // whatever Node the cocos editor ships at any given version.
         if ((u.protocol === 'http:' || u.protocol === 'https:')
-            && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]')) {
+            && (u.hostname === 'localhost' || u.hostname === '127.0.0.1'
+                || u.hostname === '[::1]' || u.hostname === '::1')) {
             return origin;
         }
     } catch {

@@ -687,25 +687,55 @@ export class DebugTools implements ToolExecutor {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const electron = require('electron');
             const BW = electron.BrowserWindow;
-            const matches = BW?.getAllWindows?.()?.filter((w: any) =>
-                w && !w.isDestroyed() && (w.getTitle?.() || '').includes(windowTitle)) ?? [];
+            // v2.7.1 review fix (claude 🟡 + codex 🟡): with the default
+            // windowTitle='Preview' a Chinese / localized cocos editor whose
+            // main window title contains "Preview" (e.g. "Cocos Creator
+            // Preview - <ProjectName>") would falsely match. Disambiguate
+            // by excluding any title that ALSO contains "Cocos Creator"
+            // when the caller stuck with the default 'Preview' filter.
+            // Caller-provided custom windowTitle bypasses the negative
+            // filter (their intent is explicit).
+            const usingDefault = windowTitle === 'Preview';
+            const matches = BW?.getAllWindows?.()?.filter((w: any) => {
+                if (!w || w.isDestroyed()) return false;
+                const title = w.getTitle?.() || '';
+                if (!title.includes(windowTitle)) return false;
+                if (usingDefault && /Cocos\s*Creator/i.test(title)) return false;
+                return true;
+            }) ?? [];
             if (matches.length === 0) {
                 return {
                     success: false,
-                    error: `No Electron window title contains "${windowTitle}". Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). Visible window titles: ${
+                    error: `No Electron window title contains "${windowTitle}"${usingDefault ? ' (and is not the main editor)' : ''}. Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). Visible window titles: ${
                         BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean).join(', ') ?? '(none)'
                     }`,
                 };
             }
-            // Override the default save name so PIE captures don't clobber
-            // editor screenshots in the same directory.
+            // v2.7.1 review fix (claude 🟡 + codex 🟡): capture from the
+            // matched window directly instead of delegating to screenshot()
+            // → pickWindow(), which would re-run the substring filter
+            // without our negative-editor heuristic and could pick a
+            // different match. Use the first filtered window so the
+            // disambiguation cannot drift.
+            const win = matches[0];
             let filePath = savePath;
             if (!filePath) {
                 const dirResult = this.ensureCaptureDir();
                 if (!dirResult.ok) return { success: false, error: dirResult.error };
                 filePath = path.join(dirResult.dir, `preview-${Date.now()}.png`);
             }
-            return this.screenshot(filePath, windowTitle, includeBase64);
+            const image = await win.webContents.capturePage();
+            const png: Buffer = image.toPNG();
+            fs.writeFileSync(filePath, png);
+            const data: any = {
+                filePath,
+                size: png.length,
+                windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
+            };
+            if (includeBase64) {
+                data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
+            }
+            return { success: true, data, message: `Preview screenshot saved to ${filePath}` };
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
@@ -761,14 +791,26 @@ export class DebugTools implements ToolExecutor {
                     // on missing electron.
                     // eslint-disable-next-line @typescript-eslint/no-var-requires
                     const electron = require('electron');
+                    // v2.7.1 review fix (codex 🟡 + gemini 🟡): openExternal
+                    // resolves when the OS launcher is invoked, not when the
+                    // page renders. Use "launch" wording to avoid the AI
+                    // misreading "opened" as a confirmed page-load.
                     await electron.shell.openExternal(url);
-                    data.opened = true;
+                    data.launched = true;
                 } catch (err: any) {
-                    data.opened = false;
-                    data.openError = err?.message ?? String(err);
+                    data.launched = false;
+                    data.launchError = err?.message ?? String(err);
                 }
             }
-            return { success: true, data, message: action === 'open' ? `Opened ${url} in default browser` : url };
+            // Reflect actual launch outcome in the top-level message so AI
+            // sees "launch failed" instead of misleading "Opened ..." when
+            // openExternal threw (gemini 🟡).
+            const message = action === 'open'
+                ? (data.launched
+                    ? `Launched ${url} in default browser (page render not awaited)`
+                    : `Returned URL ${url} but launch failed: ${data.launchError}`)
+                : url;
+            return { success: true, data, message };
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }

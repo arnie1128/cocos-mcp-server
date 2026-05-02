@@ -7,17 +7,12 @@
 
 ## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.6.2 + reload-retested → next: v2.7.0）
 
-**當下版本**：v2.6.2（origin/main HEAD = `3f1bc2e` doc wrap，
-v2.6.2 release commit = `27e7716`，已 push、**已同步到
-`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.6.0
-gemini-compat + GameDebugClient bridge + decodeUuid 落地 + 2 輪三方
-review patch（v2.6.1 / v2.6.2）。Round 3 三方一致 🟢 ship-it。
-Reload 後實機 retest 22 條全綠，包含 `/game/*` 三 endpoint 端到端、
-debug_game_command 完整 round-trip（simulated client poll+post，
-1186ms latency、structuredContent 結構正確）、timeout 路徑 + slot
-釋放、decodeUuid base64 sub-asset uuid decode 路徑（error message
-回傳 decoded form 證明 decode 已執行）等 round-1/2 fix verified。
-**18 categories / 183 tools**。
+**當下版本**：v2.7.1（v2.7.0 minor + 1 round-1 review patch；origin/main
+push pending 至此 commit 完成）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest
+通過；v2.7.0 落地 preview-QA + security 主題（CORS scoping for /game/*、
+debug_preview_url、debug_query_devices、debug_capture_preview_screenshot）；
+v2.7.1 round-1 三方 review fixes（4 🔴 + 4 ≥2-reviewer 🟡）。
+**18 categories / 186 tools**（v2.7.0 +3）。
 
 **下一個動工**：**v2.7.0** — spillover buffer（無強制必做的單一主題；
 candidate 清單視用戶優先級）。

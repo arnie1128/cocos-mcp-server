@@ -48,7 +48,7 @@ source/
 │   ├── component-tools.ts         #  10 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
 │   ├── project-tools.ts           #  24 tools
-│   ├── debug-tools.ts             #   9 tools  (v2.1.2 dropped placeholder get_console_logs)
+│   ├── debug-tools.ts             #  17 tools  (v2.4.8 +A1 TS diagnostics 3; v2.6.0 +game_command/client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
 │   ├── preferences-tools.ts       #   7 tools
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools
@@ -74,15 +74,16 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 183 (v2.6.0 added 2 debug tools —
-`debug_game_command` and `debug_game_client_status`; v2.5.0 added
-file-editor 4 tools; v2.4.8 added 7 across A1/A2 categories; v2.4.3
-added 3 assetMeta; v2.4.0 added 4 inspector/setter; v2.1.1 added 6
-prefab/EventHandler; net of two drops in v2.1.2 / v2.1.4). 18
-categories. Original author's v1.5.0 plan was to collapse to ~50
-action-router tools; we are not committing to that target until token
-cost is measured (P2 closed at v2.1.6 after measure showed lossy-only
-gains).
+Total tool count today: 186 (v2.7.0 added 3: `debug_preview_url` /
+`debug_query_devices` / `debug_capture_preview_screenshot`; v2.6.0
+added 2 debug tools — `debug_game_command` and
+`debug_game_client_status`; v2.5.0 added file-editor 4 tools; v2.4.8
+added 7 across A1/A2 categories; v2.4.3 added 3 assetMeta; v2.4.0
+added 4 inspector/setter; v2.1.1 added 6 prefab/EventHandler; net of
+two drops in v2.1.2 / v2.1.4). 18 categories. Original author's
+v1.5.0 plan was to collapse to ~50 action-router tools; we are not
+committing to that target until token cost is measured (P2 closed at
+v2.1.6 after measure showed lossy-only gains).
 
 ## Landmines (read before editing)
 

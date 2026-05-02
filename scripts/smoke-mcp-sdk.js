@@ -286,29 +286,43 @@ function getJson(pathname) {
         queueModule.resetForTest();
 
         // 21. v2.7.0 #2: /game/* CORS scoping — disallowed origin should 403
-        //   on POST/GET (preflight blocked too but covered separately).
-        const blockedOrigin = await new Promise((resolve, reject) => {
-            const req = http.request({
-                host: '127.0.0.1', port: PORT, method: 'GET', path: '/game/status',
-                headers: { 'Origin': 'http://evil.example' },
-            }, (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
+        //   on POST/GET. v2.7.1 review fixes: also assert ACAO is OMITTED on
+        //   disallowed (Claude 🔴), preflight 403 on disallowed (Claude 🔴),
+        //   Origin:null literal allowed (Claude 🟡), localhost.evil.com
+        //   strict reject (Claude 🟡).
+        const reqWith = (method, path, headers) => new Promise((resolve, reject) => {
+            const req = http.request({ host: '127.0.0.1', port: PORT, method, path, headers },
+                (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
             req.on('error', reject);
             req.end();
         });
+
+        const blockedOrigin = await reqWith('GET', '/game/status', { 'Origin': 'http://evil.example' });
         console.log('[/game/status disallowed-origin]', blockedOrigin.status, blockedOrigin.body);
         if (blockedOrigin.status !== 403) throw new Error('/game/* should reject disallowed Origin with 403');
-        // Allowed origin (localhost) should pass.
-        const allowedOrigin = await new Promise((resolve, reject) => {
-            const req = http.request({
-                host: '127.0.0.1', port: PORT, method: 'GET', path: '/game/status',
-                headers: { 'Origin': 'http://localhost:7456' },
-            }, (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
-            req.on('error', reject);
-            req.end();
-        });
+        if (blockedOrigin.headers['access-control-allow-origin']) throw new Error('disallowed origin must NOT receive ACAO header');
+
+        // Preflight (OPTIONS) on disallowed origin → 403 (Claude 🔴 fix).
+        const blockedPreflight = await reqWith('OPTIONS', '/game/status', { 'Origin': 'http://evil.example', 'Access-Control-Request-Method': 'GET' });
+        console.log('[/game/status preflight disallowed]', blockedPreflight.status);
+        if (blockedPreflight.status !== 403) throw new Error('preflight on disallowed origin should 403');
+
+        // Strict hostname check: localhost.evil.com should NOT match (Claude 🟡 lock).
+        const subdomainAttack = await reqWith('GET', '/game/status', { 'Origin': 'http://localhost.evil.com:1234' });
+        if (subdomainAttack.status !== 403) throw new Error('subdomain "localhost.evil.com" must be rejected by strict === match');
+        if (subdomainAttack.headers['access-control-allow-origin']) throw new Error('subdomain attack must not receive ACAO');
+
+        // Allowed origin (localhost).
+        const allowedOrigin = await reqWith('GET', '/game/status', { 'Origin': 'http://localhost:7456' });
         console.log('[/game/status allowed-origin]', allowedOrigin.status, 'ACAO:', allowedOrigin.headers['access-control-allow-origin']);
         if (allowedOrigin.status !== 200) throw new Error('/game/* should accept localhost Origin');
         if (allowedOrigin.headers['access-control-allow-origin'] !== 'http://localhost:7456') throw new Error('ACAO should echo allowed origin');
+
+        // Origin: null (file:// pages, sandboxed iframes — Claude 🟡 lock).
+        const nullOrigin = await reqWith('GET', '/game/status', { 'Origin': 'null' });
+        if (nullOrigin.status !== 200) throw new Error('Origin: null should be allowed (file:// PIE webview)');
+        if (nullOrigin.headers['access-control-allow-origin'] !== 'null') throw new Error('Origin: null should echo ACAO: null');
+
         // No-Origin (curl/Node fetch without Origin) should also pass with ACAO=*.
         const noOrigin = await getJson('/game/status');
         if (noOrigin.status !== 200) throw new Error('/game/* should accept no-Origin requests');

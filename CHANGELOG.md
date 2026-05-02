@@ -1,5 +1,83 @@
 # Changelog
 
+## v2.7.1 — 2026-05-02
+
+Three-way review patch round 1 on v2.7.0 (Claude + Codex + Gemini).
+**4 🔴** must-fix + **4 ≥2-reviewer 🟡** addressed. No new tools; tool
+count stays at 18 categories / 186 tools. `SERVER_VERSION` bumped to
+`'2.7.1'`.
+
+### 🔴 #1 — `resolveGameCorsOrigin` JSDoc contradicted impl (Claude + Codex)
+
+`source/mcp-server-sdk.ts:756-760` claimed the helper returns sentinel
+`'null'` for no-Origin requests, but the code returns `'*'`. Code
+behavior is correct (no-Origin = curl/Node = wildcard echo); JSDoc
+rewritten to match.
+
+### 🔴 #2 — CHANGELOG "public Editor.Message channels" inaccurate (3-reviewer)
+
+`preview / query-preview-url` is declared under
+`@types/protected/message.d.ts`, not the unprotected `index.d.ts`.
+v2.7.0 CHANGELOG #3 lumped both new tools as "public" — only
+`device/query` is. Per-tool wording corrected; the protected-type
+caveat is now visible to anyone reading the release notes.
+
+### 🔴 #3 — Smoke step 21 missing preflight + ACAO-absent assertions (Claude)
+
+`scripts/smoke-mcp-sdk.js:288` previously verified disallowed-origin
+GET returns 403 but didn't assert the response *omits* ACAO; a future
+bug that emitted `ACAO: *` while still returning 403 would slip past
+(browser would still block, but the contract regression would go
+undetected). Also missing: OPTIONS preflight 403 path. Both added.
+
+Bonus: defensive locks for `Origin: null` literal (file://) and
+`localhost.evil.com` strict-rejection — these branches were already
+correct but uncovered by smoke; the new assertions pin the
+behavior.
+
+### 🔴 #4 — IPv6 `[::1]` Node-version portability (Gemini 🔴 + Claude 🟡)
+
+`source/mcp-server-sdk.ts:777` strict-matched `u.hostname === '[::1]'`.
+On Node 22 (cocos 3.8.6 bundles this) the URL parser keeps brackets,
+so the check works empirically — but older bundled Node builds may
+strip them. Accept both forms (`'[::1]' || '::1'`) to insulate the
+allowlist from cocos editor's runtime version drift.
+
+### 🟡 — also addressed
+
+- `client/cocos-mcp-client.ts capturePreviewScreenshot`: substring
+  match `includes('Preview')` could falsely catch a Chinese / localized
+  cocos editor whose main window title includes "Preview". When the
+  caller stuck with the default `windowTitle='Preview'`, exclude any
+  title that ALSO matches `/Cocos\s*Creator/i`. Caller-provided custom
+  titles bypass the negative filter (explicit intent). Capture is now
+  done from the matched window directly so the disambiguation can't
+  drift through `pickWindow` (Claude + Codex).
+- `source/tools/debug-tools.ts previewUrl`: `openExternal` resolves
+  when the OS handler is invoked, not when the page renders. Reword
+  `data.opened: true` → `data.launched: true`, top-level message says
+  "Launched … (page render not awaited)" or "launch failed" when the
+  shell call throws (Codex + Gemini).
+- `CLAUDE.md` "Total tool count today" 183 → 186 + debug category
+  count 9 → 12 (post-v2.7.0 tools); `docs/HANDOFF.md` next-entry
+  blurb 183 → 186 (Codex flagged twice).
+- v2.7.0 CHANGELOG #3 wording clarification (above) doubles as a
+  paid-down "honesty about channel maturity" item per CLAUDE.md
+  convention.
+
+### Deferred to later patch
+
+- `Vary: Origin` on disallowed-origin branch (Claude single-reviewer).
+- Hoisting the double `resolveGameCorsOrigin` call into one variable
+  (cosmetic; pure function so safe).
+- Connection drop after 403 on `/game/result` (Codex; 32 MB body cap
+  from v2.6.1 already protects the OOM path).
+- Realpath check on `screenshot()` auto-named save path (Codex;
+  pre-existing v2.6.x carry-over, not introduced by v2.7.0).
+- Smoke coverage for `debug_preview_url`, `debug_query_devices`,
+  `debug_capture_preview_screenshot` (Codex; need Electron mock or
+  live editor).
+
 ## v2.7.0 — 2026-05-02
 
 Preview-QA + security hardening minor. Four sub-tasks landed across
@@ -37,16 +115,22 @@ disallowed-origin 403 + allowed-origin echo + no-Origin pass.
 
 ### #3 — `debug_preview_url` + `debug_query_devices` (+2 tools)
 
-Both backed by **public** `Editor.Message` channels:
+Backed by typed `Editor.Message` channels (NB: not all of them are
+"public" — see per-tool note below):
 
-- `preview / query-preview-url` returns the cocos browser-preview URL
+- `preview / query-preview-url` (declared under
+  `@cocos/creator-types/editor/packages/preview/@types/protected/`,
+  semantically less public than the unprotected `device/query` channel
+  but stable across cocos 3.8.x; we cast `as any` to acknowledge the
+  protected type location). Returns the cocos browser-preview URL
   (e.g. `http://localhost:7456`). With `action='open'` we also
   `electron.shell.openExternal` it. Useful as a setup step before
   `debug_game_command` since the GameDebugClient must reach the
   preview.
-- `device / query` returns configured `cc.IDeviceItem` entries
-  (`{name, width, height, ratio}`); enables batch-screenshot pipelines
-  targeting multiple resolutions.
+- `device / query` (genuinely public, declared under the unprotected
+  `device/@types/message.d.ts`). Returns configured `cc.IDeviceItem`
+  entries (`{name, width, height, ratio}`); enables batch-screenshot
+  pipelines targeting multiple resolutions.
 
 Editor-side Preview-in-Editor play/stop is **NOT** shipped. The harady
 route uses the undocumented `scene/editor-preview-set-play` channel
