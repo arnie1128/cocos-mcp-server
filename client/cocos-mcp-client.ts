@@ -364,6 +364,15 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
         cleanupRecording(stream);
         rejectStop(e?.error ?? new Error('MediaRecorder error'));
     };
+    // v2.9.6 round-2 fix (Claude r2 🟡): assign _recState BEFORE
+    // recorder.start(). If `start()` synchronously fires onerror in the
+    // same tick (rare but spec-allowed), our onerror handler calls
+    // cleanupRecording() which clears _recState — but if we then
+    // assigned it again afterwards, the cleared state would be
+    // re-polluted with a dead recorder reference. Pre-assigning means
+    // the cleanup wins (sets to null) and the post-start error path
+    // (try/catch below) just re-runs cleanup as a no-op.
+    _recState = { recorder, stream, chunks, mimeType, startedAt, stopPromise, resolveStop, rejectStop };
     try {
         recorder.start();
     } catch (err: any) {
@@ -373,7 +382,6 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
         cleanupRecording(stream);
         return { success: false, error: `MediaRecorder.start failed: ${err?.message ?? String(err)}` };
     }
-    _recState = { recorder, stream, chunks, mimeType, startedAt, stopPromise, resolveStop, rejectStop };
     return { success: true, data: { recording: true, mimeType } };
 }
 

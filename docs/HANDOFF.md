@@ -5,9 +5,9 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.5 — v2.9.x cumulative review round-1 patch landed → round-2 三方 review pending）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.6 — v2.9.x cumulative review round-2 patch landed → round-3 三方 review pending）
 
-**當下版本**：v2.9.5（v2.9.x cumulative review round-1 patch on top of v2.9.4）。**18 categories / 181 tools**。
+**當下版本**：v2.9.6（v2.9.x cumulative review round-2 patch on top of v2.9.5）。**18 categories / 181 tools**。
 
 **v2.8.x 收尾**（已 push origin/main）：v2.8.0 spillover（T-V28-1 CORS hoist + T-V28-2 resolveAutoCaptureFile + T-V28-3 debug_preview_control）→ v2.8.1 round-1 review patch → v2.8.2 reload-retest fix（cce.SceneFacadeManager + 相對 savePath）→ v2.8.3 embedded-mode capture 補完（T-V283-1/2/3）→ v2.8.4 browser-mode retest fix（landmine #16 廣域化 + mode-aware fallback hint）。
 
@@ -17,13 +17,14 @@
 - v2.9.2 polish batch（8 件 v2.8.1 deferred single-🟡）
 - v2.9.3 macro-tool routing（12 referenceImage_* → 1 op-router）+ preview-tools park gates
 - v2.9.4 MediaRecorder bridge（debug_record_start/stop + client template）
-- v2.9.5 cumulative review round-1 patch（本 cycle）：check_editor_health 改用 query-is-ready + query-node 雙探針 / persistGameRecording regex 修 codecs 逗號 / MediaRecorder cleanup centralization + recordStop durationMs 修 / 32MB→64MB cap reconcile / isPathWithinRoot `..` 邊界 / referenceImage_manage `add` array 驗證 / HANDOFF 整理
+- v2.9.5 cumulative review round-1 patch：check_editor_health 改用 query-is-ready + query-node 雙探針 / persistGameRecording regex 修 codecs 逗號（attempt 1，後發現仍有 bug）/ MediaRecorder cleanup centralization + recordStop durationMs 修 / 32MB→64MB cap reconcile / isPathWithinRoot `..` 邊界 / referenceImage_manage `add` array 驗證 / HANDOFF 整理
+- v2.9.6 cumulative review round-2 patch（本 cycle）：3-reviewer 🔴 共識 regex attempt 1 仍卡 codec 內逗號 → 改用 base64-alphabet 終止符；query-current-scene 是 unverified channel → 改用 typed query-node-tree；null UUID 偽健康防呆；SERVER_VERSION '2.8.0' → '2.9.0' 同步 minor base；record_stop schema 32MB stale 文字 → 64MB；recordStart _recState 賦值順序修
 
 **未解 issues**（v2.10 對比參考專案後再動）：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race，editor 凍結需 Ctrl+R。tool 已加 acknowledgeFreezeRisk park gate。
 - landmine #17 — set_preview_mode 4 strategies 全 silent no-op；setter 仍 ⚠ EXPERIMENTAL。
 
-**下一個動工**：v2.9.5 commit + push → 三方 review round-2（驗證 round-1 fix）→ 視結果決定 ship-it / round-3 patch。
+**下一個動工**：v2.9.6 commit + push → 三方 review round-3（驗證 round-2 fix）→ 視結果決定 ship-it / round-4 patch。
 
 **v2.9.0 候選清單**（v2.8.x 完整 ship 後再動）：
 - **PIE freeze 對比參考專案**（landmine #16）— 讀 harady / RomaRogov-cocos-mcp / cocos-cli / FunplayAI / Spaydo / cocos-code-mode 各家如何處理 `changePreviewPlayState` 或同等 PIE 啟動：是否有人繞過 `softReloadScene` race / 使用其他 channel / 加 retry-with-build-prebake 之類前置步驟。如果有就移植；沒有就把結論記回 landmine #16 收斂（「業界亦無解，認定為 cocos 3.8.7 內傷」）。0.5 天。
@@ -682,6 +683,8 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.9.6 改動前（v2.9.5 round-1 patch 點）→ `git reset --hard e425aa7`
+- v2.9.5 改動前（v2.9.4 release 點）→ `git reset --hard 3bf839f`
 - v2.9.0 改動前（v2.8.4 release 點）→ `git reset --hard 843fe73`
 - v2.8.4 改動前（v2.8.3 #5 landmine + sharper warning 點）→ `git reset --hard ce6825f`
 - v2.8.3 改動前（v2.8.2 reload-retest doc 點）→ `git reset --hard 40ad5b7`

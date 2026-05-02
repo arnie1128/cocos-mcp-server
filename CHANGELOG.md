@@ -1,5 +1,92 @@
 # Changelog
 
+## v2.9.6 — 2026-05-02
+
+Three-way cumulative review round-2 patch on v2.9.5. Reviewers found
+4 🔴 + 3 🟡 (with overlap). Consolidated below.
+
+### 🔴 #1 — `persistGameRecording` regex STILL rejected codec-internal commas (Gemini+Claude+Codex — 3 reviewer)
+
+v2.9.5 attempt 1 used `((?:;[^,]*?)*)` which still excluded commas
+inside any single param's value. `data:video/webm;codecs="vp9,opus";
+base64,...` continued to fail. Live retest passed by accident because
+canvas-captureStream emits single-codec only.
+
+Fix: anchor on the `;base64,` separator, accept any chars in the
+parameter segment, and validate the payload as base64 alphabet only:
+`/^data:video\/(webm|mp4)([^]*?);base64,([A-Za-z0-9+/]*={0,2})$/i`.
+This also closes the v2.9.5 single-🟡 (Codex) about base64 payload
+not being charset-validated — folded into the same regex.
+
+### 🔴 #2 — `scene/query-current-scene` was an unverified channel (Codex 🔴 + Claude 🟡)
+
+v2.9.5 chained `Editor.Message.request('scene', 'query-current-scene')`
+into `query-node`. `query-current-scene` is NOT in
+`scene/@types/message.d.ts` — only `query-is-ready` (line 257) and
+`query-node-tree` (line 273) are typed. Unknown channels may resolve
+fast with garbage on some cocos builds, leading to false-healthy.
+
+Fix: replace the chained probe with a single typed `scene/query-node-
+tree` call (no-arg form returns full INode[]). Forces a real graph
+walk through the scene-script renderer, same liveness signal, no
+unverified channels.
+
+### 🔴 #3 — null UUID branch could declare `sceneAlive: true` (Codex 🔴)
+
+v2.9.5 logic was `sceneAlive = isReady.ok && dump.ok && isReady.value
+=== true`. If `query-node` ever returned null/undefined for an empty
+scene-tree, dump.ok was true but the actual data was garbage; combined
+with `query-is-ready: true` it returned a false-healthy. The new
+`query-node-tree` removes the null-UUID race entirely, but defense-in-
+depth: now require `dump.value !== null && dump.value !== undefined`
+in the sceneAlive computation.
+
+### 🔴 #4 — `SERVER_VERSION = '2.8.0'` stale on v2.9.x (Codex 🔴)
+
+Per the v2.8.1-established policy, `SERVER_VERSION` tracks behavior
+compat (minor base), not patch tag. v2.8.x → v2.9.x crossed a minor
+bump but the constant stayed at '2.8.0', so MCP `initialize` clients
+on v2.9.x saw a stale 2.8 handshake. Bumped to '2.9.0' (the new minor
+base for the 2.9.x line). Patch tags continue to live in
+package.json.version.
+
+### 🟡 #5 — `record_stop` schema description still said 32MB (Codex)
+
+Updated to "64MB byte cap (synced with the request body cap in
+mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB)".
+
+### 🟡 #6 — `recordStart` _recState assignment race (Claude r2)
+
+v2.9.5 assigned `_recState` AFTER `recorder.start()`. If `start()`
+synchronously fires onerror, our handler calls `cleanupRecording()`
+which clears `_recState`, then the post-start assignment re-pollutes
+with a dead recorder reference. Reordered: assign `_recState` first,
+let cleanup win on synchronous error path.
+
+### 🟢 ship-it confirmations from r2 (preserved)
+
+- check_editor_health probe upgrade strategy (now query-is-ready +
+  query-node-tree dual probe with both-required-true)
+- cleanupRecording centralisation idempotent across paths
+- startedAt closure-captured (durationMs fix)
+- FileReader.readAsDataURL base64 (O(N²) fix)
+- 64MB cap applied on both transport + recording layers
+- isPathWithinRoot tightened `..` boundary
+- referenceImage_manage `add` array validation
+- HANDOFF entry-point consolidated
+
+### Single-reviewer 🟡 deferred
+
+- recorder.start error-message hint enhancement (Gemini r2)
+- Promise.race orphaned scene request (Codex round-1)
+- previewControlInFlight hot-reload edge (Claude round-1)
+- transport vs recording cap math precision (Codex r2 — request body
+  cap is 64MB, so a 64MB recording becomes ~85MB base64 + JSON
+  overhead → may 413 before reaching the tool's pre-decode check.
+  Practical mitigation: keep recordings under ~45MB raw or raise both
+  caps further; not pursued because real-world canvas captureStream
+  rarely exceeds 30s × 5Mbps = 18MB)
+
 ## v2.9.5 — 2026-05-02
 
 Three-way cumulative review round-1 patch on v2.8.4..v2.9.4.
