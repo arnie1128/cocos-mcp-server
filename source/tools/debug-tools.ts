@@ -1,6 +1,7 @@
 import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
+import { filterByLevel, filterByKeyword, searchWithContext } from '../lib/log-parser';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -544,16 +545,12 @@ export class DebugTools implements ToolExecutor {
             
             // Filter by log level if not 'ALL'
             if (logLevel !== 'ALL') {
-                filteredLines = filteredLines.filter(line => 
-                    line.includes(`[${logLevel}]`) || line.includes(logLevel.toLowerCase())
-                );
+                filteredLines = filterByLevel(filteredLines, logLevel);
             }
             
             // Filter by keyword if provided
             if (filterKeyword) {
-                filteredLines = filteredLines.filter(line => 
-                    line.toLowerCase().includes(filterKeyword.toLowerCase())
-                );
+                filteredLines = filterByKeyword(filteredLines, filterKeyword);
             }
             
             return ok({
@@ -616,41 +613,44 @@ export class DebugTools implements ToolExecutor {
                 regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             }
             
-            const matches: any[] = [];
-            let resultCount = 0;
-            
-            for (let i = 0; i < logLines.length && resultCount < maxResults; i++) {
-                const line = logLines[i];
-                if (regex.test(line)) {
-                    // Get context lines
-                    const contextStart = Math.max(0, i - contextLines);
-                    const contextEnd = Math.min(logLines.length - 1, i + contextLines);
-                    
-                    const contextLinesArray = [];
-                    for (let j = contextStart; j <= contextEnd; j++) {
-                        contextLinesArray.push({
-                            lineNumber: j + 1,
-                            content: logLines[j],
-                            isMatch: j === i
-                        });
-                    }
-                    
-                    matches.push({
-                        lineNumber: i + 1,
-                        matchedLine: line,
-                        context: contextLinesArray
+            const allMatches = searchWithContext(logLines, regex, contextLines);
+            const matches = allMatches.slice(0, maxResults).map(m => {
+                const contextLinesArray = [];
+                let currentLineNum = m.matchLine - m.before.length;
+                
+                for (const line of m.before) {
+                    contextLinesArray.push({
+                        lineNumber: currentLineNum++,
+                        content: line,
+                        isMatch: false
                     });
-                    
-                    resultCount++;
-                    
-                    // Reset regex lastIndex for global search
-                    regex.lastIndex = 0;
                 }
-            }
+                
+                contextLinesArray.push({
+                    lineNumber: m.matchLine,
+                    content: m.match,
+                    isMatch: true
+                });
+                currentLineNum++;
+                
+                for (const line of m.after) {
+                    contextLinesArray.push({
+                        lineNumber: currentLineNum++,
+                        content: line,
+                        isMatch: false
+                    });
+                }
+                
+                return {
+                    lineNumber: m.matchLine,
+                    matchedLine: m.match,
+                    context: contextLinesArray
+                };
+            });
             
             return ok({
                     pattern: pattern,
-                    totalMatches: matches.length,
+                    totalMatches: allMatches.length,
                     maxResults: maxResults,
                     contextLines: contextLines,
                     logFilePath: logFilePath,

@@ -8,6 +8,7 @@ import { runSceneMethod } from '../lib/scene-bridge';
 import { resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
+import { is2DComponentType, is3DComponentType, BUILTIN_2D_COMPONENTS } from '../lib/node-classifications';
 
 // vec3 used by create_node's initialTransform — original schema had no
 // per-axis description and no required marker, so axes are plain optional numbers.
@@ -748,15 +749,7 @@ export class NodeTools implements ToolExecutor {
         
         // Check for common 2D components
         const has2DComponents = components.some((comp: any) => 
-            comp.type && (
-                comp.type.includes('cc.Sprite') ||
-                comp.type.includes('cc.Label') ||
-                comp.type.includes('cc.Button') ||
-                comp.type.includes('cc.Layout') ||
-                comp.type.includes('cc.Widget') ||
-                comp.type.includes('cc.Mask') ||
-                comp.type.includes('cc.Graphics')
-            )
+            comp.type && is2DComponentType(comp.type)
         );
         
         if (has2DComponents) {
@@ -765,14 +758,7 @@ export class NodeTools implements ToolExecutor {
         
         // Check for 3D-specific components  
         const has3DComponents = components.some((comp: any) =>
-            comp.type && (
-                comp.type.includes('cc.MeshRenderer') ||
-                comp.type.includes('cc.Camera') ||
-                comp.type.includes('cc.Light') ||
-                comp.type.includes('cc.DirectionalLight') ||
-                comp.type.includes('cc.PointLight') ||
-                comp.type.includes('cc.SpotLight')
-            )
+            comp.type && is3DComponentType(comp.type)
         );
         
         if (has3DComponents) {
@@ -890,27 +876,12 @@ export class NodeTools implements ToolExecutor {
                 
                 // Check for 2D components
                 const twoDComponents = components.filter((comp: any) => 
-                    comp.type && (
-                        comp.type.includes('cc.Sprite') ||
-                        comp.type.includes('cc.Label') ||
-                        comp.type.includes('cc.Button') ||
-                        comp.type.includes('cc.Layout') ||
-                        comp.type.includes('cc.Widget') ||
-                        comp.type.includes('cc.Mask') ||
-                        comp.type.includes('cc.Graphics')
-                    )
+                    comp.type && is2DComponentType(comp.type)
                 );
                 
                 // Check for 3D components
                 const threeDComponents = components.filter((comp: any) =>
-                    comp.type && (
-                        comp.type.includes('cc.MeshRenderer') ||
-                        comp.type.includes('cc.Camera') ||
-                        comp.type.includes('cc.Light') ||
-                        comp.type.includes('cc.DirectionalLight') ||
-                        comp.type.includes('cc.PointLight') ||
-                        comp.type.includes('cc.SpotLight')
-                    )
+                    comp.type && is3DComponentType(comp.type)
                 );
 
                 if (twoDComponents.length > 0) {
@@ -959,16 +930,11 @@ export class NodeTools implements ToolExecutor {
     private getComponentCategory(componentType: string): string {
         if (!componentType) return 'unknown';
         
-        if (componentType.includes('cc.Sprite') || componentType.includes('cc.Label') || 
-            componentType.includes('cc.Button') || componentType.includes('cc.Layout') ||
-            componentType.includes('cc.Widget') || componentType.includes('cc.Mask') ||
-            componentType.includes('cc.Graphics')) {
+        if (is2DComponentType(componentType)) {
             return '2D';
         }
         
-        if (componentType.includes('cc.MeshRenderer') || componentType.includes('cc.Camera') ||
-            componentType.includes('cc.Light') || componentType.includes('cc.DirectionalLight') ||
-            componentType.includes('cc.PointLight') || componentType.includes('cc.SpotLight')) {
+        if (is3DComponentType(componentType)) {
             return '3D';
         }
         

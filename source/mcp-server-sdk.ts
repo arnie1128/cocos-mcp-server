@@ -21,6 +21,7 @@ import { setEditorContextEvalEnabled, setSceneLogCaptureEnabled } from './lib/ru
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 import { BroadcastBridge } from './lib/broadcast-bridge';
+import { applyGameCorsHeaders, applyDefaultCorsHeaders } from './lib/cors';
 import { PromptRegistry, createPromptRegistry } from './prompts/registry';
 import {
     consumePendingCommand,
@@ -415,10 +416,7 @@ export class MCPServer {
             // browser cache cannot serve a cached allowed-origin response to a
             // later disallowed origin (or vice versa). The header is set once
             // here regardless of acao outcome.
-            res.setHeader('Vary', 'Origin');
-            if (gameAcao !== null) {
-                res.setHeader('Access-Control-Allow-Origin', gameAcao);
-            } // else: omit ACAO entirely; browsers will block the response.
+            applyGameCorsHeaders(req, res, gameAcao);
             // Reject preflight from disallowed origins fast so the request
             // never reaches the queue logic.
             if (req.method === 'OPTIONS') {
@@ -427,23 +425,17 @@ export class MCPServer {
                     res.end();
                     return;
                 }
-                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
                 res.writeHead(204);
                 res.end();
                 return;
             }
         } else {
-            res.setHeader('Access-Control-Allow-Origin', '*');
             // v2.9.x polish (Claude r1 single-🟡 from v2.8.1 review):
             // emit Vary: Origin uniformly across all branches so a future
             // change introducing dynamic ACAO on /mcp can't quietly
             // resurface the cache-poisoning issue T-V28-1 just hardened
             // against on /game/*. Cheap to set; never harmful.
-            res.setHeader('Vary', 'Origin');
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
-            res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
+            applyDefaultCorsHeaders(res);
 
             if (req.method === 'OPTIONS') {
                 res.writeHead(204);
