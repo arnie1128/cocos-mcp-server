@@ -1,0 +1,301 @@
+/**
+ * ts-diagnostics — host-side TypeScript diagnostics + compile-wait helpers.
+ *
+ * Three pieces, used by debug-tools.ts:
+ *   - findTsBinary(projectPath): locate `tsc` (project node_modules → editor
+ *     bundled engine → npx fallback)
+ *   - findTsConfig(projectPath, explicit?): locate tsconfig.json (or
+ *     temp/tsconfig.cocos.json which cocos generates for the editor)
+ *   - runScriptDiagnostics(projectPath, opts): run `tsc --noEmit -p ...`,
+ *     parse the output into structured diagnostics.
+ *   - waitForCompile(projectPath, timeoutMs): tail
+ *     temp/programming/packer-driver/logs/debug.log for cocos's
+ *     `Target(editor) ends` marker.
+ *
+ * Sources:
+ *   - FunplayAI/funplay-cocos-mcp lib/diagnostics.js (binary discovery
+ *     + tsc output parser)
+ *   - harady/cocos-creator-mcp source/tools/debug-tools.ts:waitCompile
+ *     (log-size delta + marker-string detection pattern)
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import { execFile } from 'child_process';
+
+export interface TscDiagnostic {
+    file: string;
+    line: number;
+    column: number;
+    code: string;
+    message: string;
+}
+
+export interface RunScriptDiagnosticsOptions {
+    /** Optional override path (absolute or relative to project root). */
+    tsconfigPath?: string;
+}
+
+export interface RunScriptDiagnosticsResult {
+    ok: boolean;
+    tool: 'typescript';
+    binary: string;
+    tsconfigPath: string;
+    exitCode: number;
+    summary: string;
+    diagnostics: TscDiagnostic[];
+    /** Raw stdout — kept for debugging tsc output the parser missed. */
+    stdout: string;
+    /** Raw stderr — kept for debugging tsc output the parser missed. */
+    stderr: string;
+}
+
+function exists(filePath: string): boolean {
+    try {
+        return fs.existsSync(filePath);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Locate the typescript compiler binary. Preference order:
+ *   1. project node_modules/.bin/tsc(.cmd)
+ *   2. project node_modules/typescript/bin/tsc
+ *   3. editor's bundled engine node_modules/.bin/tsc
+ *   4. npx (fallback — slow first run, but always present)
+ */
+export function findTsBinary(projectPath: string): string {
+    const tscName = process.platform === 'win32' ? 'tsc.cmd' : 'tsc';
+    const editorRoots: string[] = [];
+    const editorPath = (globalThis as any).Editor?.App?.path;
+    if (editorPath) {
+        editorRoots.push(editorPath, path.dirname(editorPath));
+    }
+    const editorBundledCandidates: string[] = [];
+    for (const root of editorRoots) {
+        editorBundledCandidates.push(
+            path.join(root, 'resources', '3d', 'engine', 'node_modules', '.bin', tscName),
+            path.join(root, 'resources', '3d', 'engine', 'node_modules', 'typescript', 'bin', 'tsc'),
+            path.join(root, 'app.asar.unpacked', 'node_modules', 'typescript', 'bin', 'tsc'),
+            path.join(root, 'Contents', 'Resources', 'resources', '3d', 'engine', 'node_modules', '.bin', tscName),
+            path.join(root, 'Contents', 'Resources', 'resources', '3d', 'engine', 'node_modules', 'typescript', 'bin', 'tsc'),
+        );
+    }
+    const candidates = [
+        path.join(projectPath, 'node_modules', '.bin', tscName),
+        path.join(projectPath, 'node_modules', 'typescript', 'bin', 'tsc'),
+        ...editorBundledCandidates,
+    ];
+    for (const candidate of candidates) {
+        if (exists(candidate)) return candidate;
+    }
+    return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
+
+/**
+ * Locate the tsconfig to use. Preference order:
+ *   1. explicit path passed by caller
+ *   2. <project>/tsconfig.json
+ *   3. <project>/temp/tsconfig.cocos.json (cocos auto-generates this for
+ *      the editor's TS pipeline; available even if user has no top-level
+ *      tsconfig.json)
+ */
+export function findTsConfig(projectPath: string, explicit?: string): string | '' {
+    if (explicit) {
+        return path.isAbsolute(explicit) ? explicit : path.join(projectPath, explicit);
+    }
+    const candidates = [
+        path.join(projectPath, 'tsconfig.json'),
+        path.join(projectPath, 'temp', 'tsconfig.cocos.json'),
+    ];
+    return candidates.find(exists) ?? '';
+}
+
+interface ExecResult { code: number; stdout: string; stderr: string; error: string; }
+
+function execAsync(file: string, args: string[], cwd: string): Promise<ExecResult> {
+    return new Promise((resolve) => {
+        execFile(file, args, { cwd, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+            resolve({
+                code: error && typeof (error as any).code === 'number' ? (error as any).code : 0,
+                stdout: String(stdout || ''),
+                stderr: String(stderr || ''),
+                error: error ? error.message : '',
+            });
+        });
+    });
+}
+
+const TSC_LINE_RE = /^(.*)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.*)$/i;
+
+export function parseTscOutput(output: string): TscDiagnostic[] {
+    if (!output) return [];
+    const diagnostics: TscDiagnostic[] = [];
+    for (const raw of output.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line) continue;
+        const match = TSC_LINE_RE.exec(line);
+        if (!match) continue;
+        diagnostics.push({
+            file: match[1],
+            line: Number(match[2]),
+            column: Number(match[3]),
+            code: match[4],
+            message: match[5],
+        });
+    }
+    return diagnostics;
+}
+
+export async function runScriptDiagnostics(
+    projectPath: string,
+    options: RunScriptDiagnosticsOptions = {},
+): Promise<RunScriptDiagnosticsResult> {
+    const tsconfigPath = findTsConfig(projectPath, options.tsconfigPath);
+    if (!tsconfigPath || !exists(tsconfigPath)) {
+        return {
+            ok: false,
+            tool: 'typescript',
+            binary: '',
+            tsconfigPath: tsconfigPath || '',
+            exitCode: -1,
+            summary: 'No tsconfig.json or temp/tsconfig.cocos.json found in project.',
+            diagnostics: [],
+            stdout: '',
+            stderr: '',
+        };
+    }
+    const binary = findTsBinary(projectPath);
+    const isNpx = /[\\/]npx(?:\.cmd)?$/i.test(binary) || binary === 'npx' || binary === 'npx.cmd';
+    const args = isNpx
+        ? ['tsc', '--noEmit', '-p', tsconfigPath, '--pretty', 'false']
+        : ['--noEmit', '-p', tsconfigPath, '--pretty', 'false'];
+    const result = await execAsync(binary, args, projectPath);
+    const merged = [result.stdout, result.stderr, result.error].filter(Boolean).join('\n').trim();
+    const diagnostics = parseTscOutput(merged);
+    const ok = result.code === 0 && diagnostics.length === 0;
+    return {
+        ok,
+        tool: 'typescript',
+        binary,
+        tsconfigPath,
+        exitCode: result.code,
+        summary: ok
+            ? 'TypeScript diagnostics completed with no errors.'
+            : diagnostics.length
+                ? `Found ${diagnostics.length} TypeScript error(s).`
+                : merged || 'TypeScript diagnostics reported a non-zero exit code.',
+        diagnostics,
+        stdout: result.stdout,
+        stderr: result.stderr,
+    };
+}
+
+// ---- waitForCompile (harady pattern) -----------------------------------
+
+const COMPILE_LOG_REL = path.join('temp', 'programming', 'packer-driver', 'logs', 'debug.log');
+const COMPILE_MARKER = 'Target(editor) ends';
+
+export interface WaitForCompileResult {
+    success: boolean;
+    compiled: boolean;
+    timeout?: boolean;
+    waitedMs: number;
+    note?: string;
+    logPath?: string;
+    error?: string;
+}
+
+/**
+ * Wait for the cocos packer-driver to log "Target(editor) ends" indicating
+ * the TS compile pipeline finished. We tail the log by tracking byte
+ * length at start vs poll-time. If the log doesn't grow within a grace
+ * window (default 2s), we conclude no compile was triggered (clean
+ * project, no recent .ts changes) and return success.
+ *
+ * Caller usually pairs this with a `refresh-asset` to nudge cocos into
+ * detecting fresh changes; we do that as a no-fail kick before polling.
+ */
+export async function waitForCompile(
+    projectPath: string,
+    timeoutMs: number = 15000,
+): Promise<WaitForCompileResult> {
+    const logPath = path.join(projectPath, COMPILE_LOG_REL);
+    if (!exists(logPath)) {
+        return {
+            success: false,
+            compiled: false,
+            waitedMs: 0,
+            error: `Compile log not found at ${logPath}. Has the editor run a build pipeline yet?`,
+        };
+    }
+    try {
+        await (Editor as any)?.Message?.request?.('asset-db', 'refresh-asset', 'db://assets');
+    } catch { /* swallow — refresh is a kick, not required */ }
+
+    const initialSize = fs.statSync(logPath).size;
+    const startTime = Date.now();
+    const POLL_INTERVAL = 200;
+    const DETECT_GRACE_MS = 2000;
+
+    while (Date.now() - startTime < timeoutMs) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        let currentSize: number;
+        try {
+            currentSize = fs.statSync(logPath).size;
+        } catch (err: any) {
+            return {
+                success: false,
+                compiled: false,
+                waitedMs: Date.now() - startTime,
+                error: `stat compile log failed: ${err?.message ?? String(err)}`,
+            };
+        }
+        if (currentSize <= initialSize) {
+            if (Date.now() - startTime < DETECT_GRACE_MS) continue;
+            return {
+                success: true,
+                compiled: false,
+                waitedMs: Date.now() - startTime,
+                note: 'No compilation triggered (no log growth within grace window).',
+                logPath,
+            };
+        }
+        const newBytes = currentSize - initialSize;
+        let newContent = '';
+        try {
+            const fd = fs.openSync(logPath, 'r');
+            try {
+                const buffer = Buffer.alloc(newBytes);
+                fs.readSync(fd, buffer, 0, newBytes, initialSize);
+                newContent = buffer.toString('utf8');
+            } finally {
+                fs.closeSync(fd);
+            }
+        } catch (err: any) {
+            return {
+                success: false,
+                compiled: false,
+                waitedMs: Date.now() - startTime,
+                error: `read compile log delta failed: ${err?.message ?? String(err)}`,
+            };
+        }
+        if (newContent.includes(COMPILE_MARKER)) {
+            return {
+                success: true,
+                compiled: true,
+                waitedMs: Date.now() - startTime,
+                logPath,
+            };
+        }
+    }
+    return {
+        success: true,
+        compiled: false,
+        timeout: true,
+        waitedMs: timeoutMs,
+        note: 'Timed out waiting for compile marker; compile may still be in progress or no recompile was needed.',
+        logPath,
+    };
+}

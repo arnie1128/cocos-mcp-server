@@ -3,6 +3,7 @@ import { debugLog } from '../lib/log';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
+import { runScriptDiagnostics, waitForCompile } from '../lib/ts-diagnostics';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -109,6 +110,32 @@ export class DebugTools implements ToolExecutor {
                     windowTitle: z.string().optional().describe('Optional substring match on window title.'),
                 }),
                 handler: a => this.batchScreenshot(a.savePathPrefix, a.delaysMs, a.windowTitle),
+            },
+            {
+                name: 'wait_compile',
+                description: 'Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.',
+                inputSchema: z.object({
+                    timeoutMs: z.number().min(500).max(120000).default(15000).describe('Max wait time in ms before giving up. Default 15000.'),
+                }),
+                handler: a => this.waitCompile(a.timeoutMs),
+            },
+            {
+                name: 'run_script_diagnostics',
+                description: 'Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.',
+                inputSchema: z.object({
+                    tsconfigPath: z.string().optional().describe('Optional override (absolute or project-relative). Default: tsconfig.json or temp/tsconfig.cocos.json.'),
+                }),
+                handler: a => this.runScriptDiagnostics(a.tsconfigPath),
+            },
+            {
+                name: 'get_script_diagnostic_context',
+                description: 'Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.',
+                inputSchema: z.object({
+                    file: z.string().describe('Absolute or project-relative path to the source file. Diagnostics from run_script_diagnostics already use a path tsc emitted, which is suitable here.'),
+                    line: z.number().min(1).describe('1-based line number that the diagnostic points at.'),
+                    contextLines: z.number().min(0).max(50).default(5).describe('Number of lines to include before and after the target line. Default 5 (±5 → 11-line window).'),
+                }),
+                handler: a => this.getScriptDiagnosticContext(a.file, a.line, a.contextLines),
             },
         ];
         this.exec = defineTools(defs);
@@ -637,6 +664,113 @@ export class DebugTools implements ToolExecutor {
                     captures,
                 },
                 message: `Captured ${captures.length} screenshots`,
+            };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    // v2.4.8 A1: TS diagnostics handlers ----------------------------------
+
+    private async waitCompile(timeoutMs: number = 15000): Promise<ToolResponse> {
+        try {
+            const projectPath = Editor?.Project?.path;
+            if (!projectPath) {
+                return { success: false, error: 'wait_compile: editor context unavailable (no Editor.Project.path)' };
+            }
+            const result = await waitForCompile(projectPath, timeoutMs);
+            if (!result.success) {
+                return { success: false, error: result.error ?? 'wait_compile failed', data: result };
+            }
+            return {
+                success: true,
+                message: result.compiled
+                    ? `Compile finished in ${result.waitedMs}ms`
+                    : (result.note ?? 'No compile triggered or timed out'),
+                data: result,
+            };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    private async runScriptDiagnostics(tsconfigPath?: string): Promise<ToolResponse> {
+        try {
+            const projectPath = Editor?.Project?.path;
+            if (!projectPath) {
+                return { success: false, error: 'run_script_diagnostics: editor context unavailable (no Editor.Project.path)' };
+            }
+            const result = await runScriptDiagnostics(projectPath, { tsconfigPath });
+            return {
+                success: result.ok,
+                message: result.summary,
+                data: {
+                    tool: result.tool,
+                    binary: result.binary,
+                    tsconfigPath: result.tsconfigPath,
+                    exitCode: result.exitCode,
+                    diagnostics: result.diagnostics,
+                    diagnosticCount: result.diagnostics.length,
+                    // Truncate raw streams to keep tool result reasonable;
+                    // full content rarely useful when the parser already
+                    // structured the errors.
+                    stdoutTail: result.stdout.slice(-2000),
+                    stderrTail: result.stderr.slice(-2000),
+                },
+            };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    private async getScriptDiagnosticContext(
+        file: string,
+        line: number,
+        contextLines: number = 5,
+    ): Promise<ToolResponse> {
+        try {
+            const projectPath = Editor?.Project?.path;
+            if (!projectPath) {
+                return { success: false, error: 'get_script_diagnostic_context: editor context unavailable' };
+            }
+            const absPath = path.isAbsolute(file) ? file : path.join(projectPath, file);
+            // Path safety: ensure absolute path resolves under projectPath
+            // to prevent reads outside the cocos project.
+            const resolved = path.resolve(absPath);
+            const projectResolved = path.resolve(projectPath);
+            if (!resolved.startsWith(projectResolved + path.sep) && resolved !== projectResolved) {
+                return { success: false, error: `get_script_diagnostic_context: path ${resolved} is outside the project root` };
+            }
+            if (!fs.existsSync(resolved)) {
+                return { success: false, error: `get_script_diagnostic_context: file not found: ${resolved}` };
+            }
+            const stat = fs.statSync(resolved);
+            if (stat.size > 5 * 1024 * 1024) {
+                return { success: false, error: `get_script_diagnostic_context: file too large (${stat.size} bytes); refusing to read.` };
+            }
+            const content = fs.readFileSync(resolved, 'utf8');
+            const allLines = content.split(/\r?\n/);
+            if (line < 1 || line > allLines.length) {
+                return {
+                    success: false,
+                    error: `get_script_diagnostic_context: line ${line} out of range 1..${allLines.length}`,
+                };
+            }
+            const start = Math.max(1, line - contextLines);
+            const end = Math.min(allLines.length, line + contextLines);
+            const window = allLines.slice(start - 1, end);
+            return {
+                success: true,
+                message: `Read ${window.length} lines of context around ${path.relative(projectResolved, resolved)}:${line}`,
+                data: {
+                    file: path.relative(projectResolved, resolved),
+                    absolutePath: resolved,
+                    targetLine: line,
+                    startLine: start,
+                    endLine: end,
+                    totalLines: allLines.length,
+                    lines: window.map((text, i) => ({ line: start + i, text })),
+                },
             };
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
