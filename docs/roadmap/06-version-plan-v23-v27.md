@@ -21,7 +21,8 @@
 | v2.4.5 | 三方 review patch round 2 on v2.4.3（7 worth-considering） | 0.3 天 | patch | ✅ done |
 | v2.4.6 | 三方 review patch round 3 on v2.4.3（1 must-fix + 1 polish） | 0.1 天 | patch | ✅ done |
 | v2.4.7 | landmine #14（cocos cumulative dirty flag）+ live-test cleanup fix bump | 0.1 天 | patch | ✅ done |
-| **v2.5.0** | 多 client 廣度（file-editor + Notifications + Prompts） | 5 天 | minor | ⏳ next |
+| **v2.4.8** | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | patch | ⏳ next |
+| **v2.5.0** | 多 client 廣度（file-editor + Notifications + Prompts） | 5 天 | minor | ⏳ |
 | v2.6.0 | 跨 LLM 兼容 + runtime QA（Gemini-compat + debug_game_command） | 4-5 天 | minor | ⏳ |
 | v2.7.0 | spillover buffer / 動工到一半發現的延伸項 | — | minor | ⏳ |
 
@@ -99,15 +100,19 @@ AI 準確率 + 新增 tool 摩擦力都會大幅改善。
 | 5 | `@mcpTool` decorator（cocos-code-mode `@utcpTool` 風格、descriptor 直接捕獲、**不用 `reflect-metadata`**） | 0.5 天 | cocos-code-mode；比 cocos-cli `@tool` 簡 |
 | 6 | **`inspectorGetInstanceDefinition` 等效 tool** — 從 cocos `query-node` dump 動態生成 TS 類別定義回給 AI | 1 天 | cocos-code-mode killer feature |
 
-### 同梱小項（不算進 6 step 但同版本進）
+### 同梱小項（原計畫，**全數順延 → v2.4.8**）
 
-- harady `debug_wait_compile` + FunplayAI `run_script_diagnostics` /
-  `get_script_diagnostic_context` —— TS diagnostics 系列（1.5 天）
-- FunplayAI / Spaydo animation tools（`list_clips` / `play` / `stop` /
-  `set_clip`）（1 天）
-- RomaRogov `startCaptureSceneLogs` / `getCapturedSceneLogs` 模式整合
-  進 `lib/scene-bridge.ts`（0.5 天）
-- 補 capabilities `resources.templates: true` 顯式宣告（0.1 天）
+> v2.4.0 commit 只落地 6-step + 4 inspector/setter tool，下列 4 件
+> 同梱項當時未進。v2.4.7 cycle 結束時盤點發現失蹤，重排成獨立的
+> v2.4.8 patch（見下方 §v2.4.8）。
+
+- ~~harady `debug_wait_compile` + FunplayAI `run_script_diagnostics` /
+  `get_script_diagnostic_context` —— TS diagnostics 系列（1.5 天）~~ → v2.4.8 A1
+- ~~FunplayAI / Spaydo animation tools（`list_clips` / `play` / `stop` /
+  `set_clip`）（1 天）~~ → v2.4.8 A2
+- ~~RomaRogov `startCaptureSceneLogs` / `getCapturedSceneLogs` 模式整合
+  進 `lib/scene-bridge.ts`（0.5 天）~~ → v2.4.8 A3
+- ~~補 capabilities `resources.templates: true` 顯式宣告（0.1 天）~~ → v2.4.8 A4
 
 **驗證 checklist**：
 
@@ -171,6 +176,86 @@ trim mode / Material baked properties）全在 `<asset>.meta` 的 userData
 **為什麼不擠進 v2.4.0**：v2.4.0 是「重構 160 既有 tool」性質，v2.4.1
 是「新增 feature」性質。混在一起風險集中度高、smoke / live-test 重跑
 變兩次、回滾錨點不乾淨。拆 patch 推。
+
+## v2.4.8 — 收 v2.4.0 同梱失蹤項（補欠款）
+
+**動機**：v2.4.0 §同梱小項列了 4 件「不算進 6 step 但同版本進」的小
+功能，但 v2.4.0 commit 只落地 6-step + 4 inspector tool，下列 4 件
+同梱項當時未進。v2.4.7 cycle 結束時盤點發現失蹤，重排成獨立 patch。
+等於「v2.4.0 的尾巴」。
+
+**為什麼不直接收進 v2.5.0**：v2.5.0 是「多 client 廣度」（file-editor
++ Notifications + Prompts）minor bump，scope 已 5 天；把 v2.4.0 欠款
+混進去會讓 v2.5.0 變成「補東西 + 加東西」混合包，三方 review 範圍變
+雜。獨立 patch bump 乾淨。
+
+### A1 — TS diagnostics 系列（harady + FunplayAI）
+
+新增 3 個 tool：
+
+- `debug_wait_compile({timeoutMs?})` — 阻塞到 cocos editor TS 編譯完成
+  （`Editor.Message.request('builder', 'is-compiling')` 輪詢 + timeout）
+- `debug_run_script_diagnostics({tsconfigPath?})` — `tsc --noEmit` 在
+  cocos project 跑、parse output 成 `{file, line, column, code, message}`
+  陣列回傳。binary 解析 `node_modules/.bin/tsc` → editor bundled tsc → npx fallback
+- `debug_get_script_diagnostic_context({file, line, contextLines?})` —
+  讀指定 file 對應 line 周邊 ±N 行，方便 AI 拿到錯誤 context
+
+**為什麼**：AI 改完 .ts 不會搶在編譯前讀錯誤訊息；改完想自我修錯需要
+runtime fetch diagnostics + source context。三件組合起來是「等編譯 →
+拿錯誤 → 拿 context → 自我修錯」工作流。
+
+**估時**：1.5 天
+
+### A2 — Animation tools（FunplayAI / Spaydo）
+
+新增 1 個 category（`animation`）/ 4 個 tool：
+
+- `animation_list_clips({nodeUuid|nodeName})` — 列 cc.Animation 上的 clips
+- `animation_play({nodeUuid|nodeName, clipName?})` — 播 clip（省略 = default）
+- `animation_stop({nodeUuid|nodeName})` — 停
+- `animation_set_clip({nodeUuid|nodeName, defaultClip?, playOnLoad?})` — 設 default + playOnLoad
+
+走 v2.4.0 的 `defineTools` declarative 寫法 + `resolveOrToolError` nodeUuid/nodeName
+fallback。Scene-script side methods 進 `source/scene.ts`。
+
+**估時**：1 天
+
+### A3 — Scene-script log capture（RomaRogov）
+
+整合進 `source/lib/scene-bridge.ts`：
+
+- 每個 `runSceneMethod` / `runSceneMethodAsToolResponse` 進入時 push 一個
+  capture context；scene-script 端 monkey-patch `console.{log,warn,error}`
+  把訊息推進 `_capturedLogs[]`
+- tool 結束時 host fetch + clear，附在 tool result 的
+  `data.capturedLogs: [{level, message, ts}]`
+- 預設**開啟**（cost 低，AI 拿到 cocos console 訊息對 debug 很有用）；
+  global toggle 由 settings `enableSceneLogCapture: true` 控制
+
+**估時**：0.5 天
+
+### A4 — Capability `resources.templates: true`
+
+`source/mcp-server-sdk.ts` capabilities.resources 補 `templates: true`
+flag（cocos-cli prior art）。一行宣告，告訴 client server 支援 RFC 6570
+URI template。
+
+**估時**：0.1 天
+
+### 驗證 checklist
+
+- [ ] tsc clean
+- [ ] smoke (`scripts/smoke-mcp-sdk.js`) 全綠 + 新增 1 條 capability
+      宣告 check
+- [ ] tool count 170 (v2.4.3 baseline) + 3 (A1 進 debug category)
+      + 4 (A2 新 animation category) = **177 tools / 17 categories**
+- [ ] live-test 跑一輪、A2 / A1 兩個新 tool 至少 each one expression 過
+- [ ] 三方 review 通過
+
+**回滾錨點**：v2.4.7 release commit `acdfac1`。
+
+**估時**：3 天（A1: 1.5 + A2: 1 + A3: 0.5 + A4: 0.1）
 
 ## v2.5.0 — 多 client 廣度
 

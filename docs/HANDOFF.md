@@ -5,13 +5,19 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.7 + live-tested）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.7 + live-tested → next: v2.4.8）
 
 **當下版本**：v2.4.7（origin/main HEAD = `6e63bbd`，已 push、無 in-flight
 任務、**已同步到 `cocos_cs_349` extension path 並實機 reload 通過**）。
 v2.4.3 asset interpreters 落地 + **三輪**三方 review patch（v2.4.4 / v2.4.5
 / v2.4.6）+ v2.4.7 landmine doc + live-test cleanup fix bump + 實機 reload
 測試所有 v2.4.0 / v2.4.3 新 tool。
+
+**下一步定為 v2.4.8**（不是 v2.5.0）—— 收 v2.4.0 §同梱小項當時失蹤的 4 件
+（TS diagnostics / animation tools / scene-script log capture / capability
+flag）。詳見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.8](roadmap/06-version-plan-v23-v27.md#v248--收-v240-同梱失蹤項補欠款)。
+v2.4.0 commit 當時只落地 6-step + 4 inspector tool，§同梱小項列的 4 件未進；
+v2.4.7 cycle 結束時盤點發現失蹤，重排成獨立 patch。
 
 **最近 commit**（最新到舊，僅列 v2.4.3 cycle 後）：
 
@@ -199,15 +205,22 @@ project + reload extension panel，`/health` 回 `tools: 170`。
 
 ### 下一個動工
 
-**選項 A（推薦）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
-細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.5.0](roadmap/06-version-plan-v23-v27.md)。
+**選項 A（即將動工）**：**v2.4.8 — 收 v2.4.0 同梱失蹤項**（3 天）。
+細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.8](roadmap/06-version-plan-v23-v27.md#v248--收-v240-同梱失蹤項補欠款)。
+- A1: TS diagnostics 系列（debug_wait_compile + debug_run_script_diagnostics + debug_get_script_diagnostic_context）
+- A2: animation tools 4 件（list_clips / play / stop / set_clip）
+- A3: Scene-script log capture 整合進 scene-bridge
+- A4: capability `resources.templates: true`
+
+**選項 B（v2.4.8 之後）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
 - file-editor 4 tool（Spaydo 路線 + path-safety guard + asset-db refresh hook）
 - T-P3-3 Notifications（resources/updated subscribe；前置：先寫 probe-broadcast script 量實機事件密度）
 - T-P3-2 Prompts capability（FunplayAI 路線，4 個 template）
 
-**選項 B**：實機 live-test `assetMeta_*` 三個 tool 真正 set_properties path（v2.4.7
-的 reload 測試只驗了 read + guard rejection；真正寫 image asset meta 沒測，
-因為會改 user 的真實檔案）。要 user 同意 + 指定可改的 disposable asset 才能跑。
+**選項 C（live-test 補洞，平行可做）**：實機 live-test `assetMeta_*` 三個 tool 真正
+set_properties path（v2.4.7 的 reload 測試只驗了 read + guard rejection；真正寫
+image asset meta 沒測，因為會改 user 的真實檔案）。要 user 同意 + 指定可改的
+disposable asset 才能跑。
 
 **動工前讀**：
 
@@ -251,7 +264,8 @@ project + reload extension panel，`/health` 回 `tools: 170`。
 | **v2.4.5** | 三方 review patch round 2 on v2.4.4（7 worth-considering） | 0.3 天 | ✅ done |
 | **v2.4.6** | 三方 review patch round 3 on v2.4.5（1 must-fix + 1 polish） | 0.1 天 | ✅ done |
 | **v2.4.7** | landmine #14 + live-test cleanup fix bump + roadmap renumber + 實機 reload 測試 | 0.2 天 | ✅ done |
-| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ next |
+| **v2.4.8** | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | ⏳ next |
+| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
 
