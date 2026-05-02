@@ -191,10 +191,11 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
             } else if (saveStatus === 'refresh-failed') {
                 // Disk write happened but re-import is stale; flag
                 // each successful entry with a warning that doesn't
-                // reverse the write status.
+                // reverse the write status. v2.4.5: warning is now a
+                // declared field on PropertySetResult, no `as any`.
                 for (const r of results) {
                     if (r.success) {
-                        (r as any).warning = saveError;
+                        r.warning = saveError;
                     }
                 }
             }
@@ -304,9 +305,11 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
      * meta layout needs custom routing (e.g. ImageInterpreter's main
      * vs sub-asset split).
      *
-     * Uses Object.create(null) for auto-created intermediate
-     * containers so even if a future change introduces another
-     * walk site, the new objects don't carry Object.prototype.
+     * v2.4.5: removed misleading "Object.create(null)" claim from
+     * the JSDoc — the auto-created containers are plain `{}`. The
+     * forbidden-segment guard (__proto__ / constructor / prototype)
+     * is what blocks pollution; the container shape doesn't matter
+     * for that protection.
      */
     protected async setProperty(meta: any, prop: PropertySetSpec): Promise<boolean> {
         const safe = isPathSafe(prop.propertyPath);
@@ -348,16 +351,34 @@ export abstract class BaseAssetInterpreter implements IAssetInterpreter {
                 return Boolean(value);
             case 'Number':
             case 'Float': {
-                const n = parseFloat(String(value));
+                // v2.4.5 review fix (claude + codex + gemini):
+                // parseFloat('1.2.3') silently returns 1.2 — too
+                // lenient. Use Number() which rejects trailing garbage
+                // by returning NaN, then NaN-check.
+                const s = typeof value === 'number' ? value : String(value).trim();
+                const n = Number(s);
                 if (Number.isNaN(n)) {
-                    throw new Error(`Cannot coerce '${value}' to ${type} (parseFloat -> NaN)`);
+                    throw new Error(`Cannot coerce '${value}' to ${type} (not a valid number)`);
                 }
                 return n;
             }
             case 'String':
                 return String(value);
             case 'Integer': {
-                const n = parseInt(String(value), 10);
+                // v2.4.5: stricter than parseInt — '123foo' must throw,
+                // not silently truncate to 123. Allow leading sign and
+                // optional surrounding whitespace.
+                if (typeof value === 'number') {
+                    if (!Number.isFinite(value)) {
+                        throw new Error(`Cannot coerce ${value} to Integer (not finite)`);
+                    }
+                    return Math.trunc(value);
+                }
+                const s = String(value).trim();
+                if (!/^-?\d+$/.test(s)) {
+                    throw new Error(`Cannot coerce '${value}' to Integer (must match /^-?\\d+$/)`);
+                }
+                const n = parseInt(s, 10);
                 if (Number.isNaN(n)) {
                     throw new Error(`Cannot coerce '${value}' to Integer (parseInt -> NaN)`);
                 }

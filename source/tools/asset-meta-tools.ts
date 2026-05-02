@@ -97,7 +97,7 @@ export class AssetMetaTools implements ToolExecutor {
 
     @mcpTool({
         name: 'list_interpreters',
-        description: 'List the asset importer types this server has specialized interpreters for. The "*" entry is the read-only fallback used for any importer not in the list. Use to plan asset_set_properties calls — writes against the fallback always reject. No side effects.',
+        description: 'List the asset importer types this server has specialized interpreters for. The "*" entry is the read-only fallback used for any importer not in the list. Use to plan assetMeta_set_properties calls — writes against the fallback always reject. No side effects.',
         inputSchema: z.object({}),
     })
     async listInterpreters(): Promise<ToolResponse> {
@@ -115,7 +115,7 @@ export class AssetMetaTools implements ToolExecutor {
         description: 'Read an asset\'s meta + sub-meta userData via its importer-specific interpreter. Returns {properties: {path: {type, value, tooltip?, enumList?}}, arrays: {path: {type}}}. Use BEFORE assetMeta_set_properties so AI sees the real property names + types instead of guessing. Pair `includeTooltips: true` when AI needs context for unfamiliar importers. Note: useAdvancedInspection is reserved — full material editing is deferred to v2.5+, so the flag has no effect in v2.4.x.',
         inputSchema: assetTargetSchema.extend({
             includeTooltips: z.boolean().default(false).describe('Include i18n-resolved tooltip text for each property. Slower; only request when AI is exploring an unfamiliar importer.'),
-            useAdvancedInspection: z.boolean().default(false).describe('Importer-specific advanced inspection mode. MaterialInterpreter uses it to surface defines and pass-level props; most interpreters ignore it.'),
+            useAdvancedInspection: z.boolean().default(false).describe('Reserved for v2.5+. Has no effect in v2.4.x because the only consumer (MaterialInterpreter advanced editing) is deferred until the scene/apply-material + UUID-preprocessing layer is ported. Pass false until v2.5 lands.'),
         }),
     })
     async getProperties(args: AssetTarget & { includeTooltips?: boolean; useAdvancedInspection?: boolean }): Promise<ToolResponse> {

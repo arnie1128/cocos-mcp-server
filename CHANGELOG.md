@@ -1,5 +1,57 @@
 # Changelog
 
+## v2.4.5 — 2026-05-03
+
+Round-2 three-way review polish on v2.4.4. No 🔴 from any reviewer
+(consensus 🟢 ship-it on the must-fix items); seven 🟡 polish items
+consolidated.
+
+### Worth-considering
+
+- **`PropertySetResult.warning?: string` declared on the interface**.
+  v2.4.4 used `(r as any).warning = saveError` which bypassed
+  TypeScript's contract — downstream consumers reading the result
+  array couldn't see the field. Promoted to a real interface field;
+  cast removed. (Claude + Codex consensus.)
+- **Stricter `Number` / `Integer` coercion**. v2.4.4 used
+  `parseFloat()` which silently accepted trailing garbage
+  (`'1.2.3'` → `1.2`). Switched to `Number()` + NaN-check for
+  Number/Float; added explicit `/^-?\\d+$/` regex check for
+  Integer to reject `'123foo'`. (Gemini + Claude + Codex.)
+- **`ImageInterpreter` sub-meta lookup also checks key**. v2.4.4
+  matched only by sub-meta `name` field or `importer` tag. Image
+  sub-metas in cocos are commonly keyed by literal name in the meta
+  JSON, so a key-equality check is the most direct match. Falls
+  back to name / importer otherwise. (Codex.)
+- **`useAdvancedInspection` schema description corrected**. v2.4.4
+  said "MaterialInterpreter uses it to surface defines and
+  pass-level props" but the actual implementation is deferred.
+  Description now states "reserved for v2.5+, no effect in v2.4.x".
+  (Codex.)
+- **Tool-name strings fixed: `asset_*` → `assetMeta_*`**. v2.4.3
+  comments were updated in v2.4.4 but two runtime strings were
+  missed (`list_interpreters` description and `UnknownInterpreter`
+  error message). Clients following those would call missing names.
+  (Codex.)
+- **Removed unused `isPathSafe` import in `specialized.ts`**.
+  v2.4.4 imported the helper but the inner ImageInterpreter walk
+  inlined the check. Dropped the import; the inline check now uses
+  a small local `FORBIDDEN_INNER_SEGMENTS` set with a comment
+  pointing at the base.ts equivalent. (Claude.)
+- **`Object.create(null)` claim removed from JSDoc**. v2.4.4
+  comment said auto-created intermediate containers used
+  `Object.create(null)` but the code uses `{}`. The
+  forbidden-segment guard is what blocks pollution; the container
+  shape is irrelevant for that protection. (Claude + Codex.)
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 16 categories / 170 tools (unchanged from v2.4.4)
+
+---
+
 ## v2.4.4 — 2026-05-03
 
 Three-way review fixes on v2.4.3 (round 1). Two 🔴 must-fix from

@@ -36,8 +36,14 @@
  */
 
 import type { AssetInfo } from '@cocos/creator-types/editor/packages/asset-db/@types/public';
-import { BaseAssetInterpreter, isPathSafe } from './base';
+import { BaseAssetInterpreter } from './base';
 import { PropertySetSpec, PropertySetResult } from './interface';
+
+// v2.4.5 review fix (claude): inline guard set so the inner
+// ImageInterpreter walk doesn't have to call isPathSafe with a
+// fake-root just to reuse the helper. Same forbidden segments
+// as base.ts FORBIDDEN_PATH_SEGMENTS.
+const FORBIDDEN_INNER_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export class ImageInterpreter extends BaseAssetInterpreter {
     get importerType(): string { return 'image'; }
@@ -74,30 +80,36 @@ export class ImageInterpreter extends BaseAssetInterpreter {
             const subImporterTag = subAssetName === 'spriteFrame' ? 'sprite-frame' : 'texture';
             const propertyName = parts.slice(1).join('.');
 
-            // Re-validate the inner path through the same proto-pollution
-            // guard the base class uses — `texture.__proto__.x` would
-            // otherwise bypass the base validator entirely.
+            // Re-validate the inner path through the proto-pollution
+            // guard. `texture.__proto__.x` would otherwise bypass the
+            // base validator entirely.
             const inner = propertyName.split('.');
             for (const seg of inner) {
-                if (seg === '' || seg === '__proto__' || seg === 'constructor' || seg === 'prototype') {
+                if (seg === '' || FORBIDDEN_INNER_SEGMENTS.has(seg)) {
                     throw new Error(`Forbidden / empty path segment in image sub-asset path '${prop.propertyPath}'`);
                 }
             }
 
             if (!meta.subMetas) meta.subMetas = {};
+            // v2.4.5 review fix (codex): match by sub-meta key as well,
+            // not only by name / importer fields. Image sub-metas are
+            // commonly keyed by literal name in the meta JSON, so a
+            // key === 'texture' / 'spriteFrame' lookup is the most
+            // direct match. Falls back to name / importer for cases
+            // where the key is a UUID.
             let target: any = null;
-            for (const sub of Object.values(meta.subMetas) as any[]) {
+            for (const [key, sub] of Object.entries(meta.subMetas) as [string, any][]) {
                 if (!sub || typeof sub !== 'object') continue;
                 const subName = (sub as any).name;
                 const subImporter = (sub as any).importer;
-                if (subName === subAssetName || subImporter === subImporterTag) {
+                if (key === subAssetName || subName === subAssetName || subImporter === subImporterTag) {
                     target = sub;
                     break;
                 }
             }
             if (!target) {
                 throw new Error(
-                    `Image asset has no '${subAssetName}' sub-meta to write to (looked for name='${subAssetName}' or importer='${subImporterTag}')`
+                    `Image asset has no '${subAssetName}' sub-meta to write to (looked for key='${subAssetName}', name='${subAssetName}', or importer='${subImporterTag}')`
                 );
             }
             if (!target.userData) target.userData = {};
@@ -195,7 +207,7 @@ export class UnknownInterpreter extends BaseAssetInterpreter {
         return properties.map(p => ({
             propertyPath: p.propertyPath,
             success: false,
-            error: `No specialized interpreter for importer '${assetInfo.importer}'. Asset writes are rejected to avoid corrupting an unknown meta shape; reads via asset_get_properties still work. File a request to add a specialized interpreter.`,
+            error: `No specialized interpreter for importer '${assetInfo.importer}'. Asset writes are rejected to avoid corrupting an unknown meta shape; reads via assetMeta_get_properties still work. File a request to add a specialized interpreter.`,
         }));
     }
 }

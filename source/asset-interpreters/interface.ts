@@ -54,6 +54,15 @@ export interface PropertySetResult {
     propertyPath: string;
     success: boolean;
     error?: string;
+    /**
+     * Soft-failure annotation: present when the in-memory write
+     * succeeded and disk save succeeded, but the editor refresh-asset
+     * step failed. The disk meta IS updated; cocos will pick up the
+     * change on next manual refresh. Used to keep `success: true`
+     * accurate while still surfacing the partial-failure to the
+     * caller. v2.4.5 — promoted from `(r as any).warning` cast.
+     */
+    warning?: string;
 }
 
 export interface IAssetInterpreter {
