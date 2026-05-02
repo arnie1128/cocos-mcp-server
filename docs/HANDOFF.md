@@ -36,8 +36,13 @@ candidate 清單視用戶優先級）。
   `reference_image({op,...})` 等收斂）。1-2 天。
 - harady `debug_preview` 程式化啟停 preview + `debug_query_devices`。
   0.5 天。
-- decorator 全面捨棄 `reflect-metadata` 路線檢討（v2.4.0 step 5
-  已不依賴；可清除 tsconfig flag）。0.2 天 doc only。
+
+> ~~decorator 捨棄 `reflect-metadata`~~ — closed at v2.7.0 task #1
+> verification（2026-05-02）：v2.4.0 step 5 採 descriptor-capture，
+> 從未用 `Reflect.metadata`/`Reflect.getMetadata`，`emitDecoratorMetadata`
+> 從未開、`reflect-metadata` 從未 install、source/ 全 grep 無
+> `Reflect.*`。`experimentalDecorators` 仍需保留（stage-2 @mcpTool
+> decorator 簽章靠它）。無清理動作要做。
 
 **v2.6.0 → v2.6.2 階段**：
 - **v2.6.0**：T-V26-Gemini-guard（`scripts/check-gemini-compat.js` —
