@@ -1,5 +1,70 @@
 # Changelog
 
+## v2.9.4 — 2026-05-02
+
+T-V29-5 MediaRecorder bridge (harady route).
+
+### #1 — `debug_record_start` / `debug_record_stop` (T-V29-5)
+
+Two new server-side tools wrap the existing `debug_game_command` queue
+with explicit names/schemas for AI ergonomics:
+
+- `debug_record_start({ mimeType?, videoBitsPerSecond?, timeoutMs? })`
+  Sends `record_start` through the GameDebugClient queue. Client
+  starts MediaRecorder against the game canvas
+  (`canvas.captureStream()`); returns immediately with
+  `{ recording: true, mimeType }`.
+
+- `debug_record_stop({ timeoutMs? })`
+  Sends `record_stop`. Client assembles the recorded blob, returns
+  base64 dataUrl. Host persists to
+  `<project>/temp/mcp-captures/recording-<timestamp>.{webm|mp4}`
+  with the same realpath containment guard +
+  `MAX_GAME_RECORDING_BYTES = 32MB` cap that screenshot persistence
+  uses.
+
+**18 categories / 181 tools** (was 179; +2 record).
+
+### #2 — Client template extension
+
+`client/cocos-mcp-client.ts` adds two built-in command handlers:
+- `record_start` — initialises `MediaRecorder` on the game canvas,
+  caches the recorder + chunks in module-level `_recState`, returns
+  `{ recording: true, mimeType }`. Single-flight; second start while
+  in progress returns `success: false`.
+- `record_stop` — calls `recorder.stop()`, awaits `onstop`, encodes
+  the assembled blob as base64 dataUrl, releases the captureStream
+  tracks (so cocos's frame loop isn't sharing GPU bandwidth with a
+  hidden capture pipeline forever), returns
+  `{ dataUrl, mimeType, durationMs, sizeBytes }`.
+
+Browser-only — fails on native cocos builds (`MediaRecorder` /
+`canvas.captureStream` are DOM APIs not present in cocos-runtime).
+The clean error envelope makes this self-evident on first call from
+a native build rather than producing an opaque crash.
+
+### #3 — `game_command` auto-persists `record_stop` output
+
+The `gameCommand` handler already auto-persists `screenshot`
+dataUrls; `record_stop` follows the same pattern. New
+`persistGameRecording(dataUrl)` helper accepts `data:video/{webm|mp4}
+[;codecs=...];base64,...`, validates byte budget pre-decode, writes
+to the project-rooted capture dir.
+
+### Testability gap (acknowledged)
+
+The tools chain works only when:
+1. cocos preview is running in **browser mode** (or any DOM context
+   exposing `<canvas>`), AND
+2. The user has wired `client/cocos-mcp-client.ts` into their game's
+   bootstrap.
+
+Live-test in this session was not run because preview is in
+simulator mode and the client is not wired. The CHANGELOG documents
+the design + tool surface; reload-retest in a browser-preview
+project is the verification gate, deferred to a future session that
+has that environment available.
+
 ## v2.9.3 — 2026-05-02
 
 T-V29-6 RomaRogov macro-tool enum routing + preview-tools park gates.

@@ -21,6 +21,19 @@
  *   - "inspect" — args: {name: string}. Find a node by name and return
  *     {position, scale, rotation, contentSize?, anchorPoint?, layer,
  *      active, components: [{type, enabled}]}.
+ *   - "record_start" — args: {mimeType?: 'video/webm'|'video/mp4',
+ *     videoBitsPerSecond?: number}. Starts MediaRecorder against the
+ *     game canvas (canvas.captureStream). Returns immediately with
+ *     {recording: true, mimeType}. Use record_stop to retrieve the
+ *     blob. Browser-only — fails on native cocos builds (the cocos
+ *     editor preview / browser preview both expose canvas; native
+ *     deployments don't have MediaRecorder).
+ *   - "record_stop" — no args. Stops the in-progress recording, returns
+ *     {dataUrl, mimeType, durationMs, sizeBytes}. The MCP host writes
+ *     the bytes to <project>/temp/mcp-captures/recording-<ts>.<ext>
+ *     when the result returns through debug_game_command(type=
+ *     "record_stop"). Calling record_stop with no recording in flight
+ *     returns success:false.
  *
  * Custom command types: pass `customCommands` to `initMcpDebugClient`.
  * Each handler receives `args` and returns `{success, data?, error?}`
@@ -95,6 +108,10 @@ async function executeCommand(cmd: McpCommand): Promise<any> {
                 return wrap(cmd.id, clickNode(cmd.args?.name));
             case 'inspect':
                 return wrap(cmd.id, inspectNode(cmd.args?.name));
+            case 'record_start':
+                return wrap(cmd.id, await recordStart(cmd.args ?? {}));
+            case 'record_stop':
+                return wrap(cmd.id, await recordStop());
         }
         const handler = _config.customCommands[cmd.type];
         if (handler) {
@@ -226,6 +243,130 @@ function inspectNode(name?: string): { success: boolean; data?: any; error?: str
         data.anchorPoint = { x: ui.anchorPoint.x, y: ui.anchorPoint.y };
     }
     return { success: true, data };
+}
+
+// v2.9.x T-V29-5: MediaRecorder bridge. Records the game canvas as
+// webm/mp4 and returns the assembled blob as a base64 dataUrl on stop.
+//
+// Single-flight: only one recording at a time per client. record_start
+// while a recording is already in progress returns success:false with a
+// clear message rather than overwriting state.
+//
+// Browser-only: relies on HTMLCanvasElement.captureStream + MediaRecorder
+// APIs that are not available on native (cocos-runtime) builds. Native
+// cocos deployments running this code will return a clean "MediaRecorder
+// not available" error rather than crash.
+//
+// Resource cleanup: stop() releases the MediaRecorder + drops the stream
+// tracks so cocos's frame loop isn't competing with a hidden capture
+// pipeline forever if the AI never calls record_stop.
+let _recState: {
+    recorder: MediaRecorder;
+    stream: MediaStream;
+    chunks: Blob[];
+    mimeType: string;
+    startedAt: number;
+    stopPromise: Promise<{ dataUrl: string; mimeType: string; durationMs: number; sizeBytes: number }>;
+    resolveStop: (v: { dataUrl: string; mimeType: string; durationMs: number; sizeBytes: number }) => void;
+    rejectStop: (e: Error) => void;
+} | null = null;
+
+function findGameCanvas(): HTMLCanvasElement | null {
+    if (typeof document === 'undefined') return null;
+    // Cocos web preview tags the canvas with id="GameCanvas" by default.
+    const byId = document.getElementById('GameCanvas');
+    if (byId instanceof HTMLCanvasElement) return byId;
+    const all = document.getElementsByTagName('canvas');
+    return all.length > 0 ? all[0] : null;
+}
+
+async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: number }): Promise<{ success: boolean; data?: any; error?: string }> {
+    if (_recState) {
+        return { success: false, error: 'A recording is already in progress; call record_stop first.' };
+    }
+    if (typeof MediaRecorder === 'undefined') {
+        return { success: false, error: 'MediaRecorder API not available — record_start requires a browser/PIE preview environment, not a native cocos build.' };
+    }
+    const canvas = findGameCanvas();
+    if (!canvas) {
+        return { success: false, error: 'No <canvas> element found in document — game canvas may not have mounted yet.' };
+    }
+    if (typeof (canvas as any).captureStream !== 'function') {
+        return { success: false, error: 'canvas.captureStream() not supported in this browser.' };
+    }
+    const stream: MediaStream = (canvas as any).captureStream();
+    const mimeType = args.mimeType ?? (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+        return { success: false, error: `mimeType "${mimeType}" not supported by this browser's MediaRecorder.` };
+    }
+    let recorder: MediaRecorder;
+    try {
+        recorder = new MediaRecorder(stream, {
+            mimeType,
+            ...(args.videoBitsPerSecond ? { videoBitsPerSecond: args.videoBitsPerSecond } : {}),
+        });
+    } catch (err: any) {
+        return { success: false, error: `MediaRecorder init failed: ${err?.message ?? String(err)}` };
+    }
+    const chunks: Blob[] = [];
+    let resolveStop!: (v: { dataUrl: string; mimeType: string; durationMs: number; sizeBytes: number }) => void;
+    let rejectStop!: (e: Error) => void;
+    const stopPromise = new Promise<{ dataUrl: string; mimeType: string; durationMs: number; sizeBytes: number }>((resolve, reject) => {
+        resolveStop = resolve;
+        rejectStop = reject;
+    });
+    recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.onstop = async () => {
+        try {
+            const blob = new Blob(chunks, { type: mimeType });
+            const buf = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            // base64 encode without pulling Buffer (browser-only path).
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            const b64 = typeof btoa === 'function' ? btoa(binary) : '';
+            if (!b64) {
+                rejectStop(new Error('btoa unavailable; cannot base64-encode recording'));
+                return;
+            }
+            const dataUrl = `data:${mimeType};base64,${b64}`;
+            const durationMs = Date.now() - (_recState?.startedAt ?? Date.now());
+            // Release stream tracks so the cocos frame loop is no longer
+            // sharing GPU bandwidth with the capture pipeline.
+            try { stream.getTracks().forEach(t => t.stop()); } catch {}
+            resolveStop({ dataUrl, mimeType, durationMs, sizeBytes: blob.size });
+        } catch (err: any) {
+            rejectStop(err instanceof Error ? err : new Error(String(err)));
+        }
+    };
+    recorder.onerror = (e: any) => {
+        rejectStop(e?.error ?? new Error('MediaRecorder error'));
+    };
+    recorder.start();
+    _recState = { recorder, stream, chunks, mimeType, startedAt: Date.now(), stopPromise, resolveStop, rejectStop };
+    return { success: true, data: { recording: true, mimeType } };
+}
+
+async function recordStop(): Promise<{ success: boolean; data?: any; error?: string }> {
+    const st = _recState;
+    if (!st) {
+        return { success: false, error: 'No recording in progress. Call record_start first.' };
+    }
+    _recState = null;
+    try {
+        st.recorder.requestData?.();
+        st.recorder.stop();
+    } catch (err: any) {
+        return { success: false, error: `MediaRecorder.stop failed: ${err?.message ?? String(err)}` };
+    }
+    try {
+        const result = await st.stopPromise;
+        return { success: true, data: result };
+    } catch (err: any) {
+        return { success: false, error: err?.message ?? String(err) };
+    }
 }
 
 function findByName(root: Node, name: string): Node | null {

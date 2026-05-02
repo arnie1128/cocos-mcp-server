@@ -208,6 +208,24 @@ export class DebugTools implements ToolExecutor {
                 handler: a => this.gameCommand(a.type, a.args, a.timeoutMs),
             },
             {
+                name: 'record_start',
+                description: 'Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.',
+                inputSchema: z.object({
+                    mimeType: z.enum(['video/webm', 'video/mp4']).optional().describe('Container/codec hint for MediaRecorder. Default: browser auto-pick (webm preferred where supported, falls back to mp4). Some browsers reject unsupported types — record_start surfaces a clear error in that case.'),
+                    videoBitsPerSecond: z.number().min(100_000).max(20_000_000).optional().describe('Optional MediaRecorder bitrate hint in bits/sec. Lower → smaller files but lower quality. Browser default if omitted.'),
+                    timeoutMs: z.number().min(500).max(30000).default(5000).describe('Max wait for the GameDebugClient to acknowledge record_start. Recording itself runs until debug_record_stop. Default 5000ms.'),
+                }),
+                handler: a => this.recordStart(a.mimeType, a.videoBitsPerSecond, a.timeoutMs ?? 5000),
+            },
+            {
+                name: 'record_stop',
+                description: 'Stop the in-progress game canvas recording and persist the result to <project>/temp/mcp-captures/recording-<timestamp>.{webm|mp4}. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 32MB byte cap that screenshot persistence uses; raise videoBitsPerSecond / reduce recording duration on cap rejection.',
+                inputSchema: z.object({
+                    timeoutMs: z.number().min(1000).max(120000).default(30000).describe('Max wait for the client to assemble + return the recording blob. Recordings of several seconds at high bitrate may need longer than the default 30s — raise on long recordings.'),
+                }),
+                handler: a => this.recordStop(a.timeoutMs ?? 30000),
+            },
+            {
                 name: 'game_client_status',
                 description: 'Read GameDebugClient connection status: connected (polled within 2s), last poll timestamp, whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
@@ -1521,7 +1539,42 @@ export class DebugTools implements ToolExecutor {
                 message: `Game canvas captured to ${persisted.filePath}`,
             };
         }
+        // v2.9.x T-V29-5: built-in record_stop path — same persistence
+        // pattern as screenshot, but with webm/mp4 extension and a
+        // separate size cap (recordings can be much larger than stills).
+        if (type === 'record_stop' && result.data && typeof result.data.dataUrl === 'string') {
+            const persisted = this.persistGameRecording(result.data.dataUrl);
+            if (!persisted.ok) {
+                return { success: false, error: persisted.error };
+            }
+            return {
+                success: true,
+                data: {
+                    type,
+                    filePath: persisted.filePath,
+                    size: persisted.size,
+                    mimeType: result.data.mimeType,
+                    durationMs: result.data.durationMs,
+                },
+                message: `Game canvas recording saved to ${persisted.filePath} (${persisted.size} bytes, ${result.data.durationMs}ms)`,
+            };
+        }
         return { success: true, data: { type, ...result.data }, message: `Game command ${type} ok` };
+    }
+
+    // v2.9.x T-V29-5: thin wrappers around game_command for AI ergonomics.
+    // Keep the dispatch path identical to game_command(type='record_*') so
+    // there's only one persistence pipeline and one queue. AI still picks
+    // these tools first because their schemas are explicit.
+    private async recordStart(mimeType?: string, videoBitsPerSecond?: number, timeoutMs: number = 5000): Promise<ToolResponse> {
+        const args: any = {};
+        if (mimeType) args.mimeType = mimeType;
+        if (typeof videoBitsPerSecond === 'number') args.videoBitsPerSecond = videoBitsPerSecond;
+        return this.gameCommand('record_start', args, timeoutMs);
+    }
+
+    private async recordStop(timeoutMs: number = 30000): Promise<ToolResponse> {
+        return this.gameCommand('record_stop', {}, timeoutMs);
     }
 
     private async gameClientStatus(): Promise<ToolResponse> {
@@ -1558,6 +1611,38 @@ export class DebugTools implements ToolExecutor {
         // pattern into resolveAutoCaptureFile() so screenshot() / capture-
         // preview / batch-screenshot / persist-game share one implementation.
         const resolved = this.resolveAutoCaptureFile(`game-${Date.now()}.${ext}`);
+        if (!resolved.ok) return { ok: false, error: resolved.error };
+        fs.writeFileSync(resolved.filePath, buf);
+        return { ok: true, filePath: resolved.filePath, size: buf.length };
+    }
+
+    // v2.9.x T-V29-5: same shape as persistGameScreenshot but for video
+    // recordings (webm/mp4) returned by record_stop. Recordings can run
+    // tens of seconds and produce significantly larger payloads than
+    // stills, so the byte cap is bumped — kept in sync with the global
+    // 32MB request-body limit in mcp-server-sdk.ts. base64-decoded byte
+    // count is rejected pre-decode the same way to avoid Buffer
+    // allocation spikes on malicious clients.
+    private static readonly MAX_GAME_RECORDING_BYTES = 32 * 1024 * 1024;
+
+    private persistGameRecording(dataUrl: string): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
+        const m = /^data:video\/(webm|mp4|webm;[^,]*|mp4;[^,]*);base64,(.*)$/i.exec(dataUrl);
+        if (!m) {
+            return { ok: false, error: 'GameDebugClient returned recording dataUrl in unexpected format (expected data:video/{webm|mp4}[;codecs=...];base64,...)' };
+        }
+        const b64Len = m[2].length;
+        const approxBytes = Math.ceil(b64Len * 3 / 4);
+        if (approxBytes > DebugTools.MAX_GAME_RECORDING_BYTES) {
+            return { ok: false, error: `recording payload too large: ~${approxBytes} bytes exceeds cap ${DebugTools.MAX_GAME_RECORDING_BYTES}. Lower videoBitsPerSecond or reduce recording duration.` };
+        }
+        // Strip codecs suffix from mimeType for the file extension.
+        const baseMime = m[1].toLowerCase().split(';')[0];
+        const ext = baseMime === 'mp4' ? 'mp4' : 'webm';
+        const buf = Buffer.from(m[2], 'base64');
+        if (buf.length > DebugTools.MAX_GAME_RECORDING_BYTES) {
+            return { ok: false, error: `recording payload too large after decode: ${buf.length} bytes exceeds cap ${DebugTools.MAX_GAME_RECORDING_BYTES}` };
+        }
+        const resolved = this.resolveAutoCaptureFile(`recording-${Date.now()}.${ext}`);
         if (!resolved.ok) return { ok: false, error: resolved.error };
         fs.writeFileSync(resolved.filePath, buf);
         return { ok: true, filePath: resolved.filePath, size: buf.length };

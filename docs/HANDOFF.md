@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.0 開卷 — T-V29-1/2 落地 → next: T-V29-3..6 + cumulative 三方 review）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.4 — T-V29-5 MediaRecorder bridge 落地，剩 preview 對比 + cumulative 三方 review）
 
 **當下版本**：v2.8.2（v2.8.0 spillover + 三方 round-1 patch + reload-
 retest 修補）。v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary on deny
@@ -862,8 +862,9 @@ v2.9.0 ⏳ in-progress（T-V29-1 check_editor_health + T-V29-2 set_preview_mode 
 v2.9.1 ⚠ partial（setter 落地但 cocos 3.8.7 拒絕所有 4 種 set-config 寫入 shape — `setResult: true` 但 read-back 永遠不變。記為 landmine #17、tool description 改為 ⚠ EXPERIMENTAL，user 改走 cocos UI dropdown，待 v2.9 後續對比參考專案找到正確 write path 再恢復）
 v2.9.1 retest 觀察（freeze 偵測）：`check_editor_health` 在 cocos 凍結後仍回 `sceneAlive: true, sceneLatencyMs: 1ms`。getCurrentSceneInfo probe 沒抓到 freeze — 推測 cocos cached director state，沒走過 wedged code path。記在 landmine #16 補註，待對比參考專案後找更敏感的 probe。
 v2.9.2 ✅ done（T-V29-3 polish batch — 8 件 v2.8.1 deferred single-reviewer 🟡 全部處理）
-v2.9.3 ✅ done（T-V29-6 macro-tool routing — 12 個 referenceImage_* 工具 collapse 成 1 個 `referenceImage_manage({op,...})` op-router；preview-mode 兩件加 park gate：preview_control(start) 需 `acknowledgeFreezeRisk:true`、set_preview_mode 已有 `confirm` gate + ⚠ EXPERIMENTAL 描述。**18 categories / 179 tools**（190 → 179，-11 tools 因 macro 收斂）。breaking change：舊的 referenceImage_add_reference_image 等 12 個 flat tool 移除，callers 改用 referenceImage_manage(op=...)）
-剩 T-V29-4 simulator retest / T-V29-5 MediaRecorder / preview-mode 對比參考專案；三方 review batch 收尾在最後
+v2.9.3 ✅ done（T-V29-6 macro-tool routing — 12 個 referenceImage_* 工具 collapse 成 1 個 `referenceImage_manage({op,...})` op-router；preview-mode 兩件加 park gate：preview_control(start) 需 `acknowledgeFreezeRisk:true`、set_preview_mode 已有 `confirm` gate + ⚠ EXPERIMENTAL 描述。**18 categories / 179 tools**，retest 全綠（含 simulator 模式 T-V29-4 順帶完成）；breaking change：舊的 referenceImage_add_reference_image 等 12 個 flat tool 移除，callers 改用 referenceImage_manage(op=...)）
+v2.9.4 ✅ done（T-V29-5 MediaRecorder bridge — `debug_record_start` / `debug_record_stop` 顯式工具 wrap game_command 隊列；client 端加 record_start / record_stop built-in handlers 用 MediaRecorder + canvas.captureStream；server 端 persistGameRecording 32MB cap + project containment guard。**18 categories / 181 tools**。Live-test 因目前 preview 在 simulator 模式且 client 未 wire 進 game 而暫緩，待未來 browser-preview 環境的 session retest）
+剩 preview-mode 對比參考專案；T-V29-batch cumulative 三方 review 收尾
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
