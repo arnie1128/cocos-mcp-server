@@ -1,5 +1,126 @@
 # Changelog
 
+## v2.9.5 — 2026-05-02
+
+Three-way cumulative review round-1 patch on v2.8.4..v2.9.4.
+
+Reviewers (Claude / Codex / Gemini) ran independently on the cycle range
+`843fe73..3bf839f`. Consolidated 5 must-fix + 4 polish landed below per
+the project's three-way review workflow (every 🔴 + every ≥2-reviewer 🟡
+promoted to must-fix).
+
+### 🔴 #1 — `check_editor_health` probe was not strong enough (3-reviewer)
+
+`getCurrentSceneInfo` (used by v2.9.0) reads `director.getScene()`
+cached singleton inside scene-script — the call resolves <1ms even when
+the scene-script renderer is visibly frozen (confirmed live during
+v2.9.1 retest where `sceneAlive: true` returned while the user reported
+the editor required Ctrl+R).
+
+Fix: replace with two stronger probes that exercise different paths:
+- `Editor.Message.request('scene', 'query-is-ready')` — typed channel
+  (scene/@types/message.d.ts:257), direct IPC into the scene module,
+  hangs when the renderer is wedged.
+- `Editor.Message.request('scene', 'query-current-scene')` chained into
+  `'query-node'` on the resulting scene root UUID — forces a real
+  scene-graph walk through the wedged code path.
+
+Each probe gets its own timeout race. Scene declared alive only when
+BOTH resolve within the timeout. Tool description rewritten to disclose
+the new strategy.
+
+### 🔴 #2 — `persistGameRecording` regex broke on multi-codec mimeTypes (Codex 🔴 + Claude 🟡)
+
+v2.9.4 regex `(webm|mp4|webm;[^,]*|mp4;[^,]*)` rejected at the first
+comma, so `data:video/webm;codecs="vp9,opus";base64,...` failed. Fixed
+by anchoring on the literal `;base64,` separator and accepting any
+number of `;param=value` pairs in between:
+`/^data:video\/(webm|mp4)((?:;[^,]*?)*);base64,([\s\S]*)$/i`.
+Codec params are now preserved (the file extension still derives from
+the bare `webm|mp4` capture group).
+
+### 🔴 #3 — MediaRecorder cleanup leaked stream tracks on multiple paths (Codex 🔴 + Claude 🟡)
+
+v2.9.4 client-side handlers held an active `MediaStream` (from
+`canvas.captureStream()`) but only released the tracks on the success
+path inside `recorder.onstop`. Several failure paths leaked:
+- `MediaRecorder` constructor throws → stream tracks stay open
+- `mimeType` check fails after stream opens → leaked
+- `recorder.start()` throws → leaked
+- `recorder.onerror` fires → tracks released but `_recState` not cleared
+  (subsequent `record_start` refused on stale state)
+
+Fix: centralized `cleanupRecording(stream?)` helper that stops tracks
++ nulls `_recState` exactly once (idempotent). All failure paths now
+route through it:
+- Init failures → cleanupRecording(stream) before bailing
+- onerror → cleanupRecording then rejectStop
+- onstop catch → cleanupRecording then rejectStop
+- recordStop catch → cleanupRecording
+
+### 🔴 #4 — `recordStop` durationMs was always 0 (Claude 🔴)
+
+v2.9.4 `recordStop` set `_recState = null` before awaiting `stopPromise`.
+When `recorder.onstop` fired, it read `_recState?.startedAt` — but
+`_recState` was already null, so the optional-chain returned undefined
+and `durationMs` collapsed to `Date.now() - Date.now()` = 0. The host
+then advertised `durationMs: 0` in the response envelope.
+
+Fix: capture `startedAt` in a closure variable when wiring `onstop`,
+not via `_recState`. Closure read is timing-safe regardless of when
+`recordStop` clears module state. Also removed the `_recState = null`
+in `recordStop`; clearing now happens inside `cleanupRecording()` via
+onstop / onerror, which is the single source of truth for state
+release.
+
+### 🔴 #5 — base64 O(N²) string concat (Gemini 🔴, applied)
+
+v2.9.4 client used a `for` loop building `binary += String.fromCharCode(
+bytes[i])` then `btoa(binary)` to base64-encode the recording. On a
+32MB blob this is O(N²) string-build that locks the browser tab and
+risks OOM. Replaced with `FileReader.readAsDataURL(blob)` — native
+browser path that streams the encode without per-character allocation.
+
+### 🟡 #6 — 32MB cap reconciliation (Gemini 🟡 + Codex 🟡)
+
+`MAX_GAME_RECORDING_BYTES` (debug-tools.ts) and `MAX_REQUEST_BODY_BYTES`
+(mcp-server-sdk.ts) were both 32MB. A 30s recording at 5 Mbps → 18 MB
+fits, but at 10 Mbps → 37 MB it gets 413'd at the transport layer
+BEFORE reaching the tool's own clearer error. Bumped both to 64MB and
+documented the relationship with cross-references in the source
+comments. Lower one to dial back if memory pressure becomes a concern.
+
+### 🟡 #7 — `referenceImage_manage(op="add")` no array validation (Claude 🟡)
+
+The schema marked `paths` as `array(string)` but the dispatcher's
+`requireFields` helper only checked present-and-non-null. A misshapen
+call (string / number) would otherwise pass through to `Editor.Message`
+and the response would say "Added undefined reference image(s)". Added
+explicit `Array.isArray(args.paths) && length > 0` check with a clear
+error message.
+
+### 🟡 #8 — `isPathWithinRoot` `..` boundary (Codex 🟡)
+
+`rel.startsWith('..')` would reject a legitimate child whose first path
+segment literally starts with `..` (e.g. directory named `..foo`).
+Tightened to `rel === '..' || rel.startsWith('..' + path.sep)`.
+
+### 🟡 #9 — HANDOFF entry-point internal inconsistency (Claude 🟡)
+
+`docs/HANDOFF.md` NEXT ENTRY POINT block had three incrementally-
+appended cycle blurbs (v2.8.2 / v2.9.0 / v2.8.4) with conflicting tool
+counts (187 / 190 / 188 — none accurate). Consolidated to a single
+coherent block reflecting the current v2.9.5 state.
+
+### Single-reviewer 🟡 deferred
+
+- Promise.race orphaned scene request (Codex) — theoretical accumulation
+- previewControlInFlight hot-reload edge (Claude) — comment only
+- setPreviewMode 4-strategy over-eager (Claude) — irrelevant since all
+  4 silent no-op on cocos 3.8.7 (landmine #17)
+- acknowledgeFreezeRisk doc clarity (Claude) — already labeled as soft
+  gate in description
+
 ## v2.9.4 — 2026-05-02
 
 T-V29-5 MediaRecorder bridge (harady route).

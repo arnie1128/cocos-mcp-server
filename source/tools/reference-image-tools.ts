@@ -80,6 +80,15 @@ export class ReferenceImageTools implements ToolExecutor {
                 case 'add': {
                     const err = this.requireFields(op, args, 'paths');
                     if (err) return { success: false, error: err };
+                    // v2.9.5 review fix (Claude 🟡): the schema marks
+                    // `paths` as `array(string)` but the dispatcher
+                    // requireFields helper only checks present-and-non-null.
+                    // A misshapen call (string / number) would otherwise
+                    // pass through to Editor.Message and the response
+                    // message would say "Added undefined reference image(s)".
+                    if (!Array.isArray(args.paths) || args.paths.length === 0) {
+                        return { success: false, error: `reference_image(op="add") requires paths to be a non-empty array of strings; got ${JSON.stringify(args.paths)}.` };
+                    }
                     await Editor.Message.request('reference-image', 'add-image', args.paths);
                     return {
                         success: true,

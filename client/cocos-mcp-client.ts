@@ -280,6 +280,16 @@ function findGameCanvas(): HTMLCanvasElement | null {
     return all.length > 0 ? all[0] : null;
 }
 
+// v2.9.5 review fix (Codex 🔴 + Claude 🟡): centralised cleanup so all
+// failure / completion paths release tracks + clear _recState exactly
+// once. Idempotent — multiple calls are safe.
+function cleanupRecording(stream?: MediaStream): void {
+    if (stream) {
+        try { stream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
+    }
+    _recState = null;
+}
+
 async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: number }): Promise<{ success: boolean; data?: any; error?: string }> {
     if (_recState) {
         return { success: false, error: 'A recording is already in progress; call record_stop first.' };
@@ -297,6 +307,9 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
     const stream: MediaStream = (canvas as any).captureStream();
     const mimeType = args.mimeType ?? (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
     if (!MediaRecorder.isTypeSupported(mimeType)) {
+        // v2.9.5 review fix (Codex 🔴): release the stream we just opened
+        // before bailing on unsupported mimeType.
+        cleanupRecording(stream);
         return { success: false, error: `mimeType "${mimeType}" not supported by this browser's MediaRecorder.` };
     }
     let recorder: MediaRecorder;
@@ -306,6 +319,7 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
             ...(args.videoBitsPerSecond ? { videoBitsPerSecond: args.videoBitsPerSecond } : {}),
         });
     } catch (err: any) {
+        cleanupRecording(stream);
         return { success: false, error: `MediaRecorder init failed: ${err?.message ?? String(err)}` };
     }
     const chunks: Blob[] = [];
@@ -315,37 +329,51 @@ async function recordStart(args: { mimeType?: string; videoBitsPerSecond?: numbe
         resolveStop = resolve;
         rejectStop = reject;
     });
+    // v2.9.5 review fix (Claude 🔴): capture startedAt in closure, NOT
+    // via _recState. recordStop nulls _recState before awaiting the
+    // stop promise; if onstop reads _recState?.startedAt it gets null
+    // and durationMs collapses to 0. Closure read is timing-safe.
+    const startedAt = Date.now();
     recorder.ondataavailable = (e: BlobEvent) => {
         if (e.data && e.data.size > 0) chunks.push(e.data);
     };
     recorder.onstop = async () => {
         try {
             const blob = new Blob(chunks, { type: mimeType });
-            const buf = await blob.arrayBuffer();
-            const bytes = new Uint8Array(buf);
-            // base64 encode without pulling Buffer (browser-only path).
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-            const b64 = typeof btoa === 'function' ? btoa(binary) : '';
-            if (!b64) {
-                rejectStop(new Error('btoa unavailable; cannot base64-encode recording'));
-                return;
-            }
-            const dataUrl = `data:${mimeType};base64,${b64}`;
-            const durationMs = Date.now() - (_recState?.startedAt ?? Date.now());
-            // Release stream tracks so the cocos frame loop is no longer
-            // sharing GPU bandwidth with the capture pipeline.
-            try { stream.getTracks().forEach(t => t.stop()); } catch {}
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error('FileReader failed to encode recording'));
+                reader.readAsDataURL(blob);
+            });
+            const durationMs = Date.now() - startedAt;
+            cleanupRecording(stream);
             resolveStop({ dataUrl, mimeType, durationMs, sizeBytes: blob.size });
         } catch (err: any) {
+            cleanupRecording(stream);
             rejectStop(err instanceof Error ? err : new Error(String(err)));
         }
     };
     recorder.onerror = (e: any) => {
+        // v2.9.5 review fix (Codex 🔴): onerror previously rejected the
+        // promise but left _recState pointing at the dead recorder and
+        // never released stream tracks. Subsequent record_start would
+        // refuse on stale _recState; subsequent record_stop would call
+        // stop() on an errored recorder (no-op or throw) and the stream
+        // would never release. Centralised cleanup fixes both.
+        cleanupRecording(stream);
         rejectStop(e?.error ?? new Error('MediaRecorder error'));
     };
-    recorder.start();
-    _recState = { recorder, stream, chunks, mimeType, startedAt: Date.now(), stopPromise, resolveStop, rejectStop };
+    try {
+        recorder.start();
+    } catch (err: any) {
+        // v2.9.5 review fix (Claude 🟡): recorder.start() can throw on
+        // some browsers if the canvas hasn't produced a frame yet.
+        // Release the stream and surface a clean error envelope.
+        cleanupRecording(stream);
+        return { success: false, error: `MediaRecorder.start failed: ${err?.message ?? String(err)}` };
+    }
+    _recState = { recorder, stream, chunks, mimeType, startedAt, stopPromise, resolveStop, rejectStop };
     return { success: true, data: { recording: true, mimeType } };
 }
 
@@ -354,11 +382,16 @@ async function recordStop(): Promise<{ success: boolean; data?: any; error?: str
     if (!st) {
         return { success: false, error: 'No recording in progress. Call record_start first.' };
     }
-    _recState = null;
+    // v2.9.5 review fix (Claude 🔴): do NOT clear _recState before
+    // awaiting stopPromise. The clear happens inside onstop /
+    // onerror via cleanupRecording(), which is the single point of
+    // truth for state release. This also lets onstop read state
+    // through st in the closure if it ever needs to.
     try {
         st.recorder.requestData?.();
         st.recorder.stop();
     } catch (err: any) {
+        cleanupRecording(st.stream);
         return { success: false, error: `MediaRecorder.stop failed: ${err?.message ?? String(err)}` };
     }
     try {

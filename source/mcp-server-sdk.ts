@@ -819,7 +819,13 @@ function resolveGameCorsOrigin(origin: string | string[] | undefined): string | 
 // 4k canvases, so we set the cap generously rather than per-endpoint.
 // Above the cap we destroy the connection so the client sees a hard close
 // rather than a slow truthful 413 (avoids them continuing to stream).
-const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
+// v2.9.5 review fix (Gemini 🟡 + Codex 🟡): bumped 32 → 64 MB so
+// MediaRecorder output at high bitrates (5-20 Mbps × 30-60s = 18-150 MB)
+// has more headroom before the transport layer 413s. The host-side
+// MAX_GAME_RECORDING_BYTES in debug-tools.ts is held identical so both
+// caps move together; lower one to dial back if memory pressure becomes
+// a concern.
+const MAX_REQUEST_BODY_BYTES = 64 * 1024 * 1024;
 
 class BodyTooLargeError extends Error {
     readonly statusCode = 413;

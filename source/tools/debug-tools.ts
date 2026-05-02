@@ -31,9 +31,13 @@ function isPathWithinRoot(candidate: string, root: string): boolean {
     const rootAbs = path.resolve(root);
     if (candAbs === rootAbs) return true;
     const rel = path.relative(rootAbs, candAbs);
-    if (!rel) return true;                         // identical
-    if (rel.startsWith('..')) return false;        // outside root
-    if (path.isAbsolute(rel)) return false;        // different drive
+    if (!rel) return true;                              // identical
+    // v2.9.5 review fix (Codex 🟡): startsWith('..') would also reject a
+    // legitimate child whose first path segment literally starts with
+    // ".." (e.g. directory named "..foo"). Match either exactly `..` or
+    // `..` followed by a path separator instead.
+    if (rel === '..' || rel.startsWith('..' + path.sep)) return false;
+    if (path.isAbsolute(rel)) return false;             // different drive
     return true;
 }
 
@@ -233,7 +237,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'check_editor_health',
-                description: 'Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy: run two probes in parallel — (1) a fast non-scene channel (device/query, goes to main process) confirms the editor host is alive; (2) a scene-script eval (1+1 trivial expression via execute-scene-script) with a short timeout (default 1500ms) confirms the scene renderer is responsive. Returns { hostAlive, sceneAlive, sceneLatencyMs, suggestion }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls that would hang.',
+                description: 'Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.5): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node on the current scene root — forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) AND (3) resolve within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.',
                 inputSchema: z.object({
                     sceneTimeoutMs: z.number().min(200).max(10000).default(1500).describe('Timeout for the scene-script probe in ms. Below this scene is considered frozen. Default 1500ms.'),
                 }),
@@ -1388,23 +1392,64 @@ export class DebugTools implements ToolExecutor {
         } catch (err: any) {
             hostError = err?.message ?? String(err);
         }
-        // Scene probe — wrap in a hard timeout. We deliberately pick a
-        // method that exists on the scene-script side AND does the
-        // minimum work: getCurrentSceneInfo just reads director state.
-        const scenePromise = runSceneMethodAsToolResponse('getCurrentSceneInfo', [], { capture: false });
-        const timeoutPromise = new Promise<{ timedOut: true }>(resolve =>
-            setTimeout(() => resolve({ timedOut: true }), sceneTimeoutMs),
+        // Scene probe — v2.9.5 review fix (Gemini 🔴 + Codex 🔴 + Claude 🟡):
+        // v2.9.0 used getCurrentSceneInfo via execute-scene-script wrapper,
+        // but that scene-side method just reads `director.getScene()`
+        // (cached singleton) and resolves <1ms even when the scene-script
+        // renderer is visibly frozen — confirmed live during v2.9.1 retest
+        // where sceneAlive returned true while user reported the editor
+        // was spinning and required Ctrl+R.
+        //
+        // Switch to two probes that exercise different paths:
+        //  1. `scene/query-is-ready` (typed channel — see
+        //     scene/@types/message.d.ts:257). Direct IPC into the scene
+        //     module; will hang if the scene-script renderer is wedged.
+        //  2. `scene/execute-scene-script` runWithCapture('queryNodeDump')
+        //     on a known UUID forcing an actual scene-graph walk — covers
+        //     the case where scene IPC is alive but the runWithCapture /
+        //     execute-scene-script path is the wedged one.
+        // We declare scene healthy only when BOTH probes resolve within
+        // the timeout. Each probe gets its own timeout race so a stuck
+        // scene-script doesn't compound delays.
+        const probeWithTimeout = async <T>(p: Promise<T>, label: string): Promise<{ ok: true; value: T; latencyMs: number } | { ok: false; error: string; latencyMs: number }> => {
+            const start = Date.now();
+            const timeout = new Promise<{ timedOut: true }>(resolve =>
+                setTimeout(() => resolve({ timedOut: true }), sceneTimeoutMs),
+            );
+            try {
+                const r: any = await Promise.race([p.then(v => ({ value: v, timedOut: false })), timeout]);
+                const latencyMs = Date.now() - start;
+                if (r?.timedOut) return { ok: false, error: `${label} probe timed out after ${sceneTimeoutMs}ms`, latencyMs };
+                return { ok: true, value: r.value, latencyMs };
+            } catch (err: any) {
+                return { ok: false, error: `${label} probe threw: ${err?.message ?? String(err)}`, latencyMs: Date.now() - start };
+            }
+        };
+        const isReadyP = probeWithTimeout(
+            Editor.Message.request('scene', 'query-is-ready' as any) as Promise<boolean>,
+            'scene/query-is-ready',
         );
-        const sceneStart = Date.now();
-        const sceneResult: any = await Promise.race([scenePromise, timeoutPromise]);
-        const sceneLatencyMs = Date.now() - sceneStart;
-        const sceneAlive = !!sceneResult && !sceneResult.timedOut && sceneResult.success !== false;
+        const dumpP = probeWithTimeout(
+            // queryNodeDump on the scene root UUID forces a real graph
+            // walk through the wedged code path. We get the scene UUID
+            // first via the same IPC; if THAT hangs we'll catch via
+            // probe-1 anyway.
+            (async () => {
+                const uuid: string = await Editor.Message.request(
+                    'scene', 'query-current-scene' as any,
+                ) as any;
+                if (!uuid) return null;
+                return await Editor.Message.request('scene', 'query-node' as any, uuid as any);
+            })(),
+            'scene/query-node',
+        );
+        const [isReady, dump] = await Promise.all([isReadyP, dumpP]);
+        const sceneLatencyMs = Math.max(isReady.latencyMs, dump.latencyMs);
+        const sceneAlive = isReady.ok && dump.ok && isReady.value === true;
         let sceneError: string | null = null;
-        if (sceneResult?.timedOut) {
-            sceneError = `scene-script probe timed out after ${sceneTimeoutMs}ms — scene renderer likely frozen`;
-        } else if (sceneResult?.success === false) {
-            sceneError = sceneResult.error ?? 'scene-script probe returned success=false';
-        }
+        if (!isReady.ok) sceneError = isReady.error;
+        else if (!dump.ok) sceneError = dump.error;
+        else if (isReady.value !== true) sceneError = `scene/query-is-ready returned ${JSON.stringify(isReady.value)} (expected true)`;
         const suggestion = !hostAlive
             ? 'cocos editor host process unresponsive — verify the editor is running and the cocos-mcp-server extension is loaded.'
             : !sceneAlive
@@ -1619,26 +1664,36 @@ export class DebugTools implements ToolExecutor {
     // v2.9.x T-V29-5: same shape as persistGameScreenshot but for video
     // recordings (webm/mp4) returned by record_stop. Recordings can run
     // tens of seconds and produce significantly larger payloads than
-    // stills, so the byte cap is bumped — kept in sync with the global
-    // 32MB request-body limit in mcp-server-sdk.ts. base64-decoded byte
-    // count is rejected pre-decode the same way to avoid Buffer
-    // allocation spikes on malicious clients.
-    private static readonly MAX_GAME_RECORDING_BYTES = 32 * 1024 * 1024;
+    // stills.
+    //
+    // v2.9.5 review fix (Gemini 🟡 + Codex 🟡): bumped 32 → 64 MB to
+    // accommodate higher-bitrate / longer recordings (5-20 Mbps × 30-60s
+    // = 18-150 MB). Kept in sync with MAX_REQUEST_BODY_BYTES in
+    // mcp-server-sdk.ts; lower one to dial back if memory pressure
+    // becomes a concern. base64-decoded byte count is rejected pre-decode
+    // to avoid Buffer allocation spikes on malicious clients.
+    private static readonly MAX_GAME_RECORDING_BYTES = 64 * 1024 * 1024;
 
     private persistGameRecording(dataUrl: string): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
-        const m = /^data:video\/(webm|mp4|webm;[^,]*|mp4;[^,]*);base64,(.*)$/i.exec(dataUrl);
+        // v2.9.5 review fix (Codex 🔴 + Claude 🟡): the v2.9.4 regex
+        // `(webm|mp4|webm;[^,]*|mp4;[^,]*)` rejected at the first comma,
+        // so multi-codec mimeTypes like `data:video/webm;codecs="vp9,opus"
+        // ;base64,...` failed. Match by the literal `;base64,` separator
+        // (terminator is unambiguous — base64 alphabet has no comma) and
+        // accept any number of `;param=value` pairs in between.
+        const m = /^data:video\/(webm|mp4)((?:;[^,]*?)*);base64,([\s\S]*)$/i.exec(dataUrl);
         if (!m) {
             return { ok: false, error: 'GameDebugClient returned recording dataUrl in unexpected format (expected data:video/{webm|mp4}[;codecs=...];base64,...)' };
         }
-        const b64Len = m[2].length;
+        const b64Len = m[3].length;
         const approxBytes = Math.ceil(b64Len * 3 / 4);
         if (approxBytes > DebugTools.MAX_GAME_RECORDING_BYTES) {
             return { ok: false, error: `recording payload too large: ~${approxBytes} bytes exceeds cap ${DebugTools.MAX_GAME_RECORDING_BYTES}. Lower videoBitsPerSecond or reduce recording duration.` };
         }
-        // Strip codecs suffix from mimeType for the file extension.
-        const baseMime = m[1].toLowerCase().split(';')[0];
-        const ext = baseMime === 'mp4' ? 'mp4' : 'webm';
-        const buf = Buffer.from(m[2], 'base64');
+        // m[1] is already the bare 'webm'|'mp4'; m[2] is the param tail
+        // (`;codecs=...`); m[3] is the base64 payload.
+        const ext = m[1].toLowerCase() === 'mp4' ? 'mp4' : 'webm';
+        const buf = Buffer.from(m[3], 'base64');
         if (buf.length > DebugTools.MAX_GAME_RECORDING_BYTES) {
             return { ok: false, error: `recording payload too large after decode: ${buf.length} bytes exceeds cap ${DebugTools.MAX_GAME_RECORDING_BYTES}` };
         }

@@ -5,38 +5,25 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.4 — T-V29-5 MediaRecorder bridge 落地，剩 preview 對比 + cumulative 三方 review）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.5 — v2.9.x cumulative review round-1 patch landed → round-2 三方 review pending）
 
-**當下版本**：v2.8.2（v2.8.0 spillover + 三方 round-1 patch + reload-
-retest 修補）。v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary on deny
-/ T-V28-2 resolveAutoCaptureFile helper / T-V28-3 `debug_preview_control`
-via typed `cce.SceneFacade.changePreviewPlayState`）；v2.8.1 round-1 補強
-4 must-fix + 2 polish；round-2 三方一致 🟢 ship-it（commit 769151b →
-03568fc）。**v2.8.2 reload-retest 又抓出 2 個 runtime-only bug 三方 review
-全部漏掉**：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` /
-`.instance`；(2) 相對 savePath 解析到 host cwd（CocosDashboard）而非
-project root → 已修，commit 5725f09 + 40ad5b7 push origin/main。
-**18 categories / 187 tools**（v2.8.0 +1）。
+**當下版本**：v2.9.5（v2.9.x cumulative review round-1 patch on top of v2.9.4）。**18 categories / 181 tools**。
 
-**v2.9.0 開卷**（T-V29-1 + T-V29-2 落地、commit 待打、三方 review 延後到全 v2.9 完成後 cumulative）：
-- T-V29-1 `debug_check_editor_health` — 平行 probe `device/query` + scene `getCurrentSceneInfo`，timeout 1500ms 命中視為 scene 凍結。直接對應 landmine #16 的 freeze 偵測需求。
-- T-V29-2 `debug_set_preview_mode` — 配對 v2.8.3 getter，`preferences/set-config 'preview' 'current.platform' <value>`。confirm gate（default false 是 dry-run）+ no-op 偵測。
+**v2.8.x 收尾**（已 push origin/main）：v2.8.0 spillover（T-V28-1 CORS hoist + T-V28-2 resolveAutoCaptureFile + T-V28-3 debug_preview_control）→ v2.8.1 round-1 review patch → v2.8.2 reload-retest fix（cce.SceneFacadeManager + 相對 savePath）→ v2.8.3 embedded-mode capture 補完（T-V283-1/2/3）→ v2.8.4 browser-mode retest fix（landmine #16 廣域化 + mode-aware fallback hint）。
 
-剩 T-V29-3 polish batch / T-V29-4 simulator retest / T-V29-5 MediaRecorder / T-V29-6 macro-routing。
-**18 categories / 190 tools**（v2.9.0 +2）。
+**v2.9.x cycle 進度**：
+- v2.9.0 +2 tools：debug_check_editor_health / debug_set_preview_mode
+- v2.9.1 setter live-test fix（4-strategy probe）+ landmines #16/#17 doc
+- v2.9.2 polish batch（8 件 v2.8.1 deferred single-🟡）
+- v2.9.3 macro-tool routing（12 referenceImage_* → 1 op-router）+ preview-tools park gates
+- v2.9.4 MediaRecorder bridge（debug_record_start/stop + client template）
+- v2.9.5 cumulative review round-1 patch（本 cycle）：check_editor_health 改用 query-is-ready + query-node 雙探針 / persistGameRecording regex 修 codecs 逗號 / MediaRecorder cleanup centralization + recordStop durationMs 修 / 32MB→64MB cap reconcile / isPathWithinRoot `..` 邊界 / referenceImage_manage `add` array 驗證 / HANDOFF 整理
 
-**v2.8.4 完成**（已 push origin/main，三方 review 一起放到 v2.9 cumulative）：
-- v2.8.3 base：T-V283-1 capture mode arg + T-V283-2 get_preview_mode + T-V283-3 capturedLogs warning + #4 heuristic fix（cocos 真實鍵 `preview.current.platform`）+ #5 landmine #16
-- v2.8.4 patch：browser-mode retest 抓到 race 不限 preview 模式（landmine #16 改寫）+ auto fallback hint 改為 host-side probe + mode-aware 4 種文案 + 版本管理實務調整（每個 reload cycle 必 bump）。
-**18 categories / 188 tools**（v2.8.0 +1 / v2.8.3 +1）。
+**未解 issues**（v2.10 對比參考專案後再動）：
+- landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race，editor 凍結需 Ctrl+R。tool 已加 acknowledgeFreezeRisk park gate。
+- landmine #17 — set_preview_mode 4 strategies 全 silent no-op；setter 仍 ⚠ EXPERIMENTAL。
 
-**下一個動工**：v2.9.0。三方 review 暫緩到 v2.9 完成後一次 batch。
-**v2.9.0 起手項**（依優先序）：
-1. PIE freeze 對比 6 個參考專案 — 看有無 workaround 可移植。
-2. `debug_check_editor_health` / `debug_check_scene_alive` — AI 偵測 scene-script 是否凍結。
-3. `debug_set_preview_mode` setter（配對 v2.8.3 getter）。
-4. v2.8.1 deferred single-reviewer 🟡 polish batch。
-5. MediaRecorder / macro-routing（較大功能，後做）。
+**下一個動工**：v2.9.5 commit + push → 三方 review round-2（驗證 round-1 fix）→ 視結果決定 ship-it / round-3 patch。
 
 **v2.9.0 候選清單**（v2.8.x 完整 ship 後再動）：
 - **PIE freeze 對比參考專案**（landmine #16）— 讀 harady / RomaRogov-cocos-mcp / cocos-cli / FunplayAI / Spaydo / cocos-code-mode 各家如何處理 `changePreviewPlayState` 或同等 PIE 啟動：是否有人繞過 `softReloadScene` race / 使用其他 channel / 加 retry-with-build-prebake 之類前置步驟。如果有就移植；沒有就把結論記回 landmine #16 收斂（「業界亦無解，認定為 cocos 3.8.7 內傷」）。0.5 天。
