@@ -98,6 +98,18 @@ const PROMPT_DEFS: PromptDef[] = [
             '5. `debug_screenshot` for visual proof.\n\n' +
             'Inspect the target structure, identify missing references or expected children, and repair them with the smallest safe change rather than scattering work across many narrow tools.',
     },
+    {
+        name: 'discover_then_act_workflow',
+        listDescription: 'Three-step pattern (cocos-code-mode reference): query scene tree → read instance type definition → write properties by exact name. Prevents AI from guessing property names against the live cocos schema.',
+        body:
+            'Cocos-code-mode established a "discover, then act" architecture: AI never guesses property names — it queries the live cocos dump for the real type definition first. Use this template when about to mutate any node or component property in an unfamiliar scene.\n\n' +
+            'The three required steps:\n' +
+            '1. **Query scene tree** — `node_get_node_tree` (or `scene_advanced_*`) to locate the target node UUID. If you only know a name, `node_find_nodes` can resolve it.\n' +
+            '2. **Read instance TS definition** — `inspector_get_instance_definition({ reference: { id: <uuid> } })` returns a TypeScript class declaration with the exact property names, types, `@property` decorators (min/max/unit/tooltip), enums, and nested struct types as the live cocos editor sees them. Pair with `inspector_get_common_types_definition` if you need Vec3/Color/etc shapes inlined.\n' +
+            '3. **Write by exact name** — `component_set_component_property` / `node_set_node_property` / `node_set_node_transform` using the names you just read. Do NOT invent property names; the inspector output is the source of truth.\n\n' +
+            'When the property write is for a component array (event handler, clip, child), follow Landmine #11 — go through scene-script + nudge from host side via `set-property` on `__comps__.<idx>.<prop>` rather than direct array push.\n\n' +
+            'When in doubt, fall back to `execute_javascript({context:"scene"})` to read both the dump and the resulting state in one round-trip.',
+    },
 ];
 
 export class PromptRegistry {
