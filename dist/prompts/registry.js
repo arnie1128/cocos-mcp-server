@@ -1,0 +1,108 @@
+"use strict";
+/**
+ * MCP prompts registry — T-V25-4 (T-P3-2).
+ *
+ * 4 templates ported from FunplayAI funplay-cocos-mcp/lib/prompts.js
+ * style. Each prompt:
+ *   - bakes project name + path into the rendered text so AI sees
+ *     concrete context, not placeholders.
+ *   - guides the model toward `execute_javascript` (the v2.3.0
+ *     primary tool) for compound operations and only falls back
+ *     to specialist tools when they're clearly the better primitive
+ *     (TypeScript diagnostics, screenshots, structured resource reads).
+ *
+ * Why prompts at all when we have rich tool descriptions:
+ *   Common multi-step intents ("fix script errors", "validate this
+ *   scene") would otherwise require AI to re-derive the workflow
+ *   each turn. A single `prompts/get` returns the workflow plus
+ *   project context in one shot. Claude Desktop surfaces these as
+ *   slash-commands; other clients can fetch them ad-hoc.
+ *
+ * Templates have **no arguments** by design — they're fully baked.
+ * If we add parameter-driven prompts later we'll extend the
+ * `arguments` field and add per-template argument schemas.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PromptRegistry = void 0;
+exports.createPromptRegistry = createPromptRegistry;
+const PROMPT_DEFS = [
+    {
+        name: 'fix_script_errors',
+        listDescription: 'Diagnose and fix TypeScript errors in the project. Default to execute_javascript; switch to specialist tools (run_script_diagnostics, get_script_diagnostic_context, screenshot) only when they are clearly the better primitive.',
+        body: 'In `core` mode, assume `execute_javascript` is the default first tool. Start with `context="editor"` for diagnosis, local file edits, asset-db workflows, and orchestration; switch to `context="scene"` only when runtime or scene state must be inspected directly.\n\n' +
+            'Only use specialist tools when they are strictly better primitives:\n' +
+            '- `debug_run_script_diagnostics` + `debug_get_script_diagnostic_context` for TypeScript errors (after `debug_wait_compile`)\n' +
+            '- `resources/read cocos://docs/landmines` for landmine context when a tool surprises you\n' +
+            '- `debug_screenshot` for visual verification after UI/scene fixes\n\n' +
+            'Avoid hopping across many narrow tools when one `execute_javascript` call can inspect, decide, and act. Patch the smallest safe regions, refresh assets via the file-editor tools (which auto-trigger asset-db refresh), and verify the project returns to a healthy state with a final `debug_run_script_diagnostics`.',
+    },
+    {
+        name: 'create_playable_prototype',
+        listDescription: 'Build a small playable prototype in the project. Default to execute_javascript; reach for specialist tools only for asset lookup, scene opening, or visual proof.',
+        body: 'In `core` mode, treat `execute_javascript` as the primary tool for almost the entire workflow. Use `context="scene"` for node, component, UI, animation, and runtime orchestration; use `context="editor"` only when editor-side automation, file work, or asset-db access is required.\n\n' +
+            'Reach for specialist tools only when they provide a clearly better primitive:\n' +
+            '- `scene_open_scene` to load a target scene\n' +
+            '- `project_get_assets` (or `resources/read cocos://assets{?type,folder}`) for exact asset identification\n' +
+            '- `animation_*` tools when wiring `cc.Animation` clips + playOnLoad\n' +
+            '- `debug_screenshot` / `debug_batch_screenshot` for visual proof\n\n' +
+            'Build the prototype in a few high-leverage `execute_javascript` steps instead of many tiny tool calls, then verify with runtime state and screenshots.',
+    },
+    {
+        name: 'scene_validation',
+        listDescription: 'Validate the active scene\'s integrity (hierarchy, components, references). Default to execute_javascript; switch to specialist tools only for screenshots, structured reads, or diagnostics.',
+        body: 'In `core` mode, start with `execute_javascript`, usually with `context="scene"`, and keep it as the main tool unless a specialist tool is clearly superior. Use it to inspect hierarchy, nodes, components, prefab instances, cameras, animations, and runtime state in one place.\n\n' +
+            'Specialist tools worth using:\n' +
+            '- `validation_validate_scene` for the curated health checks\n' +
+            '- `resources/read cocos://scene/hierarchy` for a structured snapshot\n' +
+            '- `inspector_get_instance_definition` to understand a node/component\'s property surface before mutating\n' +
+            '- `debug_screenshot` for visual confirmation\n\n' +
+            'Prefer a small number of high-signal validation steps over broad tool hopping. Report findings as actionable items: missing references, broken prefab links, hierarchy anomalies.',
+    },
+    {
+        name: 'auto_wire_scene',
+        listDescription: 'Auto-wire missing references / event handlers / Animation clips on the active scene. Default to execute_javascript; switch to specialist tools only for asset lookup, scene opening, diagnostics, or screenshots.',
+        body: 'In `core` mode, begin with `execute_javascript` and assume it will handle nearly all inspection and repair. Use `context="scene"` for hierarchy, node, component, and UI wiring repair; use `context="editor"` only when file edits, asset-db access, or editor-side orchestration is required.\n\n' +
+            'Workflow:\n' +
+            '1. `inspector_get_instance_definition` on each target node so you know its property shape before writing.\n' +
+            '2. `execute_javascript` to scan for missing references, scattered children, or unbound event handlers.\n' +
+            '3. `set_component_property` / `node_set_node_properties` / `component_add_event_handler` to repair (these are the precise primitives — prefer over execute_javascript for property writes that need set-property channel propagation, see Landmine #11).\n' +
+            '4. `animation_set_clip` if a cc.Animation\'s defaultClip / playOnLoad needs wiring.\n' +
+            '5. `debug_screenshot` for visual proof.\n\n' +
+            'Inspect the target structure, identify missing references or expected children, and repair them with the smallest safe change rather than scattering work across many narrow tools.',
+    },
+];
+class PromptRegistry {
+    constructor(getContext) {
+        this.getContext = getContext;
+    }
+    list() {
+        return PROMPT_DEFS.map(def => ({
+            name: def.name,
+            description: def.listDescription,
+            arguments: [],
+        }));
+    }
+    get(name) {
+        const def = PROMPT_DEFS.find(d => d.name === name);
+        const ctx = this.getContext();
+        if (!def) {
+            const text = `Prompt not found: ${name}\n\nAvailable: ${PROMPT_DEFS.map(d => d.name).join(', ')}`;
+            return {
+                description: text,
+                messages: [{ role: 'user', content: { type: 'text', text } }],
+            };
+        }
+        const header = `Target Cocos project: ${ctx.projectName}\n` +
+            `Project path: ${ctx.projectPath}\n\n`;
+        const fullText = header + def.body;
+        return {
+            description: fullText,
+            messages: [{ role: 'user', content: { type: 'text', text: fullText } }],
+        };
+    }
+}
+exports.PromptRegistry = PromptRegistry;
+function createPromptRegistry(getContext) {
+    return new PromptRegistry(getContext);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicmVnaXN0cnkuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi9zb3VyY2UvcHJvbXB0cy9yZWdpc3RyeS50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiO0FBQUE7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7R0FzQkc7OztBQW9ISCxvREFFQztBQXpGRCxNQUFNLFdBQVcsR0FBZ0I7SUFDN0I7UUFDSSxJQUFJLEVBQUUsbUJBQW1CO1FBQ3pCLGVBQWUsRUFBRSxtT0FBbU87UUFDcFAsSUFBSSxFQUNBLDJRQUEyUTtZQUMzUSx1RUFBdUU7WUFDdkUsK0hBQStIO1lBQy9ILDRGQUE0RjtZQUM1Rix1RUFBdUU7WUFDdkUseVRBQXlUO0tBQ2hVO0lBQ0Q7UUFDSSxJQUFJLEVBQUUsMkJBQTJCO1FBQ2pDLGVBQWUsRUFBRSxtS0FBbUs7UUFDcEwsSUFBSSxFQUNBLDZSQUE2UjtZQUM3UixpRkFBaUY7WUFDakYsK0NBQStDO1lBQy9DLDRHQUE0RztZQUM1Ryx1RUFBdUU7WUFDdkUsc0VBQXNFO1lBQ3RFLHdKQUF3SjtLQUMvSjtJQUNEO1FBQ0ksSUFBSSxFQUFFLGtCQUFrQjtRQUN4QixlQUFlLEVBQUUsK0xBQStMO1FBQ2hOLElBQUksRUFDQSx3UkFBd1I7WUFDeFIsaUNBQWlDO1lBQ2pDLCtEQUErRDtZQUMvRCx3RUFBd0U7WUFDeEUsNEdBQTRHO1lBQzVHLGtEQUFrRDtZQUNsRCxtTEFBbUw7S0FDMUw7SUFDRDtRQUNJLElBQUksRUFBRSxpQkFBaUI7UUFDdkIsZUFBZSxFQUFFLG1OQUFtTjtRQUNwTyxJQUFJLEVBQ0EscVNBQXFTO1lBQ3JTLGFBQWE7WUFDYiw2R0FBNkc7WUFDN0csMEdBQTBHO1lBQzFHLDRQQUE0UDtZQUM1UCx1RkFBdUY7WUFDdkYsNkNBQTZDO1lBQzdDLHFMQUFxTDtLQUM1TDtDQUNKLENBQUM7QUFFRixNQUFhLGNBQWM7SUFHdkIsWUFBWSxVQUFnQztRQUN4QyxJQUFJLENBQUMsVUFBVSxHQUFHLFVBQVUsQ0FBQztJQUNqQyxDQUFDO0lBRUQsSUFBSTtRQUNBLE9BQU8sV0FBVyxDQUFDLEdBQUcsQ0FBQyxHQUFHLENBQUMsRUFBRSxDQUFDLENBQUM7WUFDM0IsSUFBSSxFQUFFLEdBQUcsQ0FBQyxJQUFJO1lBQ2QsV0FBVyxFQUFFLEdBQUcsQ0FBQyxlQUFlO1lBQ2hDLFNBQVMsRUFBRSxFQUFFO1NBQ2hCLENBQUMsQ0FBQyxDQUFDO0lBQ1IsQ0FBQztJQUVELEdBQUcsQ0FBQyxJQUFZO1FBQ1osTUFBTSxHQUFHLEdBQUcsV0FBVyxDQUFDLElBQUksQ0FBQyxDQUFDLENBQUMsRUFBRSxDQUFDLENBQUMsQ0FBQyxJQUFJLEtBQUssSUFBSSxDQUFDLENBQUM7UUFDbkQsTUFBTSxHQUFHLEdBQUcsSUFBSSxDQUFDLFVBQVUsRUFBRSxDQUFDO1FBQzlCLElBQUksQ0FBQyxHQUFHLEVBQUUsQ0FBQztZQUNQLE1BQU0sSUFBSSxHQUFHLHFCQUFxQixJQUFJLGtCQUFrQixXQUFXLENBQUMsR0FBRyxDQUFDLENBQUMsQ0FBQyxFQUFFLENBQUMsQ0FBQyxDQUFDLElBQUksQ0FBQyxDQUFDLElBQUksQ0FBQyxJQUFJLENBQUMsRUFBRSxDQUFDO1lBQ2xHLE9BQU87Z0JBQ0gsV0FBVyxFQUFFLElBQUk7Z0JBQ2pCLFFBQVEsRUFBRSxDQUFDLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxPQUFPLEVBQUUsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxFQUFFLENBQUM7YUFDaEUsQ0FBQztRQUNOLENBQUM7UUFDRCxNQUFNLE1BQU0sR0FDUix5QkFBeUIsR0FBRyxDQUFDLFdBQVcsSUFBSTtZQUM1QyxpQkFBaUIsR0FBRyxDQUFDLFdBQVcsTUFBTSxDQUFDO1FBQzNDLE1BQU0sUUFBUSxHQUFHLE1BQU0sR0FBRyxHQUFHLENBQUMsSUFBSSxDQUFDO1FBQ25DLE9BQU87WUFDSCxXQUFXLEVBQUUsUUFBUTtZQUNyQixRQUFRLEVBQUUsQ0FBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsT0FBTyxFQUFFLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxJQUFJLEVBQUUsUUFBUSxFQUFFLEVBQUUsQ0FBQztTQUMxRSxDQUFDO0lBQ04sQ0FBQztDQUNKO0FBbENELHdDQWtDQztBQUVELFNBQWdCLG9CQUFvQixDQUFDLFVBQWdDO0lBQ2pFLE9BQU8sSUFBSSxjQUFjLENBQUMsVUFBVSxDQUFDLENBQUM7QUFDMUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbIi8qKlxuICogTUNQIHByb21wdHMgcmVnaXN0cnkg4oCUIFQtVjI1LTQgKFQtUDMtMikuXG4gKlxuICogNCB0ZW1wbGF0ZXMgcG9ydGVkIGZyb20gRnVucGxheUFJIGZ1bnBsYXktY29jb3MtbWNwL2xpYi9wcm9tcHRzLmpzXG4gKiBzdHlsZS4gRWFjaCBwcm9tcHQ6XG4gKiAgIC0gYmFrZXMgcHJvamVjdCBuYW1lICsgcGF0aCBpbnRvIHRoZSByZW5kZXJlZCB0ZXh0IHNvIEFJIHNlZXNcbiAqICAgICBjb25jcmV0ZSBjb250ZXh0LCBub3QgcGxhY2Vob2xkZXJzLlxuICogICAtIGd1aWRlcyB0aGUgbW9kZWwgdG93YXJkIGBleGVjdXRlX2phdmFzY3JpcHRgICh0aGUgdjIuMy4wXG4gKiAgICAgcHJpbWFyeSB0b29sKSBmb3IgY29tcG91bmQgb3BlcmF0aW9ucyBhbmQgb25seSBmYWxscyBiYWNrXG4gKiAgICAgdG8gc3BlY2lhbGlzdCB0b29scyB3aGVuIHRoZXkncmUgY2xlYXJseSB0aGUgYmV0dGVyIHByaW1pdGl2ZVxuICogICAgIChUeXBlU2NyaXB0IGRpYWdub3N0aWNzLCBzY3JlZW5zaG90cywgc3RydWN0dXJlZCByZXNvdXJjZSByZWFkcykuXG4gKlxuICogV2h5IHByb21wdHMgYXQgYWxsIHdoZW4gd2UgaGF2ZSByaWNoIHRvb2wgZGVzY3JpcHRpb25zOlxuICogICBDb21tb24gbXVsdGktc3RlcCBpbnRlbnRzIChcImZpeCBzY3JpcHQgZXJyb3JzXCIsIFwidmFsaWRhdGUgdGhpc1xuICogICBzY2VuZVwiKSB3b3VsZCBvdGhlcndpc2UgcmVxdWlyZSBBSSB0byByZS1kZXJpdmUgdGhlIHdvcmtmbG93XG4gKiAgIGVhY2ggdHVybi4gQSBzaW5nbGUgYHByb21wdHMvZ2V0YCByZXR1cm5zIHRoZSB3b3JrZmxvdyBwbHVzXG4gKiAgIHByb2plY3QgY29udGV4dCBpbiBvbmUgc2hvdC4gQ2xhdWRlIERlc2t0b3Agc3VyZmFjZXMgdGhlc2UgYXNcbiAqICAgc2xhc2gtY29tbWFuZHM7IG90aGVyIGNsaWVudHMgY2FuIGZldGNoIHRoZW0gYWQtaG9jLlxuICpcbiAqIFRlbXBsYXRlcyBoYXZlICoqbm8gYXJndW1lbnRzKiogYnkgZGVzaWduIOKAlCB0aGV5J3JlIGZ1bGx5IGJha2VkLlxuICogSWYgd2UgYWRkIHBhcmFtZXRlci1kcml2ZW4gcHJvbXB0cyBsYXRlciB3ZSdsbCBleHRlbmQgdGhlXG4gKiBgYXJndW1lbnRzYCBmaWVsZCBhbmQgYWRkIHBlci10ZW1wbGF0ZSBhcmd1bWVudCBzY2hlbWFzLlxuICovXG5cbmV4cG9ydCBpbnRlcmZhY2UgUHJvbXB0RGVzY3JpcHRvciB7XG4gICAgbmFtZTogc3RyaW5nO1xuICAgIGRlc2NyaXB0aW9uOiBzdHJpbmc7XG4gICAgYXJndW1lbnRzOiBBcnJheTx7IG5hbWU6IHN0cmluZzsgZGVzY3JpcHRpb246IHN0cmluZzsgcmVxdWlyZWQ/OiBib29sZWFuIH0+O1xufVxuXG5leHBvcnQgaW50ZXJmYWNlIFByb21wdE1lc3NhZ2Uge1xuICAgIHJvbGU6ICd1c2VyJyB8ICdhc3Npc3RhbnQnO1xuICAgIGNvbnRlbnQ6IHsgdHlwZTogJ3RleHQnOyB0ZXh0OiBzdHJpbmcgfTtcbn1cblxuZXhwb3J0IGludGVyZmFjZSBQcm9tcHRDb250ZW50IHtcbiAgICBkZXNjcmlwdGlvbjogc3RyaW5nO1xuICAgIG1lc3NhZ2VzOiBQcm9tcHRNZXNzYWdlW107XG59XG5cbmV4cG9ydCBpbnRlcmZhY2UgUHJvamVjdENvbnRleHQge1xuICAgIHByb2plY3ROYW1lOiBzdHJpbmc7XG4gICAgcHJvamVjdFBhdGg6IHN0cmluZztcbn1cblxuaW50ZXJmYWNlIFByb21wdERlZiB7XG4gICAgbmFtZTogc3RyaW5nO1xuICAgIGxpc3REZXNjcmlwdGlvbjogc3RyaW5nO1xuICAgIGJvZHk6IHN0cmluZztcbn1cblxuY29uc3QgUFJPTVBUX0RFRlM6IFByb21wdERlZltdID0gW1xuICAgIHtcbiAgICAgICAgbmFtZTogJ2ZpeF9zY3JpcHRfZXJyb3JzJyxcbiAgICAgICAgbGlzdERlc2NyaXB0aW9uOiAnRGlhZ25vc2UgYW5kIGZpeCBUeXBlU2NyaXB0IGVycm9ycyBpbiB0aGUgcHJvamVjdC4gRGVmYXVsdCB0byBleGVjdXRlX2phdmFzY3JpcHQ7IHN3aXRjaCB0byBzcGVjaWFsaXN0IHRvb2xzIChydW5fc2NyaXB0X2RpYWdub3N0aWNzLCBnZXRfc2NyaXB0X2RpYWdub3N0aWNfY29udGV4dCwgc2NyZWVuc2hvdCkgb25seSB3aGVuIHRoZXkgYXJlIGNsZWFybHkgdGhlIGJldHRlciBwcmltaXRpdmUuJyxcbiAgICAgICAgYm9keTpcbiAgICAgICAgICAgICdJbiBgY29yZWAgbW9kZSwgYXNzdW1lIGBleGVjdXRlX2phdmFzY3JpcHRgIGlzIHRoZSBkZWZhdWx0IGZpcnN0IHRvb2wuIFN0YXJ0IHdpdGggYGNvbnRleHQ9XCJlZGl0b3JcImAgZm9yIGRpYWdub3NpcywgbG9jYWwgZmlsZSBlZGl0cywgYXNzZXQtZGIgd29ya2Zsb3dzLCBhbmQgb3JjaGVzdHJhdGlvbjsgc3dpdGNoIHRvIGBjb250ZXh0PVwic2NlbmVcImAgb25seSB3aGVuIHJ1bnRpbWUgb3Igc2NlbmUgc3RhdGUgbXVzdCBiZSBpbnNwZWN0ZWQgZGlyZWN0bHkuXFxuXFxuJyArXG4gICAgICAgICAgICAnT25seSB1c2Ugc3BlY2lhbGlzdCB0b29scyB3aGVuIHRoZXkgYXJlIHN0cmljdGx5IGJldHRlciBwcmltaXRpdmVzOlxcbicgK1xuICAgICAgICAgICAgJy0gYGRlYnVnX3J1bl9zY3JpcHRfZGlhZ25vc3RpY3NgICsgYGRlYnVnX2dldF9zY3JpcHRfZGlhZ25vc3RpY19jb250ZXh0YCBmb3IgVHlwZVNjcmlwdCBlcnJvcnMgKGFmdGVyIGBkZWJ1Z193YWl0X2NvbXBpbGVgKVxcbicgK1xuICAgICAgICAgICAgJy0gYHJlc291cmNlcy9yZWFkIGNvY29zOi8vZG9jcy9sYW5kbWluZXNgIGZvciBsYW5kbWluZSBjb250ZXh0IHdoZW4gYSB0b29sIHN1cnByaXNlcyB5b3VcXG4nICtcbiAgICAgICAgICAgICctIGBkZWJ1Z19zY3JlZW5zaG90YCBmb3IgdmlzdWFsIHZlcmlmaWNhdGlvbiBhZnRlciBVSS9zY2VuZSBmaXhlc1xcblxcbicgK1xuICAgICAgICAgICAgJ0F2b2lkIGhvcHBpbmcgYWNyb3NzIG1hbnkgbmFycm93IHRvb2xzIHdoZW4gb25lIGBleGVjdXRlX2phdmFzY3JpcHRgIGNhbGwgY2FuIGluc3BlY3QsIGRlY2lkZSwgYW5kIGFjdC4gUGF0Y2ggdGhlIHNtYWxsZXN0IHNhZmUgcmVnaW9ucywgcmVmcmVzaCBhc3NldHMgdmlhIHRoZSBmaWxlLWVkaXRvciB0b29scyAod2hpY2ggYXV0by10cmlnZ2VyIGFzc2V0LWRiIHJlZnJlc2gpLCBhbmQgdmVyaWZ5IHRoZSBwcm9qZWN0IHJldHVybnMgdG8gYSBoZWFsdGh5IHN0YXRlIHdpdGggYSBmaW5hbCBgZGVidWdfcnVuX3NjcmlwdF9kaWFnbm9zdGljc2AuJyxcbiAgICB9LFxuICAgIHtcbiAgICAgICAgbmFtZTogJ2NyZWF0ZV9wbGF5YWJsZV9wcm90b3R5cGUnLFxuICAgICAgICBsaXN0RGVzY3JpcHRpb246ICdCdWlsZCBhIHNtYWxsIHBsYXlhYmxlIHByb3RvdHlwZSBpbiB0aGUgcHJvamVjdC4gRGVmYXVsdCB0byBleGVjdXRlX2phdmFzY3JpcHQ7IHJlYWNoIGZvciBzcGVjaWFsaXN0IHRvb2xzIG9ubHkgZm9yIGFzc2V0IGxvb2t1cCwgc2NlbmUgb3BlbmluZywgb3IgdmlzdWFsIHByb29mLicsXG4gICAgICAgIGJvZHk6XG4gICAgICAgICAgICAnSW4gYGNvcmVgIG1vZGUsIHRyZWF0IGBleGVjdXRlX2phdmFzY3JpcHRgIGFzIHRoZSBwcmltYXJ5IHRvb2wgZm9yIGFsbW9zdCB0aGUgZW50aXJlIHdvcmtmbG93LiBVc2UgYGNvbnRleHQ9XCJzY2VuZVwiYCBmb3Igbm9kZSwgY29tcG9uZW50LCBVSSwgYW5pbWF0aW9uLCBhbmQgcnVudGltZSBvcmNoZXN0cmF0aW9uOyB1c2UgYGNvbnRleHQ9XCJlZGl0b3JcImAgb25seSB3aGVuIGVkaXRvci1zaWRlIGF1dG9tYXRpb24sIGZpbGUgd29yaywgb3IgYXNzZXQtZGIgYWNjZXNzIGlzIHJlcXVpcmVkLlxcblxcbicgK1xuICAgICAgICAgICAgJ1JlYWNoIGZvciBzcGVjaWFsaXN0IHRvb2xzIG9ubHkgd2hlbiB0aGV5IHByb3ZpZGUgYSBjbGVhcmx5IGJldHRlciBwcmltaXRpdmU6XFxuJyArXG4gICAgICAgICAgICAnLSBgc2NlbmVfb3Blbl9zY2VuZWAgdG8gbG9hZCBhIHRhcmdldCBzY2VuZVxcbicgK1xuICAgICAgICAgICAgJy0gYHByb2plY3RfZ2V0X2Fzc2V0c2AgKG9yIGByZXNvdXJjZXMvcmVhZCBjb2NvczovL2Fzc2V0c3s/dHlwZSxmb2xkZXJ9YCkgZm9yIGV4YWN0IGFzc2V0IGlkZW50aWZpY2F0aW9uXFxuJyArXG4gICAgICAgICAgICAnLSBgYW5pbWF0aW9uXypgIHRvb2xzIHdoZW4gd2lyaW5nIGBjYy5BbmltYXRpb25gIGNsaXBzICsgcGxheU9uTG9hZFxcbicgK1xuICAgICAgICAgICAgJy0gYGRlYnVnX3NjcmVlbnNob3RgIC8gYGRlYnVnX2JhdGNoX3NjcmVlbnNob3RgIGZvciB2aXN1YWwgcHJvb2ZcXG5cXG4nICtcbiAgICAgICAgICAgICdCdWlsZCB0aGUgcHJvdG90eXBlIGluIGEgZmV3IGhpZ2gtbGV2ZXJhZ2UgYGV4ZWN1dGVfamF2YXNjcmlwdGAgc3RlcHMgaW5zdGVhZCBvZiBtYW55IHRpbnkgdG9vbCBjYWxscywgdGhlbiB2ZXJpZnkgd2l0aCBydW50aW1lIHN0YXRlIGFuZCBzY3JlZW5zaG90cy4nLFxuICAgIH0sXG4gICAge1xuICAgICAgICBuYW1lOiAnc2NlbmVfdmFsaWRhdGlvbicsXG4gICAgICAgIGxpc3REZXNjcmlwdGlvbjogJ1ZhbGlkYXRlIHRoZSBhY3RpdmUgc2NlbmVcXCdzIGludGVncml0eSAoaGllcmFyY2h5LCBjb21wb25lbnRzLCByZWZlcmVuY2VzKS4gRGVmYXVsdCB0byBleGVjdXRlX2phdmFzY3JpcHQ7IHN3aXRjaCB0byBzcGVjaWFsaXN0IHRvb2xzIG9ubHkgZm9yIHNjcmVlbnNob3RzLCBzdHJ1Y3R1cmVkIHJlYWRzLCBvciBkaWFnbm9zdGljcy4nLFxuICAgICAgICBib2R5OlxuICAgICAgICAgICAgJ0luIGBjb3JlYCBtb2RlLCBzdGFydCB3aXRoIGBleGVjdXRlX2phdmFzY3JpcHRgLCB1c3VhbGx5IHdpdGggYGNvbnRleHQ9XCJzY2VuZVwiYCwgYW5kIGtlZXAgaXQgYXMgdGhlIG1haW4gdG9vbCB1bmxlc3MgYSBzcGVjaWFsaXN0IHRvb2wgaXMgY2xlYXJseSBzdXBlcmlvci4gVXNlIGl0IHRvIGluc3BlY3QgaGllcmFyY2h5LCBub2RlcywgY29tcG9uZW50cywgcHJlZmFiIGluc3RhbmNlcywgY2FtZXJhcywgYW5pbWF0aW9ucywgYW5kIHJ1bnRpbWUgc3RhdGUgaW4gb25lIHBsYWNlLlxcblxcbicgK1xuICAgICAgICAgICAgJ1NwZWNpYWxpc3QgdG9vbHMgd29ydGggdXNpbmc6XFxuJyArXG4gICAgICAgICAgICAnLSBgdmFsaWRhdGlvbl92YWxpZGF0ZV9zY2VuZWAgZm9yIHRoZSBjdXJhdGVkIGhlYWx0aCBjaGVja3NcXG4nICtcbiAgICAgICAgICAgICctIGByZXNvdXJjZXMvcmVhZCBjb2NvczovL3NjZW5lL2hpZXJhcmNoeWAgZm9yIGEgc3RydWN0dXJlZCBzbmFwc2hvdFxcbicgK1xuICAgICAgICAgICAgJy0gYGluc3BlY3Rvcl9nZXRfaW5zdGFuY2VfZGVmaW5pdGlvbmAgdG8gdW5kZXJzdGFuZCBhIG5vZGUvY29tcG9uZW50XFwncyBwcm9wZXJ0eSBzdXJmYWNlIGJlZm9yZSBtdXRhdGluZ1xcbicgK1xuICAgICAgICAgICAgJy0gYGRlYnVnX3NjcmVlbnNob3RgIGZvciB2aXN1YWwgY29uZmlybWF0aW9uXFxuXFxuJyArXG4gICAgICAgICAgICAnUHJlZmVyIGEgc21hbGwgbnVtYmVyIG9mIGhpZ2gtc2lnbmFsIHZhbGlkYXRpb24gc3RlcHMgb3ZlciBicm9hZCB0b29sIGhvcHBpbmcuIFJlcG9ydCBmaW5kaW5ncyBhcyBhY3Rpb25hYmxlIGl0ZW1zOiBtaXNzaW5nIHJlZmVyZW5jZXMsIGJyb2tlbiBwcmVmYWIgbGlua3MsIGhpZXJhcmNoeSBhbm9tYWxpZXMuJyxcbiAgICB9LFxuICAgIHtcbiAgICAgICAgbmFtZTogJ2F1dG9fd2lyZV9zY2VuZScsXG4gICAgICAgIGxpc3REZXNjcmlwdGlvbjogJ0F1dG8td2lyZSBtaXNzaW5nIHJlZmVyZW5jZXMgLyBldmVudCBoYW5kbGVycyAvIEFuaW1hdGlvbiBjbGlwcyBvbiB0aGUgYWN0aXZlIHNjZW5lLiBEZWZhdWx0IHRvIGV4ZWN1dGVfamF2YXNjcmlwdDsgc3dpdGNoIHRvIHNwZWNpYWxpc3QgdG9vbHMgb25seSBmb3IgYXNzZXQgbG9va3VwLCBzY2VuZSBvcGVuaW5nLCBkaWFnbm9zdGljcywgb3Igc2NyZWVuc2hvdHMuJyxcbiAgICAgICAgYm9keTpcbiAgICAgICAgICAgICdJbiBgY29yZWAgbW9kZSwgYmVnaW4gd2l0aCBgZXhlY3V0ZV9qYXZhc2NyaXB0YCBhbmQgYXNzdW1lIGl0IHdpbGwgaGFuZGxlIG5lYXJseSBhbGwgaW5zcGVjdGlvbiBhbmQgcmVwYWlyLiBVc2UgYGNvbnRleHQ9XCJzY2VuZVwiYCBmb3IgaGllcmFyY2h5LCBub2RlLCBjb21wb25lbnQsIGFuZCBVSSB3aXJpbmcgcmVwYWlyOyB1c2UgYGNvbnRleHQ9XCJlZGl0b3JcImAgb25seSB3aGVuIGZpbGUgZWRpdHMsIGFzc2V0LWRiIGFjY2Vzcywgb3IgZWRpdG9yLXNpZGUgb3JjaGVzdHJhdGlvbiBpcyByZXF1aXJlZC5cXG5cXG4nICtcbiAgICAgICAgICAgICdXb3JrZmxvdzpcXG4nICtcbiAgICAgICAgICAgICcxLiBgaW5zcGVjdG9yX2dldF9pbnN0YW5jZV9kZWZpbml0aW9uYCBvbiBlYWNoIHRhcmdldCBub2RlIHNvIHlvdSBrbm93IGl0cyBwcm9wZXJ0eSBzaGFwZSBiZWZvcmUgd3JpdGluZy5cXG4nICtcbiAgICAgICAgICAgICcyLiBgZXhlY3V0ZV9qYXZhc2NyaXB0YCB0byBzY2FuIGZvciBtaXNzaW5nIHJlZmVyZW5jZXMsIHNjYXR0ZXJlZCBjaGlsZHJlbiwgb3IgdW5ib3VuZCBldmVudCBoYW5kbGVycy5cXG4nICtcbiAgICAgICAgICAgICczLiBgc2V0X2NvbXBvbmVudF9wcm9wZXJ0eWAgLyBgbm9kZV9zZXRfbm9kZV9wcm9wZXJ0aWVzYCAvIGBjb21wb25lbnRfYWRkX2V2ZW50X2hhbmRsZXJgIHRvIHJlcGFpciAodGhlc2UgYXJlIHRoZSBwcmVjaXNlIHByaW1pdGl2ZXMg4oCUIHByZWZlciBvdmVyIGV4ZWN1dGVfamF2YXNjcmlwdCBmb3IgcHJvcGVydHkgd3JpdGVzIHRoYXQgbmVlZCBzZXQtcHJvcGVydHkgY2hhbm5lbCBwcm9wYWdhdGlvbiwgc2VlIExhbmRtaW5lICMxMSkuXFxuJyArXG4gICAgICAgICAgICAnNC4gYGFuaW1hdGlvbl9zZXRfY2xpcGAgaWYgYSBjYy5BbmltYXRpb25cXCdzIGRlZmF1bHRDbGlwIC8gcGxheU9uTG9hZCBuZWVkcyB3aXJpbmcuXFxuJyArXG4gICAgICAgICAgICAnNS4gYGRlYnVnX3NjcmVlbnNob3RgIGZvciB2aXN1YWwgcHJvb2YuXFxuXFxuJyArXG4gICAgICAgICAgICAnSW5zcGVjdCB0aGUgdGFyZ2V0IHN0cnVjdHVyZSwgaWRlbnRpZnkgbWlzc2luZyByZWZlcmVuY2VzIG9yIGV4cGVjdGVkIGNoaWxkcmVuLCBhbmQgcmVwYWlyIHRoZW0gd2l0aCB0aGUgc21hbGxlc3Qgc2FmZSBjaGFuZ2UgcmF0aGVyIHRoYW4gc2NhdHRlcmluZyB3b3JrIGFjcm9zcyBtYW55IG5hcnJvdyB0b29scy4nLFxuICAgIH0sXG5dO1xuXG5leHBvcnQgY2xhc3MgUHJvbXB0UmVnaXN0cnkge1xuICAgIHByaXZhdGUgZ2V0Q29udGV4dDogKCkgPT4gUHJvamVjdENvbnRleHQ7XG5cbiAgICBjb25zdHJ1Y3RvcihnZXRDb250ZXh0OiAoKSA9PiBQcm9qZWN0Q29udGV4dCkge1xuICAgICAgICB0aGlzLmdldENvbnRleHQgPSBnZXRDb250ZXh0O1xuICAgIH1cblxuICAgIGxpc3QoKTogUHJvbXB0RGVzY3JpcHRvcltdIHtcbiAgICAgICAgcmV0dXJuIFBST01QVF9ERUZTLm1hcChkZWYgPT4gKHtcbiAgICAgICAgICAgIG5hbWU6IGRlZi5uYW1lLFxuICAgICAgICAgICAgZGVzY3JpcHRpb246IGRlZi5saXN0RGVzY3JpcHRpb24sXG4gICAgICAgICAgICBhcmd1bWVudHM6IFtdLFxuICAgICAgICB9KSk7XG4gICAgfVxuXG4gICAgZ2V0KG5hbWU6IHN0cmluZyk6IFByb21wdENvbnRlbnQge1xuICAgICAgICBjb25zdCBkZWYgPSBQUk9NUFRfREVGUy5maW5kKGQgPT4gZC5uYW1lID09PSBuYW1lKTtcbiAgICAgICAgY29uc3QgY3R4ID0gdGhpcy5nZXRDb250ZXh0KCk7XG4gICAgICAgIGlmICghZGVmKSB7XG4gICAgICAgICAgICBjb25zdCB0ZXh0ID0gYFByb21wdCBub3QgZm91bmQ6ICR7bmFtZX1cXG5cXG5BdmFpbGFibGU6ICR7UFJPTVBUX0RFRlMubWFwKGQgPT4gZC5uYW1lKS5qb2luKCcsICcpfWA7XG4gICAgICAgICAgICByZXR1cm4ge1xuICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uOiB0ZXh0LFxuICAgICAgICAgICAgICAgIG1lc3NhZ2VzOiBbeyByb2xlOiAndXNlcicsIGNvbnRlbnQ6IHsgdHlwZTogJ3RleHQnLCB0ZXh0IH0gfV0sXG4gICAgICAgICAgICB9O1xuICAgICAgICB9XG4gICAgICAgIGNvbnN0IGhlYWRlciA9XG4gICAgICAgICAgICBgVGFyZ2V0IENvY29zIHByb2plY3Q6ICR7Y3R4LnByb2plY3ROYW1lfVxcbmAgK1xuICAgICAgICAgICAgYFByb2plY3QgcGF0aDogJHtjdHgucHJvamVjdFBhdGh9XFxuXFxuYDtcbiAgICAgICAgY29uc3QgZnVsbFRleHQgPSBoZWFkZXIgKyBkZWYuYm9keTtcbiAgICAgICAgcmV0dXJuIHtcbiAgICAgICAgICAgIGRlc2NyaXB0aW9uOiBmdWxsVGV4dCxcbiAgICAgICAgICAgIG1lc3NhZ2VzOiBbeyByb2xlOiAndXNlcicsIGNvbnRlbnQ6IHsgdHlwZTogJ3RleHQnLCB0ZXh0OiBmdWxsVGV4dCB9IH1dLFxuICAgICAgICB9O1xuICAgIH1cbn1cblxuZXhwb3J0IGZ1bmN0aW9uIGNyZWF0ZVByb21wdFJlZ2lzdHJ5KGdldENvbnRleHQ6ICgpID0+IFByb2plY3RDb250ZXh0KTogUHJvbXB0UmVnaXN0cnkge1xuICAgIHJldHVybiBuZXcgUHJvbXB0UmVnaXN0cnkoZ2V0Q29udGV4dCk7XG59XG4iXX0=

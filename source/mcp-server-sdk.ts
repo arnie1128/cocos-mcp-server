@@ -11,6 +11,8 @@ import {
     ReadResourceRequestSchema,
     SubscribeRequestSchema,
     UnsubscribeRequestSchema,
+    ListPromptsRequestSchema,
+    GetPromptRequestSchema,
     isInitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
@@ -19,6 +21,7 @@ import { setEditorContextEvalEnabled, setSceneLogCaptureEnabled } from './lib/ru
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 import { BroadcastBridge } from './lib/broadcast-bridge';
+import { PromptRegistry, createPromptRegistry } from './prompts/registry';
 
 const SERVER_NAME = 'cocos-mcp-server';
 const SERVER_VERSION = '2.0.0';
@@ -57,6 +60,7 @@ export class MCPServer {
     private sessions: Map<string, SessionEntry> = new Map();
     private tools: ToolRegistry;
     private resources: ResourceRegistry;
+    private prompts: PromptRegistry;
     private toolsList: ToolDefinition[] = [];
     private enabledTools: any[] = [];
     private cleanupInterval: NodeJS.Timeout | null = null;
@@ -70,6 +74,14 @@ export class MCPServer {
         this.settings = settings;
         this.tools = registry;
         this.resources = createResourceRegistry(registry);
+        // T-V25-4: prompts registry baked with project context that's
+        // resolved lazily — Editor.Project may not be ready at MCPServer
+        // construction time but is reliably available when prompts/get
+        // is called.
+        this.prompts = createPromptRegistry(() => ({
+            projectName: this.resolveProjectName(),
+            projectPath: this.resolveProjectPath(),
+        }));
         setDebugLogEnabled(settings.enableDebugLog);
         setEditorContextEvalEnabled(settings.enableEditorContextEval ?? false);
         setSceneLogCaptureEnabled(settings.enableSceneLogCapture ?? true);
@@ -91,6 +103,9 @@ export class MCPServer {
                     // resources.templates capability flag (cocos-cli's
                     // `templates: true` is non-spec and would be stripped).
                     resources: { listChanged: true, subscribe: true },
+                    // T-V25-4 (T-P3-2): 4 baked prompt templates; no
+                    // hot-reload yet so listChanged stays false.
+                    prompts: { listChanged: false },
                 },
             }
         );
@@ -141,7 +156,40 @@ export class MCPServer {
             logger.debug(`[MCPServer] unsubscribe ${uri} (session active subs: ${subscriptions.size})`);
             return {};
         });
+        // T-V25-4: prompts/list + prompts/get. Stateless (no session
+        // affinity needed); rendered text bakes in project context at
+        // call time so a project rename is reflected immediately.
+        sdkServer.setRequestHandler(ListPromptsRequestSchema, async () => ({
+            prompts: this.prompts.list(),
+        }));
+        sdkServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
+            const { name } = request.params;
+            // SDK's GetPromptResult type carries a discriminated union
+            // (one branch requires a `task` field). Our content matches
+            // the simple-prompt branch; cast through unknown to satisfy
+            // the structural check without buying into the task branch.
+            return this.prompts.get(name) as unknown as any;
+        });
         return sdkServer;
+    }
+
+    private resolveProjectName(): string {
+        try {
+            const path = (Editor as any)?.Project?.path as string | undefined;
+            if (path) {
+                // Last path segment usually the project folder name; fall back
+                // to "(unknown)" if Editor isn't ready.
+                const parts = path.split(/[\\/]/).filter(Boolean);
+                return parts[parts.length - 1] ?? '(unknown)';
+            }
+        } catch { /* swallow */ }
+        return '(unknown)';
+    }
+
+    private resolveProjectPath(): string {
+        try {
+            return (Editor as any)?.Project?.path ?? '(unknown)';
+        } catch { return '(unknown)'; }
     }
 
     /**
