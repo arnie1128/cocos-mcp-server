@@ -178,7 +178,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'preview_control',
-                description: 'Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacade.changePreviewPlayState method (documented on SceneFacadeManager in @cocos/creator-types). Pair with debug_capture_preview_screenshot: call preview_control(op="start") to enter play mode, wait for the PIE window to appear, then capture. preview_control(op="stop") returns to scene mode. Implementation routes through scene-script (execute-scene-script → scene-side changePreviewPlayState handler) so the call is type-checked against creator-types and not subject to silent removal between cocos versions.',
+                description: 'Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacade.changePreviewPlayState method (documented on SceneFacadeManager in @cocos/creator-types). preview_control(op="stop") returns to scene mode and is reliable. **WARNING — embedded preview mode (preview.current.platform="gameView" — query via debug_get_preview_mode) hits a cocos 3.8.7 race condition** inside the engine\'s softReloadScene path: the call may return success but cocos logs "Failed to refresh the current scene" and the editor can freeze (spinning indicator) requiring user Ctrl+R recovery. See landmine #16 in CLAUDE.md. For visual verification prefer: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE start), or (b) debug_game_command(type="screenshot") via GameDebugClient + browser preview (debug_preview_url(action="open")). preview_control is safe for "window"/"simulator" preview configs.',
                 inputSchema: z.object({
                     op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button). "stop" exits PIE play and returns to scene mode.'),
                 }),
@@ -1175,7 +1175,7 @@ export class DebugTools implements ToolExecutor {
             const warnings: string[] = [];
             if (sceneRefreshError) {
                 warnings.push(
-                    'cocos editor logged "Failed to refresh the current scene" during PIE state change. PIE may not have fully started — verify with a follow-up debug_capture_preview_screenshot. Common workaround: ensure the active scene is saved (use scene_save_scene) before calling preview_control(start).',
+                    'cocos engine threw "Failed to refresh the current scene" inside softReloadScene during PIE state change. This is a cocos 3.8.7 race in embedded preview mode (see CLAUDE.md landmine #16) — PIE has NOT actually started and the cocos editor may freeze (spinning indicator) requiring the human user to press Ctrl+R to recover. Mitigations: (1) check debug_get_preview_mode — if embedded, prefer debug_capture_preview_screenshot(mode="embedded") in EDIT mode, OR debug_game_command via GameDebugClient + browser preview; (2) do NOT retry preview_control(start) — it will not help and may compound the freeze.',
                 );
             }
             const baseMessage = state

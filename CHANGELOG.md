@@ -75,6 +75,64 @@ v2.8.3 now scans `capturedLogs` after the facade call, lifts any
 via scene_save_scene before calling preview_control(start)"). Bare-
 success path unchanged when no warning fires.
 
+### #4 — `get_preview_mode` heuristic — find live cocos 3.8.7 key
+
+Live retest dump showed cocos 3.8.7 actually stores the active mode
+at `preview.current.platform` (value `"gameView"` for embedded), not
+the legacy `open_preview_with` keys the original heuristic probed.
+Updated probe order: `preview.current.platform` →
+`current.platform` → legacy keys. classify() recognises
+`"gameview"` / `"game_view"` as embedded. Added device-name
+fallback (iPhone / iPad / HUAWEI / Xiaomi etc.) for simulator mode.
+`interpretedFromKey` now reports `key=value` so AI can audit the
+source.
+
+Verified live: returns `{interpreted: "embedded",
+interpretedFromKey: "preview.current.platform=gameView"}` against
+the user's cocos 3.8.7 setup.
+
+### #5 — Landmine #16 + sharper preview_control warning
+
+v2.8.3 retest exposed that `changePreviewPlayState(true)` in
+embedded mode triggers a race condition inside cocos 3.8.7's own
+`softReloadScene` path. The full call chain (captured in
+project.log):
+
+```
+preview_control(start)
+ → cce.SceneFacadeManager.changePreviewPlayState
+  → SceneFacadeFSM.issueCommand
+   → PreviewSceneFacade.enter / .enterGameview
+    → PreviewPlay.start
+     → SceneFacadeManager.softReloadScene
+      → PreviewSceneFacade.softReloadScene  ← throws
+      → "Failed to refresh the current scene"
+      → "[Scene] The json file of asset
+            1777714366991.18521454594443276 is empty or missing"
+```
+
+The placeholder asset name `Date.now() + '.' + Math.random()` is
+cocos's own format for temp serialization placeholders — cocos
+serializes the in-memory dirty scene to a temp build artifact
+under `<project>/build/preview/`, then `softReloadScene` reads it
+back, but the writer hasn't finished, so the reader sees an empty
+file. The user-visible effect: cocos editor freezes (spinning
+indicator), Ctrl+R is required to recover the scene-script
+renderer process.
+
+This is a cocos engine bug we cannot fix from outside (`.ccc`
+bundle code under `app.asar/builtin/scene/...`). v2.8.3 mitigates
+by:
+- New landmine #16 in CLAUDE.md documenting the trigger, recovery,
+  and workarounds (use `mode="embedded"` capture in EDIT mode, or
+  use `debug_game_command` via GameDebugClient + browser preview).
+- `debug_preview_control` description now warns explicitly about
+  the embedded-mode race + recommends checking
+  `debug_get_preview_mode` first.
+- The captured-warning hint upgraded with concrete recovery steps
+  ("PIE has NOT actually started; cocos editor may freeze; do not
+  retry — it will not help").
+
 ### Why the version stays at v2.8.x
 
 v2.8.0 promised programmatic PIE start + capture; v2.8.0–v2.8.2 only

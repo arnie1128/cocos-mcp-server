@@ -410,6 +410,85 @@ v2.1.6 after measure showed lossy-only gains).
     - Adopting the `zod-to-json-schema` npm package (different from
       zod's built-in `toJSONSchema`).
 
+16. **`changePreviewPlayState(true)` in embedded preview mode triggers
+    cocos's own `softReloadScene` race and may freeze the editor**
+    (verified v2.8.3 / 2026-05-02 against cocos 3.8.7).
+
+    Reproduced live during v2.8.3 retest:
+    ```
+    SceneFacadeManager.changePreviewPlayState
+     → SceneFacadeFSM.issueCommand
+      → PreviewSceneFacade.enter
+       → PreviewSceneFacade.enterGameview
+        → PreviewPlay.start
+         → SceneFacadeManager.softReloadScene (THROWS)
+         → "Failed to refresh the current scene"
+    ```
+
+    Immediately followed by:
+    ```
+    [Scene] The json file of asset 1777714366991.18521454594443276
+            is empty or missing.
+    ```
+
+    The placeholder asset name `Date.now() + '.' + Math.random()` is
+    cocos's own format for temporary serialization placeholders.
+    What appears to be happening: when in **embedded preview** mode
+    (`preview.current.platform === 'gameView'`), `enterGameview`
+    serializes the in-memory scene to a temp build artifact under
+    `<project>/build/preview/`, then `softReloadScene` reads it back —
+    but the writer hasn't finished, so the reader sees an empty file.
+    Race condition inside cocos's own preview pipeline.
+
+    Symptoms the user sees:
+    - `debug_preview_control(start)` returns `success: true` but
+      `data.warnings[]` carries the "Failed to refresh" entry
+    - `PIE` window does not actually start
+    - cocos editor freezes (spinning indicator), no UI response
+    - Cascading errors when user clicks anything (e.g.
+      `Node with UUID … is not exist!` from camera focus)
+    - **Recovery requires Ctrl+R** in the cocos editor to restart
+      the scene-script renderer process
+
+    What the tool layer does (v2.8.3):
+    - `debug_preview_control` scans capturedLogs for the warning,
+      lifts it to `data.warnings[]` and prepends ⚠ + recovery hint
+      ("Common workaround: ensure scene is saved via
+      `scene_save_scene` before calling preview_control(start);
+      if cocos editor freezes after this call, press Ctrl+R in the
+      editor to recover").
+    - The tool description points users at `debug_get_preview_mode`
+      so AI can detect embedded mode and weigh the freeze risk.
+
+    What we cannot fix from outside cocos:
+    - The race itself lives in `.ccc` bundle code under
+      `app.asar/builtin/scene/dist/script/3d/...` — closed-source
+      cocos engine code.
+    - There is no documented "wait for preview build settle" channel.
+    - `Editor.Message.send('scene', 'reload')` etc. don't exist.
+
+    Practical guidance for AI workflows:
+    - Saving the scene (`scene_save_scene`) before calling
+      `preview_control(start)` lowers but does NOT eliminate the
+      risk. The freeze observed in v2.8.3 retest happened despite
+      a save executing 3 seconds prior.
+    - For visual verification under embedded mode, prefer:
+      `debug_capture_preview_screenshot(mode='embedded')` while in
+      EDIT mode (no PIE start needed) — the gameview shows scene
+      content for many cases.
+    - For runtime / play-state visual verification, prefer the
+      `debug_game_command(type='screenshot')` route through a
+      `GameDebugClient` running in a browser preview
+      (`debug_preview_url(action='open')`) — that path uses the
+      runtime canvas directly and avoids the editor-side
+      softReloadScene race entirely.
+    - If `preview_control(start)` is required and the editor
+      freezes, document the recovery (Ctrl+R) for the human user;
+      do NOT add automatic Ctrl+R-equivalent IPC calls — there is
+      no clean editor-side equivalent and forcing a renderer
+      reload from outside risks losing unsaved state worse than
+      the freeze itself.
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.

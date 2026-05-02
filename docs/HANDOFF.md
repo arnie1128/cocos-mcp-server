@@ -35,9 +35,14 @@ clean exit）→ 三方 review → push origin/main。
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
+- `debug_set_preview_mode` setter — 配對 v2.8.3 `debug_get_preview_mode`，
+  透過 typed `preferences/set-config 'preview' '<key>' <value>` 切換
+  cocos 預覽模式，給 AI retest / debug 流程程序化 routing
+  （browser↔embedded↔simulator）。需加 confirm gate / 自動 restore
+  避免擅改使用者偏好。0.3 天。
 - 實機 reload-retest 跨機環境 — 在 cocos preview 設成 browser 與
-  simulator 模式下分別跑 v2.8.x preview 鏈（v2.8.2 retest 只覆蓋了
-  embedded 模式）。0.3 天。
+  simulator 模式下分別跑 v2.8.x preview 鏈（v2.8.3 retest 只覆蓋了
+  embedded 模式 + 觀察到 landmine #16 cocos engine race）。0.3 天。
 - v2.8.1 single-reviewer 🟡 polish：
   - `assertSavePathWithinProject` 相對路徑：先 `path.resolve(Editor.Project.path, savePath)` 再 dirname，或直接 reject 非 absolute（Codex r2）。
   - `realRootNormalized + path.sep` 換成 `path.relative(root, candidate)` 不以 `..` 開頭，避免 drive-root false-reject（Codex r2）。
@@ -326,6 +331,42 @@ project + reload extension panel，`/health` 回 `tools: 170`。
   的 walker 沒有 — 下次 patch 可整合，但只是 nice-to-have。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
+
+### v2.8.3 reload 後實機測試紀錄
+
+**環境**：cocos editor 3.8.7、preview 設 `preview.current.platform =
+"gameView"`（embedded 模式），project = `cocos_cs_349`。
+
+| # | 測項 | 結果 |
+|---|---|---|
+| 1 | `/health` 188 tools | ✅ |
+| 2 | `debug_get_preview_mode` 初版（heuristic miss `current.platform`）→ 回 `unknown` + 完整 raw dump | ⚠ 修 |
+| 3 | `debug_capture_preview_screenshot{}` mode=auto → fallback embedded、截主編輯器 143KB png | ✅ |
+| 4 | end-to-end save → preview_control(start) → capture(auto/embedded) → preview_control(stop) | ✅ |
+| 5 | `preview_control(start)` warning 推到 `data.warnings[]` + ⚠ top-level message | ✅ |
+| 6 | `debug_get_preview_mode` heuristic patch 後 → `interpreted: "embedded"`, `interpretedFromKey: "preview.current.platform=gameView"` | ✅ |
+
+**重大發現（landmine #16 已記）**：v2.8.3 retest 中
+`preview_control(start)` 在 embedded 模式真的會造成 cocos editor
+freeze（spinning，需 Ctrl+R 復原）。從 project.log 抓到完整堆疊：
+
+```
+SceneFacadeManager.changePreviewPlayState
+ → SceneFacadeFSM.issueCommand → PreviewSceneFacade.enter
+  → PreviewSceneFacade.enterGameview → PreviewPlay.start
+   → SceneFacadeManager.softReloadScene → THROWS
+   → "Failed to refresh the current scene"
+   → "[Scene] The json file of asset 1777714366991.18521454594443276
+              is empty or missing"
+```
+
+placeholder 名稱 `Date.now()+'.'+Math.random()` 是 cocos 內部對 dirty
+scene 做臨時序列化的 temp asset 命名格式，writer/reader race。**這是
+cocos 3.8.7 自身 bug（`.ccc` bundle 內部）**，無法從外部修補。v2.8.3
+做的是：landmine #16 完整記錄、`preview_control` description 標警告 +
+推薦替代方案（`mode="embedded"` 在 EDIT 模式截圖、或 GameDebugClient
++ browser preview 路線）、warning hint 升級為「**不要重試**，PIE 沒真的
+啟動，editor 可能凍結需 Ctrl+R」。
 
 ### v2.8.2 reload 後實機測試紀錄
 
@@ -791,7 +832,7 @@ v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V2
 v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），commit 769151b；round 2 三方一致 🟢 ship-it — Claude / Codex 0🔴-2single🟡 / Gemini 0🔴-2single🟡，所有 single 🟡 deferred 至 v2.9.0 spillover）
 v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname，commit 5725f09）
 v2.8.2 reload-tested ✅（11 條 live-test 全綠 + 1 觀察：cocos preview 設成「編輯器內預覽 (embedded)」時 `preview_control(start)` facade 通但 `capture_preview_screenshot` 用 Preview-title 濾抓不到視窗，因 embedded 模式 gameview 嵌在主編輯器、不開新 window）
-v2.8.3 ✅ done（embedded-mode PIE 補完 — T-V283-1 `capture_preview_screenshot` 加 `mode:auto|window|embedded`、auto fallback 主編輯器；T-V283-2 新工具 `debug_get_preview_mode` 讀 cocos preferences/query-config 'preview' 回 interpreted+raw；T-V283-3 `preview_control` 掃 capturedLogs 抓 "Failed to refresh the current scene" 提到 data.warnings + ⚠ message + scene_save_scene 前置 hint。**18 categories / 188 tools**，pending live retest + 三方 review）
+v2.8.3 ✅ done（embedded-mode PIE 補完 — 5 件子任務：T-V283-1 capture mode arg / T-V283-2 get_preview_mode / T-V283-3 capturedLogs 警告外推 / #4 heuristic patch（cocos 真實鍵 `preview.current.platform`）/ #5 landmine #16 + sharper warning。**18 categories / 188 tools**，commits 48d11ec + 71c4868；retest 確認 auto fallback 在 embedded 模式真的截到圖；發現 cocos 3.8.7 自身 race condition 會在 embedded PIE start 時凍結 editor、需 Ctrl+R 復原 — 已記為 landmine #16，無法從外部修）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
