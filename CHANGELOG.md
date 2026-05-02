@@ -1,5 +1,99 @@
 # Changelog
 
+## v2.4.8 — 2026-05-03
+
+Recover four items the v2.4.0 plan listed under §同梱小項 but never
+landed in the v2.4.0 commit. Audit at the end of the v2.4.7 cycle
+surfaced the gap; scheduled as an explicit patch instead of folding
+into v2.5.0 to keep the "fix leftover" review surface separate from
+the upcoming v2.5.0 "add new feature" surface.
+
+Total: **17 categories / 177 tools** (was 16 / 170 in v2.4.3 — v2.4.7
+added no new tools, were patches only). +1 category (animation),
++7 tools (4 animation + 3 debug).
+
+### A1 — TS diagnostics (3 new tools, debug category)
+
+- `debug_wait_compile(timeoutMs?)` — block until cocos packer-driver
+  logs `Target(editor) ends`. Returns immediately with `compiled=false`
+  if no log growth observed within the 2s grace window (clean project,
+  no recompile triggered). Adapted from harady/cocos-creator-mcp's
+  `waitCompile`, dropped the electron-menu "clear code cache" path.
+- `debug_run_script_diagnostics(tsconfigPath?)` — exec
+  `tsc --noEmit -p <tsconfig> --pretty false` and parse stderr/stdout
+  into structured `{file, line, column, code, message}` diagnostics.
+  Binary discovery: project node_modules → editor bundled engine → npx
+  fallback. tsconfig discovery: `tsconfig.json` or
+  `temp/tsconfig.cocos.json` (cocos auto-generates the latter).
+  Adapted from FunplayAI's `lib/diagnostics.js` with TS types added.
+- `debug_get_script_diagnostic_context(file, line, contextLines?)` —
+  read ±N source lines around a diagnostic location. Path-safety
+  guard refuses paths outside `Editor.Project.path`. 5MB read cap.
+
+Together these form an "edit .ts → wait → fetch errors → read
+context → fix" workflow for AI clients.
+
+### A2 — Animation tools (new `animation` category, 4 tools)
+
+- `animation_list_clips({nodeUuid|nodeName})` — enumerate clips on a
+  node's `cc.Animation`, returns name/uuid/duration/wrapMode + which
+  is defaultClip + playOnLoad.
+- `animation_play({nodeUuid|nodeName, clipName?})` — start a clip
+  (default if name omitted). Validates clip name against the
+  registered list to surface typos as errors instead of silent no-ops.
+- `animation_stop({nodeUuid|nodeName})` — stop the active clip.
+- `animation_set_clip({nodeUuid|nodeName, defaultClip?, playOnLoad?})`
+  — persist via the editor `set-property` channel (Landmine #11
+  scalar path), not direct runtime mutation, so `save_scene` picks
+  it up reliably.
+
+Ported from FunplayAI/Spaydo using the v2.4.0 declarative
+`defineTools` pattern + `nodeUuid|nodeName` fallback
+(`resolveOrToolError`). Scene-side methods in `source/scene.ts`:
+`getAnimationClips` / `playAnimation` / `stopAnimation` /
+`queryAnimationSetTargets` (lookup helper for set_clip's host-side
+set-property writes).
+
+### A3 — Scene-script log capture in scene-bridge (DX win)
+
+`source/scene.ts:runWithCapture` is a new scene-script wrapper that
+monkey-patches `console.{log,warn,error}` for the duration of an
+inner method call. It uses a **stack** of capture arrays so concurrent
+`runSceneMethod` calls each get an isolated buffer; the console hook
+is installed once and fans out to every active capture, then removed
+when the stack drains.
+
+`source/lib/scene-bridge.ts` routes every `runSceneMethod` /
+`runSceneMethodAsToolResponse` through `runWithCapture` by default
+(opt-out via `{capture: false}`), gated by the global
+`isSceneLogCaptureEnabled()` runtime flag.
+
+Result: every tool response that hit a scene-script now carries
+`capturedLogs: [{level, message, ts}]` so AI clients see the cocos
+engine console output for the operation, in the same envelope.
+Single IPC round-trip — no extra channels added.
+
+Settings: `enableSceneLogCapture: true` by default. Re-applied on
+every `updateSettings()` (mirroring the v2.3.1 `editorContextEval`
+re-apply pattern).
+
+Adapted from RomaRogov-cocos-mcp's `startCaptureSceneLogs` /
+`getCapturedSceneLogs` pattern.
+
+### A4 — `resources.templates: true` clarification (no code change)
+
+Investigation found that the MCP spec's `ServerCapabilitiesSchema`
+(`@modelcontextprotocol/sdk` types.d.ts:776–812) only defines
+`subscribe` and `listChanged` flags under `resources`. cocos-cli's
+`templates: true` is non-spec; SDK's `z.core.$strip` silently drops
+unknown keys. Templates are already supported via the
+`ListResourceTemplatesRequestSchema` handler we registered in v2.2.0
+(`mcp-server-sdk.ts:101`); clients call `resources/templates/list`
+regardless of capability flags.
+
+Action: added a comment to the capabilities block explaining the
+no-flag rationale so future reviewers don't flag this as missing.
+
 ## v2.4.7 — 2026-05-03
 
 Live-test cleanup fixes + CLAUDE.md landmine #14 covering cocos's
