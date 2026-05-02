@@ -1,4 +1,5 @@
 import { join } from 'path';
+import { ok, fail } from './lib/response';
 module.paths.push(join(Editor.App.path, 'node_modules'));
 
 // `cce` is injected by Cocos Editor into the scene-script global scope.
@@ -260,30 +261,26 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director, js } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             // Find node by UUID
             const node = scene.getChildByUuid(nodeUuid);
             if (!node) {
-                return { success: false, error: `Node with UUID ${nodeUuid} not found` };
+                return fail(`Node with UUID ${nodeUuid} not found`);
             }
 
             // Get component class
             const ComponentClass = js.getClassByName(componentType);
             if (!ComponentClass) {
-                return { success: false, error: `Component type ${componentType} not found` };
+                return fail(`Component type ${componentType} not found`);
             }
 
             // Add component
             const component = node.addComponent(ComponentClass);
-            return { 
-                success: true, 
-                message: `Component ${componentType} added successfully`,
-                data: { componentId: component.uuid }
-            };
+            return ok({ componentId: component.uuid }, `Component ${componentType} added successfully`);
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -295,7 +292,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director, Node } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const node = new Node(name);
@@ -311,13 +308,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 scene.addChild(node);
             }
 
-            return { 
-                success: true, 
-                message: `Node ${name} created successfully`,
-                data: { uuid: node.uuid, name: node.name }
-            };
+            return ok({ uuid: node.uuid, name: node.name }, `Node ${name} created successfully`);
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -329,33 +322,30 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const node = scene.getChildByUuid(nodeUuid);
             if (!node) {
-                return { success: false, error: `Node with UUID ${nodeUuid} not found` };
+                return fail(`Node with UUID ${nodeUuid} not found`);
             }
 
-            return {
-                success: true,
-                data: {
-                    uuid: node.uuid,
-                    name: node.name,
-                    active: node.active,
-                    position: node.position,
-                    rotation: node.rotation,
-                    scale: node.scale,
-                    parent: node.parent?.uuid,
-                    children: node.children.map((child: any) => child.uuid),
-                    components: node.components.map((comp: any) => ({
-                        type: comp.constructor.name,
-                        enabled: comp.enabled
-                    }))
-                }
-            };
+            return ok({
+                uuid: node.uuid,
+                name: node.name,
+                active: node.active,
+                position: node.position,
+                rotation: node.rotation,
+                scale: node.scale,
+                parent: node.parent?.uuid,
+                children: node.children.map((child: any) => child.uuid),
+                components: node.components.map((comp: any) => ({
+                    type: comp.constructor.name,
+                    enabled: comp.enabled
+                }))
+            });
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -367,7 +357,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const nodes: any[] = [];
@@ -384,9 +374,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
 
             scene.children.forEach((child: any) => collectNodes(child));
             
-            return { success: true, data: nodes };
+            return ok(nodes);
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -398,25 +388,22 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const node = scene.getChildByName(name);
             if (!node) {
-                return { success: false, error: `Node with name ${name} not found` };
+                return fail(`Node with name ${name} not found`);
             }
 
-            return {
-                success: true,
-                data: {
-                    uuid: node.uuid,
-                    name: node.name,
-                    active: node.active,
-                    position: node.position
-                }
-            };
+            return ok({
+                uuid: node.uuid,
+                name: node.name,
+                active: node.active,
+                position: node.position
+            });
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -428,19 +415,16 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
-            return {
-                success: true,
-                data: {
-                    name: scene.name,
-                    uuid: scene.uuid,
-                    nodeCount: scene.children.length
-                }
-            };
+            return ok({
+                name: scene.name,
+                uuid: scene.uuid,
+                nodeCount: scene.children.length
+            });
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -452,12 +436,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const node = scene.getChildByUuid(nodeUuid);
             if (!node) {
-                return { success: false, error: `Node with UUID ${nodeUuid} not found` };
+                return fail(`Node with UUID ${nodeUuid} not found`);
             }
 
             // 設置屬性
@@ -476,12 +460,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 (node as any)[property] = value;
             }
 
-            return { 
-                success: true, 
-                message: `Property '${property}' updated successfully` 
-            };
+            return ok(undefined, `Property '${property}' updated successfully`);
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -493,7 +474,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const { director } = require('cc');
             const scene = director.getScene();
             if (!scene) {
-                return { success: false, error: 'No active scene' };
+                return fail('No active scene');
             }
 
             const processNode = (node: any): any => {
@@ -519,9 +500,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
             };
 
             const hierarchy = scene.children.map((child: any) => processNode(child));
-            return { success: true, data: hierarchy };
+            return ok(hierarchy);
         } catch (error: any) {
-            return { success: false, error: error.message };
+            return fail(error.message);
         }
     },
 
@@ -536,7 +517,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
     async createPrefabFromNode(nodeUuid: string, url: string) {
         const prefabMgr = getPrefabFacade();
         if (!prefabMgr.ok) {
-            return { success: false, error: prefabMgr.error };
+            return fail(prefabMgr.error);
         }
         try {
             const tries: string[] = [];
@@ -580,26 +561,20 @@ export const methods: { [key: string]: (...any: any) => any } = {
                             // Non-fatal: the asset was created either way.
                         }
                     }
-                    return {
-                        success: true,
-                        data: {
-                            url: candidate,
-                            sourceNodeUuid: nodeUuid,
-                            prefabAssetUuid: assetUuid,
-                            instanceNodeUuid,
-                            raw: result,
-                        },
-                    };
+                    return ok({
+                        url: candidate,
+                        sourceNodeUuid: nodeUuid,
+                        prefabAssetUuid: assetUuid,
+                        instanceNodeUuid,
+                        raw: result,
+                    });
                 } catch (err: any) {
                     errors.push(`${candidate}: ${err?.message ?? err}`);
                 }
             }
-            return {
-                success: false,
-                error: `cce.Prefab.createPrefab failed: ${errors.join('; ')}`,
-            };
+            return fail(`cce.Prefab.createPrefab failed: ${errors.join('; ')}`);
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -610,7 +585,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
     async applyPrefab(nodeUuid: string) {
         const prefabMgr = getPrefabFacade();
         if (!prefabMgr.ok) {
-            return { success: false, error: prefabMgr.error };
+            return fail(prefabMgr.error);
         }
         try {
             // Note: facadeReturn from cce.SceneFacadeManager.applyPrefab is
@@ -623,9 +598,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
             // the type-doc alias. Use SceneFacadeManager throughout
             // comments so the runtime identity is unambiguous.)
             const facadeReturn = await prefabMgr.value.applyPrefab(nodeUuid);
-            return { success: true, data: { facadeReturn, nodeUuid } };
+            return ok({ facadeReturn, nodeUuid });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -636,13 +611,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
     async linkPrefab(nodeUuid: string, assetUuid: string) {
         const prefabMgr = getPrefabFacade();
         if (!prefabMgr.ok) {
-            return { success: false, error: prefabMgr.error };
+            return fail(prefabMgr.error);
         }
         try {
             const result = await prefabMgr.value.linkPrefab(nodeUuid, assetUuid);
-            return { success: true, data: { linked: result, nodeUuid, assetUuid } };
+            return ok({ linked: result, nodeUuid, assetUuid });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -653,13 +628,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
     async unlinkPrefab(nodeUuid: string, removeNested: boolean) {
         const prefabMgr = getPrefabFacade();
         if (!prefabMgr.ok) {
-            return { success: false, error: prefabMgr.error };
+            return fail(prefabMgr.error);
         }
         try {
             const result = await prefabMgr.value.unlinkPrefab(nodeUuid, removeNested);
-            return { success: true, data: { unlinked: result, nodeUuid, removeNested } };
+            return ok({ unlinked: result, nodeUuid, removeNested });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -670,13 +645,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
     getPrefabData(nodeUuid: string) {
         const prefabMgr = getPrefabFacade();
         if (!prefabMgr.ok) {
-            return { success: false, error: prefabMgr.error };
+            return fail(prefabMgr.error);
         }
         try {
             const data = prefabMgr.value.getPrefabData(nodeUuid);
-            return { success: true, data };
+            return ok(data);
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 

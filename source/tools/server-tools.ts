@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -61,16 +62,13 @@ export class ServerTools implements ToolExecutor {
     private async queryServerIPList(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('server', 'query-ip-list').then((ipList: string[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         ipList: ipList,
                         count: ipList.length,
                         message: 'IP list retrieved successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -78,16 +76,13 @@ export class ServerTools implements ToolExecutor {
     private async querySortedServerIPList(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('server', 'query-sort-ip-list').then((sortedIPList: string[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         sortedIPList: sortedIPList,
                         count: sortedIPList.length,
                         message: 'Sorted IP list retrieved successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -95,15 +90,12 @@ export class ServerTools implements ToolExecutor {
     private async queryServerPort(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('server', 'query-port').then((port: number) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         port: port,
                         message: `Editor server is running on port ${port}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -144,16 +136,10 @@ export class ServerTools implements ToolExecutor {
                 status.platform = process.platform;
                 status.nodeVersion = process.version;
 
-                resolve({
-                    success: true,
-                    data: status
-                });
+                resolve(ok(status));
 
             } catch (err: any) {
-                resolve({
-                    success: false,
-                    error: `Failed to get server status: ${err.message}`
-                });
+                resolve(fail(`Failed to get server status: ${err.message}`));
             }
         });
     }
@@ -173,15 +159,12 @@ export class ServerTools implements ToolExecutor {
                 
                 const responseTime = Date.now() - startTime;
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         connected: true,
                         responseTime: responseTime,
                         timeout: timeout,
                         message: `Server connectivity confirmed in ${responseTime}ms`
-                    }
-                });
+                    }));
 
             } catch (err: any) {
                 const responseTime = Date.now() - startTime;
@@ -219,20 +202,14 @@ export class ServerTools implements ToolExecutor {
                 // Also try to get server IPs for comparison
                 const serverIPResult = await this.queryServerIPList();
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         networkInterfaces: networkInfo,
                         serverAvailableIPs: serverIPResult.success ? serverIPResult.data.ipList : [],
                         message: 'Network interfaces retrieved successfully'
-                    }
-                });
+                    }));
 
             } catch (err: any) {
-                resolve({
-                    success: false,
-                    error: `Failed to get network interfaces: ${err.message}`
-                });
+                resolve(fail(`Failed to get network interfaces: ${err.message}`));
             }
         });
     }

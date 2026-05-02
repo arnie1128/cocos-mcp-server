@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, NodeInfo } from '../types';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
@@ -196,17 +197,11 @@ export class NodeTools implements ToolExecutor {
                             finalAssetUuid = assetInfo.uuid;
                             debugLog(`Asset path '${args.assetPath}' resolved to UUID: ${finalAssetUuid}`);
                         } else {
-                            resolve({
-                                success: false,
-                                error: `Asset not found at path: ${args.assetPath}`
-                            });
+                            resolve(fail(`Asset not found at path: ${args.assetPath}`));
                             return;
                         }
                     } catch (err) {
-                        resolve({
-                            success: false,
-                            error: `Failed to resolve asset path '${args.assetPath}': ${err}`
-                        });
+                        resolve(fail(`Failed to resolve asset path '${args.assetPath}': ${err}`));
                         return;
                     }
                 }
@@ -315,10 +310,7 @@ export class NodeTools implements ToolExecutor {
                         } else if (typeof args.layer === 'string') {
                             const preset = (LAYER_PRESETS as any)[args.layer] as number | undefined;
                             if (typeof preset !== 'number') {
-                                resolve({
-                                    success: false,
-                                    error: `Unknown layer preset '${args.layer}'. Allowed: ${Object.keys(LAYER_PRESETS).join(', ')}, or pass a raw number.`,
-                                });
+                                resolve(fail(`Unknown layer preset '${args.layer}'. Allowed: ${Object.keys(LAYER_PRESETS).join(', ')}, or pass a raw number.`));
                                 return;
                             }
                             resolvedLayer = preset;
@@ -390,10 +382,7 @@ export class NodeTools implements ToolExecutor {
                 });
 
             } catch (err: any) {
-                resolve({ 
-                    success: false, 
-                    error: `Failed to create node: ${err.message}. Args: ${JSON.stringify(args)}`
-                });
+                resolve(fail(`Failed to create node: ${err.message}. Args: ${JSON.stringify(args)}`));
             }
         });
     }
@@ -429,10 +418,7 @@ export class NodeTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-node', uuid).then((nodeData: any) => {
                 if (!nodeData) {
-                    resolve({
-                        success: false,
-                        error: 'Node not found or invalid response'
-                    });
+                    resolve(fail('Node not found or invalid response'));
                     return;
                 }
                 
@@ -453,9 +439,9 @@ export class NodeTools implements ToolExecutor {
                     layer: nodeData.layer?.value || 1073741824,
                     mobility: nodeData.mobility?.value || 0
                 };
-                resolve({ success: true, data: info });
+                resolve(ok(info));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -493,13 +479,13 @@ export class NodeTools implements ToolExecutor {
                     searchTree(tree);
                 }
                 
-                resolve({ success: true, data: nodes });
+                resolve(ok(nodes));
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('findNodes', [pattern, exactMatch]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Tree search failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Tree search failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -511,23 +497,20 @@ export class NodeTools implements ToolExecutor {
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 const foundNode = this.searchNodeInTree(tree, name);
                 if (foundNode) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: foundNode.uuid,
                             name: foundNode.name,
                             path: this.getNodePath(foundNode)
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: `Node '${name}' not found` });
+                    resolve(fail(`Node '${name}' not found`));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('findNodeByName', [name]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -576,19 +559,16 @@ export class NodeTools implements ToolExecutor {
                     traverseTree(tree);
                 }
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         totalNodes: nodes.length,
                         nodes: nodes
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getAllNodes', []).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -634,17 +614,14 @@ export class NodeTools implements ToolExecutor {
                         }
                     });
                 }).catch(() => {
-                    resolve({
-                        success: true,
-                        message: `Property '${property}' updated successfully (verification failed)`
-                    });
+                    resolve(ok(undefined, `Property '${property}' updated successfully (verification failed)`));
                 });
             }).catch((err: Error) => {
                 // 如果直接設置失敗，嘗試使用場景腳本
                 runSceneMethod('setNodeProperty', [uuid, property, value]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -661,7 +638,7 @@ export class NodeTools implements ToolExecutor {
                 // First get node info to determine if it's 2D or 3D
                 const nodeInfoResponse = await this.getNodeInfo(uuid);
                 if (!nodeInfoResponse.success || !nodeInfoResponse.data) {
-                    resolve({ success: false, error: 'Failed to get node information' });
+                    resolve(fail('Failed to get node information'));
                     return;
                 }
                 
@@ -717,7 +694,7 @@ export class NodeTools implements ToolExecutor {
                 }
                 
                 if (updatePromises.length === 0) {
-                    resolve({ success: false, error: 'No transform properties specified' });
+                    resolve(fail('No transform properties specified'));
                     return;
                 }
                 
@@ -760,10 +737,7 @@ export class NodeTools implements ToolExecutor {
                 resolve(response);
                 
             } catch (err: any) {
-                resolve({ 
-                    success: false, 
-                    error: `Failed to update transform: ${err.message}` 
-                });
+                resolve(fail(`Failed to update transform: ${err.message}`));
             }
         });
     }
@@ -862,12 +836,9 @@ export class NodeTools implements ToolExecutor {
     private async deleteNode(uuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'remove-node', { uuid: uuid }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Node deleted successfully'
-                });
+                resolve(ok(undefined, 'Node deleted successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -880,12 +851,9 @@ export class NodeTools implements ToolExecutor {
                 uuids: [nodeUuid],
                 keepWorldTransform: false
             }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Node moved successfully'
-                });
+                resolve(ok(undefined, 'Node moved successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -894,15 +862,12 @@ export class NodeTools implements ToolExecutor {
         return new Promise((resolve) => {
             // Note: includeChildren parameter is accepted for future use but not currently implemented
             Editor.Message.request('scene', 'duplicate-node', uuid).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         newUuid: result.uuid,
                         message: 'Node duplicated successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -912,7 +877,7 @@ export class NodeTools implements ToolExecutor {
             try {
                 const nodeInfoResponse = await this.getNodeInfo(uuid);
                 if (!nodeInfoResponse.success || !nodeInfoResponse.data) {
-                    resolve({ success: false, error: 'Failed to get node information' });
+                    resolve(fail('Failed to get node information'));
                     return;
                 }
 
@@ -968,9 +933,7 @@ export class NodeTools implements ToolExecutor {
                     detectionReasons.push('No specific indicators found, defaulting based on heuristics');
                 }
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         nodeUuid: uuid,
                         nodeName: nodeInfo.name,
                         nodeType: is2D ? '2D' : '3D',
@@ -985,14 +948,10 @@ export class NodeTools implements ToolExecutor {
                             rotation: is2D ? 'z only (x, y ignored)' : 'x, y, z all used',
                             scale: is2D ? 'x, y main, z typically 1' : 'x, y, z all used'
                         }
-                    }
-                });
+                    }));
                 
             } catch (err: any) {
-                resolve({ 
-                    success: false, 
-                    error: `Failed to detect node type: ${err.message}` 
-                });
+                resolve(fail(`Failed to detect node type: ${err.message}`));
             }
         });
     }

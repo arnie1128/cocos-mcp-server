@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 /**
  * inspector-tools — TypeScript class-definition generator backed by
  * cocos `scene/query-node` dumps.
@@ -77,10 +78,7 @@ export class InspectorTools implements ToolExecutor {
         inputSchema: z.object({}),
     })
     async getCommonTypesDefinition(): Promise<ToolResponse> {
-        return {
-            success: true,
-            data: { definition: COMMON_TYPES_DEFINITION },
-        };
+        return ok({ definition: COMMON_TYPES_DEFINITION });
     }
 
     @mcpTool({
@@ -94,12 +92,12 @@ export class InspectorTools implements ToolExecutor {
     async getInstanceDefinition(args: { reference: InstanceReference }): Promise<ToolResponse> {
         const { reference } = args;
         if (!reference?.id) {
-            return { success: false, error: 'inspector_get_instance_definition: reference.id is required' };
+            return fail('inspector_get_instance_definition: reference.id is required');
         }
         try {
             const dump: any = await Editor.Message.request('scene', 'query-node', reference.id);
             if (!dump) {
-                return { success: false, error: `inspector: query-node returned no dump for ${reference.id}.` };
+                return fail(`inspector: query-node returned no dump for ${reference.id}.`);
             }
             // v2.4.2 review fix (codex): trust the dump's __type__, not
             // the caller-supplied reference.type. A caller passing
@@ -126,7 +124,7 @@ export class InspectorTools implements ToolExecutor {
             }
             return response;
         } catch (err: any) {
-            return { success: false, error: `inspector: query-node failed: ${err?.message ?? String(err)}` };
+            return fail(`inspector: query-node failed: ${err?.message ?? String(err)}`);
         }
     }
 }

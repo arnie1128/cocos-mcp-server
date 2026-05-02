@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 /**
  * file-editor-tools — host-side fs operations for clients without
  * native file editing.
@@ -166,16 +167,16 @@ const insertText: ToolDef = {
     }),
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
-        if ('error' in r) return { success: false, error: r.error };
+        if ('error' in r) return fail(r.error);
         let content: string;
         try {
             const stat = fs.statSync(r.abs);
             if (stat.size > FILE_READ_BYTE_CAP) {
-                return { success: false, error: `file-editor: file too large (${stat.size} bytes); refusing to read.` };
+                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
             }
             content = fs.readFileSync(r.abs, 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         const { lines, eol } = splitLinesNormalized(content);
         const insertIndex = args.line - 1;
@@ -187,14 +188,10 @@ const insertText: ToolDef = {
         try {
             fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         await refreshAssetDb(r.abs);
-        return {
-            success: true,
-            message: `Inserted text at line ${Math.min(args.line, lines.length)} of ${r.relProject}`,
-            data: { file: r.relProject, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' },
-        };
+        return ok({ file: r.relProject, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Inserted text at line ${Math.min(args.line, lines.length)} of ${r.relProject}`);
     },
 };
 
@@ -209,39 +206,35 @@ const deleteLines: ToolDef = {
     }),
     handler: async (args): Promise<ToolResponse> => {
         if (args.startLine > args.endLine) {
-            return { success: false, error: 'file-editor: startLine must be <= endLine' };
+            return fail('file-editor: startLine must be <= endLine');
         }
         const r = resolvePathForRead(args.filePath);
-        if ('error' in r) return { success: false, error: r.error };
+        if ('error' in r) return fail(r.error);
         let content: string;
         try {
             const stat = fs.statSync(r.abs);
             if (stat.size > FILE_READ_BYTE_CAP) {
-                return { success: false, error: `file-editor: file too large (${stat.size} bytes); refusing to read.` };
+                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
             }
             content = fs.readFileSync(r.abs, 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         const { lines, eol } = splitLinesNormalized(content);
         const deleteStart = args.startLine - 1;
         const requestedCount = args.endLine - args.startLine + 1;
         const deletedCount = Math.max(0, Math.min(requestedCount, lines.length - deleteStart));
         if (deletedCount === 0) {
-            return { success: false, error: `file-editor: range ${args.startLine}-${args.endLine} is past EOF (file has ${lines.length} lines)` };
+            return fail(`file-editor: range ${args.startLine}-${args.endLine} is past EOF (file has ${lines.length} lines)`);
         }
         lines.splice(deleteStart, deletedCount);
         try {
             fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         await refreshAssetDb(r.abs);
-        return {
-            success: true,
-            message: `Deleted ${deletedCount} line(s) from line ${args.startLine} to ${args.startLine + deletedCount - 1} of ${r.relProject}`,
-            data: { file: r.relProject, deletedCount, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' },
-        };
+        return ok({ file: r.relProject, deletedCount, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Deleted ${deletedCount} line(s) from line ${args.startLine} to ${args.startLine + deletedCount - 1} of ${r.relProject}`);
     },
 };
 
@@ -261,12 +254,12 @@ const replaceText: ToolDef = {
     }),
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
-        if ('error' in r) return { success: false, error: r.error };
+        if ('error' in r) return fail(r.error);
         let content: string;
         try {
             const stat = fs.statSync(r.abs);
             if (stat.size > FILE_READ_BYTE_CAP) {
-                return { success: false, error: `file-editor: file too large (${stat.size} bytes); refusing to read.` };
+                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
             }
             // v2.5.1 round-1 review fix (codex + claude + gemini 🟡): regex
             // mode runs user-controlled patterns against the file content
@@ -276,11 +269,11 @@ const replaceText: ToolDef = {
             // FILE_READ_BYTE_CAP because String.split/indexOf/slice are
             // bounded by V8 internals (no regex engine path).
             if (args.useRegex && stat.size > REGEX_MODE_BYTE_CAP) {
-                return { success: false, error: `file-editor: regex mode refuses files > ${REGEX_MODE_BYTE_CAP} bytes (${stat.size} bytes here). Switch to useRegex:false or split the file first.` };
+                return fail(`file-editor: regex mode refuses files > ${REGEX_MODE_BYTE_CAP} bytes (${stat.size} bytes here). Switch to useRegex:false or split the file first.`);
             }
             content = fs.readFileSync(r.abs, 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         let replacements = 0;
         let newContent: string;
@@ -304,28 +297,24 @@ const replaceText: ToolDef = {
             } else {
                 const idx = content.indexOf(args.search);
                 if (idx === -1) {
-                    return { success: true, message: 'No occurrences found; file unchanged.', data: { file: r.relProject, replacements: 0 } };
+                    return ok({ file: r.relProject, replacements: 0 }, 'No occurrences found; file unchanged.');
                 }
                 replacements = 1;
                 newContent = content.slice(0, idx) + args.replace + content.slice(idx + args.search.length);
             }
         } catch (err: any) {
-            return { success: false, error: `file-editor: replace failed: ${err?.message ?? String(err)}` };
+            return fail(`file-editor: replace failed: ${err?.message ?? String(err)}`);
         }
         if (replacements === 0) {
-            return { success: true, message: 'No occurrences found; file unchanged.', data: { file: r.relProject, replacements: 0 } };
+            return ok({ file: r.relProject, replacements: 0 }, 'No occurrences found; file unchanged.');
         }
         try {
             fs.writeFileSync(r.abs, newContent, 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         await refreshAssetDb(r.abs);
-        return {
-            success: true,
-            message: `Replaced ${replacements} occurrence(s) in ${r.relProject}`,
-            data: { file: r.relProject, replacements },
-        };
+        return ok({ file: r.relProject, replacements }, `Replaced ${replacements} occurrence(s) in ${r.relProject}`);
     },
 };
 
@@ -340,34 +329,30 @@ const queryText: ToolDef = {
     }),
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
-        if ('error' in r) return { success: false, error: r.error };
+        if ('error' in r) return fail(r.error);
         let content: string;
         try {
             const stat = fs.statSync(r.abs);
             if (stat.size > FILE_READ_BYTE_CAP) {
-                return { success: false, error: `file-editor: file too large (${stat.size} bytes); refusing to read.` };
+                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
             }
             content = fs.readFileSync(r.abs, 'utf-8');
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
         const { lines, eol } = splitLinesNormalized(content);
         const totalLines = lines.length;
         const from = (args.startLine ?? 1) - 1;
         const to = args.endLine ?? totalLines;
         if (from >= totalLines) {
-            return { success: false, error: `file-editor: startLine ${args.startLine ?? 1} past EOF (file has ${totalLines} lines)` };
+            return fail(`file-editor: startLine ${args.startLine ?? 1} past EOF (file has ${totalLines} lines)`);
         }
         if (args.startLine !== undefined && args.endLine !== undefined && args.startLine > args.endLine) {
-            return { success: false, error: 'file-editor: startLine must be <= endLine' };
+            return fail('file-editor: startLine must be <= endLine');
         }
         const sliced = lines.slice(from, to);
         const result = sliced.map((text, i) => ({ line: from + i + 1, text }));
-        return {
-            success: true,
-            message: `Read ${result.length} line(s) from ${r.relProject}`,
-            data: { file: r.relProject, totalLines, startLine: from + 1, endLine: from + result.length, eol: eol === '\r\n' ? 'CRLF' : 'LF', lines: result },
-        };
+        return ok({ file: r.relProject, totalLines, startLine: from + 1, endLine: from + result.length, eol: eol === '\r\n' ? 'CRLF' : 'LF', lines: result }, `Read ${result.length} line(s) from ${r.relProject}`);
     },
 };
 

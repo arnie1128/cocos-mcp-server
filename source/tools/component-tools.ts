@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
@@ -295,16 +296,12 @@ export class ComponentTools implements ToolExecutor {
 
             const existingComponent = beforeList.find((comp: any) => comp.type === componentType);
             if (existingComponent) {
-                resolve({
-                    success: true,
-                    message: `Component '${componentType}' already exists on node`,
-                    data: {
+                resolve(ok({
                         nodeUuid,
                         componentType,
                         componentVerified: true,
                         existing: true,
-                    },
-                });
+                    }, `Component '${componentType}' already exists on node`));
                 return;
             }
 
@@ -318,10 +315,7 @@ export class ComponentTools implements ToolExecutor {
                 try {
                     const afterInfo = await this.getComponents(nodeUuid);
                     if (!afterInfo.success || !afterInfo.data?.components) {
-                        resolve({
-                            success: false,
-                            error: `Failed to verify component addition: ${afterInfo.error || 'Unable to get node components'}`,
-                        });
+                        resolve(fail(`Failed to verify component addition: ${afterInfo.error || 'Unable to get node components'}`));
                         return;
                     }
                     const afterList: any[] = afterInfo.data.components;
@@ -330,16 +324,12 @@ export class ComponentTools implements ToolExecutor {
                     // class name in `type`. Hits the same shape the caller passed.
                     const addedComponent = afterList.find((comp: any) => comp.type === componentType);
                     if (addedComponent) {
-                        resolve({
-                            success: true,
-                            message: `Component '${componentType}' added successfully`,
-                            data: {
+                        resolve(ok({
                                 nodeUuid,
                                 componentType,
                                 componentVerified: true,
                                 existing: false,
-                            },
-                        });
+                            }, `Component '${componentType}' added successfully`));
                         return;
                     }
 
@@ -350,36 +340,26 @@ export class ComponentTools implements ToolExecutor {
                     const newEntries = afterList.filter((comp: any) => !beforeTypes.has(comp.type));
                     if (newEntries.length > 0) {
                         const registeredAs = newEntries[0].type;
-                        resolve({
-                            success: true,
-                            message: `Component '${componentType}' added successfully (registered as cid '${registeredAs}'; this is normal for custom scripts).`,
-                            data: {
+                        resolve(ok({
                                 nodeUuid,
                                 componentType,
                                 registeredAs,
                                 componentVerified: true,
                                 existing: false,
-                            },
-                        });
+                            }, `Component '${componentType}' added successfully (registered as cid '${registeredAs}'; this is normal for custom scripts).`));
                         return;
                     }
 
-                    resolve({
-                        success: false,
-                        error: `Component '${componentType}' was not found on node after addition. Available components: ${afterList.map((c: any) => c.type).join(', ')}`,
-                    });
+                    resolve(fail(`Component '${componentType}' was not found on node after addition. Available components: ${afterList.map((c: any) => c.type).join(', ')}`));
                 } catch (verifyError: any) {
-                    resolve({
-                        success: false,
-                        error: `Failed to verify component addition: ${verifyError.message}`,
-                    });
+                    resolve(fail(`Failed to verify component addition: ${verifyError.message}`));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('addComponentToNode', [nodeUuid, componentType]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -390,13 +370,13 @@ export class ComponentTools implements ToolExecutor {
             // 1. 查找節點上的所有組件
             const allComponentsInfo = await this.getComponents(nodeUuid);
             if (!allComponentsInfo.success || !allComponentsInfo.data?.components) {
-                resolve({ success: false, error: `Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}` });
+                resolve(fail(`Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}`));
                 return;
             }
             // 2. 只查找type字段等於componentType的組件（即cid）
             const exists = allComponentsInfo.data.components.some((comp: any) => comp.type === componentType);
             if (!exists) {
-                resolve({ success: false, error: `Component cid '${componentType}' not found on node '${nodeUuid}'. 請用getComponents獲取type字段（cid）作為componentType。` });
+                resolve(fail(`Component cid '${componentType}' not found on node '${nodeUuid}'. 請用getComponents獲取type字段（cid）作為componentType。`));
                 return;
             }
             // 3. 官方API直接移除
@@ -409,16 +389,12 @@ export class ComponentTools implements ToolExecutor {
                 const afterRemoveInfo = await this.getComponents(nodeUuid);
                 const stillExists = afterRemoveInfo.success && afterRemoveInfo.data?.components?.some((comp: any) => comp.type === componentType);
                 if (stillExists) {
-                    resolve({ success: false, error: `Component cid '${componentType}' was not removed from node '${nodeUuid}'.` });
+                    resolve(fail(`Component cid '${componentType}' was not removed from node '${nodeUuid}'.`));
                 } else {
-                    resolve({
-                        success: true,
-                        message: `Component cid '${componentType}' removed successfully from node '${nodeUuid}'`,
-                        data: { nodeUuid, componentType }
-                    });
+                    resolve(ok({ nodeUuid, componentType }, `Component cid '${componentType}' removed successfully from node '${nodeUuid}'`));
                 }
             } catch (err: any) {
-                resolve({ success: false, error: `Failed to remove component: ${err.message}` });
+                resolve(fail(`Failed to remove component: ${err.message}`));
             }
         });
     }
@@ -435,29 +411,23 @@ export class ComponentTools implements ToolExecutor {
                         properties: this.extractComponentProperties(comp)
                     }));
                     
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             nodeUuid: nodeUuid,
                             components: components
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: 'Node not found or no components data' });
+                    resolve(fail('Node not found or no components data'));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getNodeInfo', [nodeUuid]).then((result: any) => {
                     if (result.success) {
-                        resolve({
-                            success: true,
-                            data: result.data.components
-                        });
+                        resolve(ok(result.data.components));
                     } else {
                         resolve(result);
                     }
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -474,20 +444,17 @@ export class ComponentTools implements ToolExecutor {
                     });
                     
                     if (component) {
-                        resolve({
-                            success: true,
-                            data: {
+                        resolve(ok({
                                 nodeUuid: nodeUuid,
                                 componentType: componentType,
                                 enabled: component.enabled !== undefined ? component.enabled : true,
                                 properties: this.extractComponentProperties(component)
-                            }
-                        });
+                            }));
                     } else {
-                        resolve({ success: false, error: `Component '${componentType}' not found on node` });
+                        resolve(fail(`Component '${componentType}' not found on node`));
                     }
                 } else {
-                    resolve({ success: false, error: 'Node not found or no components data' });
+                    resolve(fail('Node not found or no components data'));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
@@ -495,22 +462,19 @@ export class ComponentTools implements ToolExecutor {
                     if (result.success && result.data.components) {
                         const component = result.data.components.find((comp: any) => comp.type === componentType);
                         if (component) {
-                            resolve({
-                                success: true,
-                                data: {
+                            resolve(ok({
                                     nodeUuid: nodeUuid,
                                     componentType: componentType,
                                     ...component
-                                }
-                            });
+                                }));
                         } else {
-                            resolve({ success: false, error: `Component '${componentType}' not found on node` });
+                            resolve(fail(`Component '${componentType}' not found on node`));
                         }
                     } else {
-                        resolve({ success: false, error: result.error || 'Failed to get component info' });
+                        resolve(fail(result.error || 'Failed to get component info'));
                     }
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -659,18 +623,12 @@ export class ComponentTools implements ToolExecutor {
                     propertyInfo = this.analyzeProperty(targetComponent, property);
                 } catch (analyzeError: any) {
                     console.error(`[ComponentTools] Error in analyzeProperty:`, analyzeError);
-                    resolve({
-                        success: false,
-                        error: `Failed to analyze property '${property}': ${analyzeError.message}`
-                    });
+                    resolve(fail(`Failed to analyze property '${property}': ${analyzeError.message}`));
                     return;
                 }
                 
                 if (!propertyInfo.exists) {
-                    resolve({
-                        success: false,
-                        error: `Property '${property}' not found on component '${componentType}'. Available properties: ${propertyInfo.availableProperties.join(', ')}`
-                    });
+                    resolve(fail(`Property '${property}' not found on component '${componentType}'. Available properties: ${propertyInfo.availableProperties.join(', ')}`));
                     return;
                 }
 
@@ -1174,24 +1132,17 @@ export class ComponentTools implements ToolExecutor {
                 
                 const verification = await this.verifyPropertyChange(nodeUuid, componentType, property, originalValue, actualExpectedValue);
                 
-                resolve({
-                    success: true,
-                    message: `Successfully set ${componentType}.${property}`,
-                    data: {
+                resolve(ok({
                         nodeUuid,
                         componentType,
                         property,
                         actualValue: verification.actualValue,
                         changeVerified: verification.verified
-                    }
-                });
+                    }, `Successfully set ${componentType}.${property}`));
                 
             } catch (error: any) {
                 console.error(`[ComponentTools] Error setting property:`, error);
-                resolve({
-                    success: false,
-                    error: `Failed to set property: ${error.message}`
-                });
+                resolve(fail(`Failed to set property: ${error.message}`));
             }
         });
     }
@@ -1202,7 +1153,7 @@ export class ComponentTools implements ToolExecutor {
             // 從腳本路徑提取組件類名
             const scriptName = scriptPath.split('/').pop()?.replace('.ts', '').replace('.js', '');
             if (!scriptName) {
-                resolve({ success: false, error: 'Invalid script path' });
+                resolve(fail('Invalid script path'));
                 return;
             }
             // 先查找節點上是否已存在該腳本組件
@@ -1210,15 +1161,11 @@ export class ComponentTools implements ToolExecutor {
             if (allComponentsInfo.success && allComponentsInfo.data?.components) {
                 const existingScript = allComponentsInfo.data.components.find((comp: any) => comp.type === scriptName);
                 if (existingScript) {
-                    resolve({
-                        success: true,
-                        message: `Script '${scriptName}' already exists on node`,
-                        data: {
+                    resolve(ok({
                             nodeUuid: nodeUuid,
                             componentName: scriptName,
                             existing: true
-                        }
-                    });
+                        }, `Script '${scriptName}' already exists on node`));
                     return;
                 }
             }
@@ -1234,26 +1181,16 @@ export class ComponentTools implements ToolExecutor {
                 if (allComponentsInfo2.success && allComponentsInfo2.data?.components) {
                     const addedScript = allComponentsInfo2.data.components.find((comp: any) => comp.type === scriptName);
                     if (addedScript) {
-                        resolve({
-                            success: true,
-                            message: `Script '${scriptName}' attached successfully`,
-                            data: {
+                        resolve(ok({
                                 nodeUuid: nodeUuid,
                                 componentName: scriptName,
                                 existing: false
-                            }
-                        });
+                            }, `Script '${scriptName}' attached successfully`));
                     } else {
-                        resolve({
-                            success: false,
-                            error: `Script '${scriptName}' was not found on node after addition. Available components: ${allComponentsInfo2.data.components.map((c: any) => c.type).join(', ')}`
-                        });
+                        resolve(fail(`Script '${scriptName}' was not found on node after addition. Available components: ${allComponentsInfo2.data.components.map((c: any) => c.type).join(', ')}`));
                     }
                 } else {
-                    resolve({
-                        success: false,
-                        error: `Failed to verify script addition: ${allComponentsInfo2.error || 'Unable to get node components'}`
-                    });
+                    resolve(fail(`Failed to verify script addition: ${allComponentsInfo2.error || 'Unable to get node components'}`));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
@@ -1293,13 +1230,10 @@ export class ComponentTools implements ToolExecutor {
             components = componentCategories[category];
         }
 
-        return {
-            success: true,
-            data: {
+        return ok({
                 category: category,
                 components: components
-            }
-        };
+            });
     }
 
     private isValidPropertyDescriptor(propData: any): boolean {

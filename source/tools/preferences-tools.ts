@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -93,12 +94,9 @@ export class PreferencesTools implements ToolExecutor {
             }
 
             (Editor.Message.request as any)('preferences', 'open-settings', ...requestArgs).then(() => {
-                resolve({
-                    success: true,
-                    message: `Preferences settings opened${tab ? ` on tab: ${tab}` : ''}`
-                });
+                resolve(ok(undefined, `Preferences settings opened${tab ? ` on tab: ${tab}` : ''}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -112,17 +110,14 @@ export class PreferencesTools implements ToolExecutor {
             requestArgs.push(type);
 
             (Editor.Message.request as any)('preferences', 'query-config', ...requestArgs).then((config: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         name: name,
                         path: path,
                         type: type,
                         config: config
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -131,18 +126,12 @@ export class PreferencesTools implements ToolExecutor {
         return new Promise((resolve) => {
             (Editor.Message.request as any)('preferences', 'set-config', name, path, value, type).then((success: boolean) => {
                 if (success) {
-                    resolve({
-                        success: true,
-                        message: `Preference '${name}.${path}' updated successfully`
-                    });
+                    resolve(ok(undefined, `Preference '${name}.${path}' updated successfully`));
                 } else {
-                    resolve({
-                        success: false,
-                        error: `Failed to update preference '${name}.${path}'`
-                    });
+                    resolve(fail(`Failed to update preference '${name}.${path}'`));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -181,15 +170,12 @@ export class PreferencesTools implements ToolExecutor {
                     Object.entries(preferences).filter(([_, value]) => value !== null)
                 );
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         categories: Object.keys(validPreferences),
                         preferences: validPreferences
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -202,24 +188,15 @@ export class PreferencesTools implements ToolExecutor {
                     return (Editor.Message.request as any)('preferences', 'set-config', name, '', defaultConfig, type);
                 }).then((success: boolean) => {
                     if (success) {
-                        resolve({
-                            success: true,
-                            message: `Preference category '${name}' reset to default`
-                        });
+                        resolve(ok(undefined, `Preference category '${name}' reset to default`));
                     } else {
-                        resolve({
-                            success: false,
-                            error: `Failed to reset preference category '${name}'`
-                        });
+                        resolve(fail(`Failed to reset preference category '${name}'`));
                     }
                 }).catch((err: Error) => {
-                    resolve({ success: false, error: err.message });
+                    resolve(fail(err.message));
                 });
             } else {
-                resolve({
-                    success: false,
-                    error: 'Resetting all preferences is not supported through API. Please specify a preference category.'
-                });
+                resolve(fail('Resetting all preferences is not supported through API. Please specify a preference category.'));
             }
         });
     }
@@ -236,27 +213,21 @@ export class PreferencesTools implements ToolExecutor {
                 const path = exportPath || `preferences_export_${Date.now()}.json`;
 
                 // For now, return the data - in a real implementation, you'd write to file
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         exportPath: path,
                         preferences: prefsResult.data,
                         jsonData: prefsData,
                         message: 'Preferences exported successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
 
     private async importPreferences(importPath: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            resolve({
-                success: false,
-                error: 'Import preferences functionality requires file system access which is not available in this context. Please manually import preferences through the Editor UI.'
-            });
+            resolve(fail('Import preferences functionality requires file system access which is not available in this context. Please manually import preferences through the Editor UI.'));
         });
     }
 }

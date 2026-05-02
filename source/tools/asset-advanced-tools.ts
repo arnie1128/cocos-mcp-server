@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -125,16 +126,13 @@ export class AssetAdvancedTools implements ToolExecutor {
     private async saveAssetMeta(urlOrUUID: string, content: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'save-asset-meta', urlOrUUID, content).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         uuid: result?.uuid,
                         url: result?.url,
                         message: 'Asset meta saved successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -142,18 +140,15 @@ export class AssetAdvancedTools implements ToolExecutor {
     private async generateAvailableUrl(url: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'generate-available-url', url).then((availableUrl: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         originalUrl: url,
                         availableUrl: availableUrl,
                         message: availableUrl === url ? 
                             'URL is available' : 
                             'Generated new available URL'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -161,15 +156,12 @@ export class AssetAdvancedTools implements ToolExecutor {
     private async queryAssetDbReady(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-ready').then((ready: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         ready: ready,
                         message: ready ? 'Asset database is ready' : 'Asset database is not ready'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -177,12 +169,9 @@ export class AssetAdvancedTools implements ToolExecutor {
     private async openAssetExternal(urlOrUUID: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'open-asset', urlOrUUID).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Asset opened with external program'
-                });
+                resolve(ok(undefined, 'Asset opened with external program'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -194,7 +183,7 @@ export class AssetAdvancedTools implements ToolExecutor {
                 const path = require('path');
                 
                 if (!fs.existsSync(args.sourceDirectory)) {
-                    resolve({ success: false, error: 'Source directory does not exist' });
+                    resolve(fail('Source directory does not exist'));
                     return;
                 }
 
@@ -236,18 +225,15 @@ export class AssetAdvancedTools implements ToolExecutor {
                     }
                 }
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         totalFiles: files.length,
                         successCount: successCount,
                         errorCount: errorCount,
                         results: importResults,
                         message: `Batch import completed: ${successCount} success, ${errorCount} errors`
-                    }
-                });
+                    }));
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }
@@ -300,18 +286,15 @@ export class AssetAdvancedTools implements ToolExecutor {
                     }
                 }
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         totalAssets: urls.length,
                         successCount: successCount,
                         errorCount: errorCount,
                         results: deleteResults,
                         message: `Batch delete completed: ${successCount} success, ${errorCount} errors`
-                    }
-                });
+                    }));
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }
@@ -345,19 +328,16 @@ export class AssetAdvancedTools implements ToolExecutor {
                     }
                 }
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         directory: directory,
                         totalAssets: assets.length,
                         validReferences: validReferences.length,
                         brokenReferences: brokenReferences.length,
                         brokenAssets: brokenReferences,
                         message: `Validation completed: ${brokenReferences.length} broken references found`
-                    }
-                });
+                    }));
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }
@@ -365,30 +345,21 @@ export class AssetAdvancedTools implements ToolExecutor {
     private async getAssetDependencies(urlOrUUID: string, direction: string = 'dependencies'): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: This would require scene analysis or additional APIs not available in current documentation
-            resolve({
-                success: false,
-                error: 'Asset dependency analysis requires additional APIs not available in current Cocos Creator MCP implementation. Consider using the Editor UI for dependency analysis.'
-            });
+            resolve(fail('Asset dependency analysis requires additional APIs not available in current Cocos Creator MCP implementation. Consider using the Editor UI for dependency analysis.'));
         });
     }
 
     private async getUnusedAssets(directory: string = 'db://assets', excludeDirectories: string[] = []): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: This would require comprehensive project analysis
-            resolve({
-                success: false,
-                error: 'Unused asset detection requires comprehensive project analysis not available in current Cocos Creator MCP implementation. Consider using the Editor UI or third-party tools for unused asset detection.'
-            });
+            resolve(fail('Unused asset detection requires comprehensive project analysis not available in current Cocos Creator MCP implementation. Consider using the Editor UI or third-party tools for unused asset detection.'));
         });
     }
 
     private async compressTextures(directory: string = 'db://assets', format: string = 'auto', quality: number = 0.8): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: Texture compression would require image processing APIs
-            resolve({
-                success: false,
-                error: 'Texture compression requires image processing capabilities not available in current Cocos Creator MCP implementation. Use the Editor\'s built-in texture compression settings or external tools.'
-            });
+            resolve(fail('Texture compression requires image processing capabilities not available in current Cocos Creator MCP implementation. Use the Editor\'s built-in texture compression settings or external tools.'));
         });
     }
 
@@ -438,19 +409,16 @@ export class AssetAdvancedTools implements ToolExecutor {
                         exportData = JSON.stringify(manifest, null, 2);
                 }
 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         directory: directory,
                         format: format,
                         assetCount: manifest.length,
                         includeMetadata: includeMetadata,
                         manifest: exportData,
                         message: `Asset manifest exported with ${manifest.length} assets`
-                    }
-                });
+                    }));
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }

@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 /**
  * asset-meta-tools — three MCP tools that expose the v2.4.3
  * asset-interpreter system to AI. Registered under the `assetMeta`
@@ -108,13 +109,10 @@ export class AssetMetaTools implements ToolExecutor {
         inputSchema: z.object({}),
     })
     async listInterpreters(): Promise<ToolResponse> {
-        return {
-            success: true,
-            data: {
+        return ok({
                 importerTypes: this.manager.listImporterTypes(),
                 fallbackBehaviour: 'UnknownInterpreter rejects writes; reads work as best-effort meta.userData dump.',
-            },
-        };
+            });
     }
 
     @mcpTool({
@@ -128,16 +126,16 @@ export class AssetMetaTools implements ToolExecutor {
     })
     async getProperties(args: AssetTarget & { includeTooltips?: boolean; useAdvancedInspection?: boolean }): Promise<ToolResponse> {
         const resolved = await resolveAssetInfo(args);
-        if ('error' in resolved) return { success: false, error: resolved.error };
+        if ('error' in resolved) return fail(resolved.error);
         const description = await this.manager.getAssetProperties(
             resolved.assetInfo,
             args.includeTooltips ?? false,
             args.useAdvancedInspection ?? false,
         );
         if (description.error) {
-            return { success: false, error: description.error, data: description };
+            return fail(description.error, description);
         }
-        return { success: true, data: description };
+        return ok(description);
     }
 
     @mcpTool({
@@ -154,7 +152,7 @@ export class AssetMetaTools implements ToolExecutor {
     })
     async setProperties(args: AssetTarget & { properties: PropertySetSpec[] }): Promise<ToolResponse> {
         const resolved = await resolveAssetInfo(args);
-        if ('error' in resolved) return { success: false, error: resolved.error };
+        if ('error' in resolved) return fail(resolved.error);
         const results = await this.manager.setAssetProperties(resolved.assetInfo, args.properties);
         const failed = results.filter(r => !r.success);
         return {

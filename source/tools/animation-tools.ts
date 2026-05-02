@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 /**
  * animation-tools — drive `cc.Animation` from MCP.
  *
@@ -80,10 +81,7 @@ const animationSetClip: ToolDef = {
     }),
     handler: async (args): Promise<ToolResponse> => {
         if (args.defaultClip === undefined && args.playOnLoad === undefined) {
-            return {
-                success: false,
-                error: 'animation_set_clip: provide at least one of defaultClip / playOnLoad',
-            };
+            return fail('animation_set_clip: provide at least one of defaultClip / playOnLoad');
         }
         const resolved = await resolveOrToolError(args);
         if ('response' in resolved) return resolved.response;
@@ -98,14 +96,11 @@ const animationSetClip: ToolDef = {
             { capture: false },
         );
         if (!lookup || lookup.success !== true) {
-            return {
-                success: false,
-                error: lookup?.error ?? 'queryAnimationSetTargets returned no data',
-            };
+            return fail(lookup?.error ?? 'queryAnimationSetTargets returned no data');
         }
         const { componentIndex, clipUuid } = lookup.data ?? {};
         if (typeof componentIndex !== 'number') {
-            return { success: false, error: 'queryAnimationSetTargets did not return componentIndex' };
+            return fail('queryAnimationSetTargets did not return componentIndex');
         }
 
         // Step 2: host-side set-property writes for each requested field.
@@ -130,10 +125,7 @@ const animationSetClip: ToolDef = {
             }
         } catch (err: any) {
             logger.error('[AnimationTools] set-property failed:', err);
-            return {
-                success: false,
-                error: `set-property failed after partial update [${updated.join(', ')}]: ${err?.message ?? String(err)}`,
-            };
+            return fail(`set-property failed after partial update [${updated.join(', ')}]: ${err?.message ?? String(err)}`);
         }
 
         return {

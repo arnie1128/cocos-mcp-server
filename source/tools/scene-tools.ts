@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -98,25 +99,22 @@ export class SceneTools implements ToolExecutor {
             // 直接使用 query-node-tree 來獲取場景信息（這個方法已經驗證可用）
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 if (tree && tree.uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             name: tree.name || 'Current Scene',
                             uuid: tree.uuid,
                             type: tree.type || 'cc.Scene',
                             active: tree.active !== undefined ? tree.active : true,
                             nodeCount: tree.children ? tree.children.length : 0
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: 'No scene data available' });
+                    resolve(fail('No scene data available'));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getCurrentSceneInfo', []).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -133,9 +131,9 @@ export class SceneTools implements ToolExecutor {
                     path: asset.url,
                     uuid: asset.uuid
                 }));
-                resolve({ success: true, data: scenes });
+                resolve(ok(scenes));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -151,9 +149,9 @@ export class SceneTools implements ToolExecutor {
                 // 使用正確的 scene API 打開場景 (需要UUID)
                 return Editor.Message.request('scene', 'open-scene', uuid);
             }).then(() => {
-                resolve({ success: true, message: `Scene opened: ${scenePath}` });
+                resolve(ok(undefined, `Scene opened: ${scenePath}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -161,9 +159,9 @@ export class SceneTools implements ToolExecutor {
     private async saveScene(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'save-scene').then(() => {
-                resolve({ success: true, message: 'Scene saved successfully' });
+                resolve(ok(undefined, 'Scene saved successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -350,16 +348,13 @@ export class SceneTools implements ToolExecutor {
                             verificationData: createdScene,
                         });
                     } catch {
-                        resolve({
-                            success: true,
-                            data: {
+                        resolve(ok({
                                 uuid: result.uuid,
                                 url: result.url,
                                 name: sceneName,
                                 template,
                                 message: `Scene '${sceneName}' created successfully (verification failed)`,
-                            },
-                        });
+                            }));
                     }
                     return;
                 }
@@ -384,26 +379,19 @@ export class SceneTools implements ToolExecutor {
 
                     await Editor.Message.request('scene', 'save-scene');
 
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: result.uuid,
                             url: result.url,
                             name: sceneName,
                             template,
                             templateNodes: templateData,
                             message: `Scene '${sceneName}' created with template '${template}'. Editor switched to the new scene.`,
-                        },
-                    });
+                        }));
                 } catch (templateErr: any) {
-                    resolve({
-                        success: false,
-                        error: `Scene asset created at ${result.url} but template build failed: ${templateErr?.message ?? templateErr}`,
-                        data: { uuid: result.uuid, url: result.url, template },
-                    });
+                    resolve(fail(`Scene asset created at ${result.url} but template build failed: ${templateErr?.message ?? templateErr}`, { uuid: result.uuid, url: result.url, template }));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -495,19 +483,16 @@ export class SceneTools implements ToolExecutor {
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 if (tree) {
                     const hierarchy = this.buildHierarchy(tree, includeComponents);
-                    resolve({
-                        success: true,
-                        data: hierarchy
-                    });
+                    resolve(ok(hierarchy));
                 } else {
-                    resolve({ success: false, error: 'No scene hierarchy available' });
+                    resolve(fail('No scene hierarchy available'));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getSceneHierarchy', [includeComponents]).then((result: any) => {
                     resolve(result);
                 }).catch((err2: Error) => {
-                    resolve({ success: false, error: `Direct API failed: ${err.message}, Scene script failed: ${err2.message}` });
+                    resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
             });
         });
@@ -551,16 +536,13 @@ export class SceneTools implements ToolExecutor {
                 const tree: any = await Editor.Message.request('scene', 'query-node-tree');
                 const sceneUuid: string | undefined = tree?.uuid;
                 if (!sceneUuid) {
-                    resolve({ success: false, error: 'No scene is currently open.' });
+                    resolve(fail('No scene is currently open.'));
                     return;
                 }
 
                 const sourceUrl = await Editor.Message.request('asset-db', 'query-url', sceneUuid);
                 if (!sourceUrl) {
-                    resolve({
-                        success: false,
-                        error: 'Current scene has no asset path on disk yet. Save it once via the Cocos UI (or use create_scene to write a backing file) before save_scene_as can copy it.',
-                    });
+                    resolve(fail('Current scene has no asset path on disk yet. Save it once via the Cocos UI (or use create_scene to write a backing file) before save_scene_as can copy it.'));
                     return;
                 }
 
@@ -573,11 +555,7 @@ export class SceneTools implements ToolExecutor {
                 if (!args.overwrite) {
                     const existing = await Editor.Message.request('asset-db', 'query-uuid', targetPath);
                     if (existing) {
-                        resolve({
-                            success: false,
-                            error: `Target '${targetPath}' already exists. Pass overwrite: true to replace it.`,
-                            data: { existingUuid: existing },
-                        });
+                        resolve(fail(`Target '${targetPath}' already exists. Pass overwrite: true to replace it.`, { existingUuid: existing }));
                         return;
                     }
                 }
@@ -590,10 +568,7 @@ export class SceneTools implements ToolExecutor {
                     { overwrite: !!args.overwrite },
                 );
                 if (!copyResult || !copyResult.uuid) {
-                    resolve({
-                        success: false,
-                        error: `asset-db copy-asset returned no result for ${sourceUrl} -> ${targetPath}.`,
-                    });
+                    resolve(fail(`asset-db copy-asset returned no result for ${sourceUrl} -> ${targetPath}.`));
                     return;
                 }
 
@@ -602,18 +577,14 @@ export class SceneTools implements ToolExecutor {
                     await Editor.Message.request('scene', 'open-scene', copyResult.uuid);
                 }
 
-                resolve({
-                    success: true,
-                    message: `Scene saved as ${copyResult.url}`,
-                    data: {
+                resolve(ok({
                         sourceUrl,
                         newUuid: copyResult.uuid,
                         newUrl: copyResult.url,
                         opened: openAfter,
-                    },
-                });
+                    }, `Scene saved as ${copyResult.url}`));
             } catch (err: any) {
-                resolve({ success: false, error: err?.message ?? String(err) });
+                resolve(fail(err?.message ?? String(err)));
             }
         });
     }
@@ -621,12 +592,9 @@ export class SceneTools implements ToolExecutor {
     private async closeScene(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'close-scene').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Scene closed successfully'
-                });
+                resolve(ok(undefined, 'Scene closed successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }

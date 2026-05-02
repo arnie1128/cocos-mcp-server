@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -65,12 +66,9 @@ export class SceneViewTools implements ToolExecutor {
     private async changeGizmoTool(name: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'change-gizmo-tool', name).then(() => {
-                resolve({
-                    success: true,
-                    message: `Gizmo tool changed to '${name}'`
-                });
+                resolve(ok(undefined, `Gizmo tool changed to '${name}'`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -78,15 +76,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryGizmoToolName(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-gizmo-tool-name').then((toolName: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         currentTool: toolName,
                         message: `Current Gizmo tool: ${toolName}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -94,12 +89,9 @@ export class SceneViewTools implements ToolExecutor {
     private async changeGizmoPivot(name: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'change-gizmo-pivot', name).then(() => {
-                resolve({
-                    success: true,
-                    message: `Gizmo pivot changed to '${name}'`
-                });
+                resolve(ok(undefined, `Gizmo pivot changed to '${name}'`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -107,15 +99,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryGizmoPivot(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-gizmo-pivot').then((pivotName: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         currentPivot: pivotName,
                         message: `Current Gizmo pivot: ${pivotName}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -123,15 +112,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryGizmoViewMode(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-gizmo-view-mode').then((viewMode: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         viewMode: viewMode,
                         message: `Current view mode: ${viewMode}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -139,12 +125,9 @@ export class SceneViewTools implements ToolExecutor {
     private async changeGizmoCoordinate(type: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'change-gizmo-coordinate', type).then(() => {
-                resolve({
-                    success: true,
-                    message: `Coordinate system changed to '${type}'`
-                });
+                resolve(ok(undefined, `Coordinate system changed to '${type}'`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -152,15 +135,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryGizmoCoordinate(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-gizmo-coordinate').then((coordinate: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         coordinate: coordinate,
                         message: `Current coordinate system: ${coordinate}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -168,12 +148,9 @@ export class SceneViewTools implements ToolExecutor {
     private async changeViewMode2D3D(is2D: boolean): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'change-is2D', is2D).then(() => {
-                resolve({
-                    success: true,
-                    message: `View mode changed to ${is2D ? '2D' : '3D'}`
-                });
+                resolve(ok(undefined, `View mode changed to ${is2D ? '2D' : '3D'}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -181,16 +158,13 @@ export class SceneViewTools implements ToolExecutor {
     private async queryViewMode2D3D(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-is2D').then((is2D: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         is2D: is2D,
                         viewMode: is2D ? '2D' : '3D',
                         message: `Current view mode: ${is2D ? '2D' : '3D'}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -198,12 +172,9 @@ export class SceneViewTools implements ToolExecutor {
     private async setGridVisible(visible: boolean): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'set-grid-visible', visible).then(() => {
-                resolve({
-                    success: true,
-                    message: `Grid ${visible ? 'shown' : 'hidden'}`
-                });
+                resolve(ok(undefined, `Grid ${visible ? 'shown' : 'hidden'}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -211,15 +182,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryGridVisible(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-is-grid-visible').then((visible: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         visible: visible,
                         message: `Grid is ${visible ? 'visible' : 'hidden'}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -227,12 +195,9 @@ export class SceneViewTools implements ToolExecutor {
     private async setIconGizmo3D(is3D: boolean): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'set-icon-gizmo-3d', is3D).then(() => {
-                resolve({
-                    success: true,
-                    message: `IconGizmo set to ${is3D ? '3D' : '2D'} mode`
-                });
+                resolve(ok(undefined, `IconGizmo set to ${is3D ? '3D' : '2D'} mode`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -240,16 +205,13 @@ export class SceneViewTools implements ToolExecutor {
     private async queryIconGizmo3D(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-is-icon-gizmo-3d').then((is3D: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         is3D: is3D,
                         mode: is3D ? '3D' : '2D',
                         message: `IconGizmo is in ${is3D ? '3D' : '2D'} mode`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -257,12 +219,9 @@ export class SceneViewTools implements ToolExecutor {
     private async setIconGizmoSize(size: number): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'set-icon-gizmo-size', size).then(() => {
-                resolve({
-                    success: true,
-                    message: `IconGizmo size set to ${size}`
-                });
+                resolve(ok(undefined, `IconGizmo size set to ${size}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -270,15 +229,12 @@ export class SceneViewTools implements ToolExecutor {
     private async queryIconGizmoSize(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-icon-gizmo-size').then((size: number) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         size: size,
                         message: `IconGizmo size: ${size}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -289,12 +245,9 @@ export class SceneViewTools implements ToolExecutor {
                 const message = uuids === null ? 
                     'Camera focused on all nodes' : 
                     `Camera focused on ${uuids.length} node(s)`;
-                resolve({
-                    success: true,
-                    message: message
-                });
+                resolve(ok(undefined, message));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -302,12 +255,9 @@ export class SceneViewTools implements ToolExecutor {
     private async alignCameraWithView(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'align-with-view').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Scene camera aligned with current view'
-                });
+                resolve(ok(undefined, 'Scene camera aligned with current view'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -315,12 +265,9 @@ export class SceneViewTools implements ToolExecutor {
     private async alignViewWithNode(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'align-with-view-node').then(() => {
-                resolve({
-                    success: true,
-                    message: 'View aligned with selected node'
-                });
+                resolve(ok(undefined, 'View aligned with selected node'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -375,16 +322,10 @@ export class SceneViewTools implements ToolExecutor {
                     status.iconGizmoSize = iconGizmoSize.value.data.size;
                 }
 
-                resolve({
-                    success: true,
-                    data: status
-                });
+                resolve(ok(status));
 
             } catch (err: any) {
-                resolve({
-                    success: false,
-                    error: `Failed to get scene view status: ${err.message}`
-                });
+                resolve(fail(`Failed to get scene view status: ${err.message}`));
             }
         });
     }
@@ -405,16 +346,10 @@ export class SceneViewTools implements ToolExecutor {
 
                 await Promise.all(resetActions);
 
-                resolve({
-                    success: true,
-                    message: 'Scene view reset to default settings'
-                });
+                resolve(ok(undefined, 'Scene view reset to default settings'));
 
             } catch (err: any) {
-                resolve({
-                    success: false,
-                    error: `Failed to reset scene view: ${err.message}`
-                });
+                resolve(fail(`Failed to reset scene view: ${err.message}`));
             }
         });
     }

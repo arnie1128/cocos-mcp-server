@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -55,15 +56,11 @@ export class ValidationTools implements ToolExecutor {
                 try {
                     parsed = JSON.parse(fixed);
                 } catch (secondError) {
-                    return {
-                        success: false,
-                        error: `Cannot fix JSON: ${error.message}`,
-                        data: {
+                    return fail(`Cannot fix JSON: ${error.message}`, {
                             originalJson: jsonString,
                             fixedAttempt: fixed,
                             suggestions: this.getJsonFixSuggestions(jsonString)
-                        }
-                    };
+                        });
                 }
             }
 
@@ -71,45 +68,32 @@ export class ValidationTools implements ToolExecutor {
             if (expectedSchema) {
                 const validation = this.validateAgainstSchema(parsed, expectedSchema);
                 if (!validation.valid) {
-                    return {
-                        success: false,
-                        error: 'Schema validation failed',
-                        data: {
+                    return fail('Schema validation failed', {
                             parsedJson: parsed,
                             validationErrors: validation.errors,
                             suggestions: validation.suggestions
-                        }
-                    };
+                        });
                 }
             }
 
-            return {
-                success: true,
-                data: {
+            return ok({
                     parsedJson: parsed,
                     fixedJson: JSON.stringify(parsed, null, 2),
                     isValid: true
-                }
-            };
+                });
         } catch (error: any) {
-            return {
-                success: false,
-                error: error.message
-            };
+            return fail(error.message);
         }
     }
 
     private async createSafeStringValue(value: string): Promise<ToolResponse> {
         const safeValue = this.escapJsonString(value);
-        return {
-            success: true,
-            data: {
+        return ok({
                 originalValue: value,
                 safeValue: safeValue,
                 jsonReady: JSON.stringify(safeValue),
                 usage: `Use "${safeValue}" in your JSON parameters`
-            }
-        };
+            });
     }
 
     private async formatMcpRequest(toolName: string, toolArgs: any): Promise<ToolResponse> {
@@ -127,20 +111,14 @@ export class ValidationTools implements ToolExecutor {
             const formattedJson = JSON.stringify(mcpRequest, null, 2);
             const compactJson = JSON.stringify(mcpRequest);
 
-            return {
-                success: true,
-                data: {
+            return ok({
                     request: mcpRequest,
                     formattedJson: formattedJson,
                     compactJson: compactJson,
                     curlCommand: this.generateCurlCommand(compactJson)
-                }
-            };
+                });
         } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to format MCP request: ${error.message}`
-            };
+            return fail(`Failed to format MCP request: ${error.message}`);
         }
     }
 

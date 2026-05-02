@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, ProjectInfo, AssetInfo } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -127,12 +128,9 @@ export class ProjectTools implements ToolExecutor {
             // Note: Preview module is not documented in official API
             // Using fallback approach - open build panel as alternative
             Editor.Message.request('builder', 'open').then(() => {
-                resolve({
-                    success: true,
-                    message: `Build panel opened. Preview functionality requires manual setup.`
-                });
+                resolve(ok(undefined, `Build panel opened. Preview functionality requires manual setup.`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -149,16 +147,12 @@ export class ProjectTools implements ToolExecutor {
             // Note: Builder module only supports 'open' and 'query-worker-ready'
             // Building requires manual interaction through the build panel
             Editor.Message.request('builder', 'open').then(() => {
-                resolve({
-                    success: true,
-                    message: `Build panel opened for ${args.platform}. Please configure and start build manually.`,
-                    data: { 
+                resolve(ok({ 
                         platform: args.platform,
                         instruction: "Use the build panel to configure and start the build process"
-                    }
-                });
+                    }, `Build panel opened for ${args.platform}. Please configure and start build manually.`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -178,10 +172,10 @@ export class ProjectTools implements ToolExecutor {
                 if (additionalInfo) {
                     Object.assign(info, { config: additionalInfo });
                 }
-                resolve({ success: true, data: info });
+                resolve(ok(info));
             }).catch(() => {
                 // Return basic info even if detailed query fails
-                resolve({ success: true, data: info });
+                resolve(ok(info));
             });
         });
     }
@@ -199,16 +193,13 @@ export class ProjectTools implements ToolExecutor {
             const configName = configMap[category] || 'project';
 
             Editor.Message.request('project', 'query-config', configName).then((settings: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         category: category,
                         config: settings,
                         message: `${category} settings retrieved successfully`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -219,12 +210,9 @@ export class ProjectTools implements ToolExecutor {
             const targetPath = folder || 'db://assets';
             
             Editor.Message.request('asset-db', 'refresh-asset', targetPath).then(() => {
-                resolve({
-                    success: true,
-                    message: `Assets refreshed in: ${targetPath}`
-                });
+                resolve(ok(undefined, `Assets refreshed in: ${targetPath}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -232,7 +220,7 @@ export class ProjectTools implements ToolExecutor {
     private async importAsset(sourcePath: string, targetFolder: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             if (!fs.existsSync(sourcePath)) {
-                resolve({ success: false, error: 'Source file not found' });
+                resolve(fail('Source file not found'));
                 return;
             }
 
@@ -241,16 +229,13 @@ export class ProjectTools implements ToolExecutor {
                 targetFolder : `db://assets/${targetFolder}`;
 
             Editor.Message.request('asset-db', 'import-asset', sourcePath, `${targetPath}/${fileName}`).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         uuid: result.uuid,
                         path: result.url,
                         message: `Asset imported: ${fileName}`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -278,9 +263,9 @@ export class ProjectTools implements ToolExecutor {
                     };
                 }
 
-                resolve({ success: true, data: info });
+                resolve(ok(info));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -319,17 +304,14 @@ export class ProjectTools implements ToolExecutor {
                     isDirectory: asset.isDirectory || false
                 }));
                 
-                resolve({ 
-                    success: true, 
-                    data: {
+                resolve(ok({
                         type: type,
                         folder: folder,
                         count: assets.length,
                         assets: assets
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -338,9 +320,7 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             // 檢查構建器是否準備就緒
             Editor.Message.request('builder', 'query-worker-ready').then((ready: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         builderReady: ready,
                         message: 'Build settings are limited in MCP plugin environment',
                         availableActions: [
@@ -350,10 +330,9 @@ export class ProjectTools implements ToolExecutor {
                             'Stop preview server with stop_preview_server'
                         ],
                         limitation: 'Full build configuration requires direct Editor UI access'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -361,12 +340,9 @@ export class ProjectTools implements ToolExecutor {
     private async openBuildPanel(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('builder', 'open').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Build panel opened successfully'
-                });
+                resolve(ok(undefined, 'Build panel opened successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -374,16 +350,13 @@ export class ProjectTools implements ToolExecutor {
     private async checkBuilderStatus(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('builder', 'query-worker-ready').then((ready: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         ready: ready,
                         status: ready ? 'Builder worker is ready' : 'Builder worker is not ready',
                         message: 'Builder status checked successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -417,25 +390,19 @@ export class ProjectTools implements ToolExecutor {
 
             Editor.Message.request('asset-db', 'create-asset', url, content, options).then((result: any) => {
                 if (result && result.uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: result.uuid,
                             url: result.url,
                             message: content === null ? 'Folder created successfully' : 'File created successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             url: url,
                             message: content === null ? 'Folder created successfully' : 'File created successfully'
-                        }
-                    });
+                        }));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -449,26 +416,20 @@ export class ProjectTools implements ToolExecutor {
 
             Editor.Message.request('asset-db', 'copy-asset', source, target, options).then((result: any) => {
                 if (result && result.uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: result.uuid,
                             url: result.url,
                             message: 'Asset copied successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             source: source,
                             target: target,
                             message: 'Asset copied successfully'
-                        }
-                    });
+                        }));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -482,26 +443,20 @@ export class ProjectTools implements ToolExecutor {
 
             Editor.Message.request('asset-db', 'move-asset', source, target, options).then((result: any) => {
                 if (result && result.uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: result.uuid,
                             url: result.url,
                             message: 'Asset moved successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             source: source,
                             target: target,
                             message: 'Asset moved successfully'
-                        }
-                    });
+                        }));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -509,15 +464,12 @@ export class ProjectTools implements ToolExecutor {
     private async deleteAsset(url: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'delete-asset', url).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         url: url,
                         message: 'Asset deleted successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -526,25 +478,19 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'save-asset', url, content).then((result: any) => {
                 if (result && result.uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: result.uuid,
                             url: result.url,
                             message: 'Asset saved successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             url: url,
                             message: 'Asset saved successfully'
-                        }
-                    });
+                        }));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -552,15 +498,12 @@ export class ProjectTools implements ToolExecutor {
     private async reimportAsset(url: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'reimport-asset', url).then(() => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         url: url,
                         message: 'Asset reimported successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -569,19 +512,16 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-path', url).then((path: string | null) => {
                 if (path) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             url: url,
                             path: path,
                             message: 'Asset path retrieved successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: 'Asset path not found' });
+                    resolve(fail('Asset path not found'));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -590,19 +530,16 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-uuid', url).then((uuid: string | null) => {
                 if (uuid) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             url: url,
                             uuid: uuid,
                             message: 'Asset UUID retrieved successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: 'Asset UUID not found' });
+                    resolve(fail('Asset UUID not found'));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -611,19 +548,16 @@ export class ProjectTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-url', uuid).then((url: string | null) => {
                 if (url) {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             uuid: uuid,
                             url: url,
                             message: 'Asset URL retrieved successfully'
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({ success: false, error: 'Asset URL not found' });
+                    resolve(fail('Asset URL not found'));
                 }
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -636,10 +570,7 @@ export class ProjectTools implements ToolExecutor {
                 // Get all assets in the specified folder
                 const allAssetsResponse = await this.getAssets(assetType, folder);
                 if (!allAssetsResponse.success || !allAssetsResponse.data) {
-                    resolve({
-                        success: false,
-                        error: `Failed to get assets: ${allAssetsResponse.error}`
-                    });
+                    resolve(fail(`Failed to get assets: ${allAssetsResponse.error}`));
                     return;
                 }
                 
@@ -679,9 +610,7 @@ export class ProjectTools implements ToolExecutor {
                     }
                 }
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         searchTerm: name,
                         exactMatch,
                         assetType,
@@ -690,14 +619,10 @@ export class ProjectTools implements ToolExecutor {
                         maxResults,
                         assets: matchedAssets,
                         message: `Found ${matchedAssets.length} assets matching '${name}'`
-                    }
-                });
+                    }));
                 
             } catch (error: any) {
-                resolve({
-                    success: false,
-                    error: `Asset search failed: ${error.message}`
-                });
+                resolve(fail(`Asset search failed: ${error.message}`));
             }
         });
     }
@@ -748,21 +673,15 @@ export class ProjectTools implements ToolExecutor {
                     }
                 }
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         assetPath,
                         includeSubAssets,
                         ...detailedInfo,
                         message: `Asset details retrieved. Found ${detailedInfo.subAssets.length} sub-assets.`
-                    }
-                });
+                    }));
                 
             } catch (error: any) {
-                resolve({
-                    success: false,
-                    error: `Failed to get asset details: ${error.message}`
-                });
+                resolve(fail(`Failed to get asset details: ${error.message}`));
             }
         });
     }

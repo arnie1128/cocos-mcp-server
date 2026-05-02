@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
@@ -117,12 +118,9 @@ export class SceneAdvancedTools implements ToolExecutor {
                 path, 
                 dump: { value: null } 
             }).then(() => {
-                resolve({
-                    success: true,
-                    message: `Property '${path}' reset to default value`
-                });
+                resolve(ok(undefined, `Property '${path}' reset to default value`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -135,12 +133,9 @@ export class SceneAdvancedTools implements ToolExecutor {
                 target,
                 offset
             }).then(() => {
-                resolve({
-                    success: true,
-                    message: `Array element at index ${target} moved by ${offset}`
-                });
+                resolve(ok(undefined, `Array element at index ${target} moved by ${offset}`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -152,12 +147,9 @@ export class SceneAdvancedTools implements ToolExecutor {
                 path,
                 index
             }).then(() => {
-                resolve({
-                    success: true,
-                    message: `Array element at index ${index} removed`
-                });
+                resolve(ok(undefined, `Array element at index ${index} removed`));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -165,15 +157,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async copyNode(uuids: string | string[]): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'copy-node', uuids).then((result: string | string[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         copiedUuids: result,
                         message: 'Node(s) copied successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -185,15 +174,12 @@ export class SceneAdvancedTools implements ToolExecutor {
                 uuids,
                 keepWorldTransform
             }).then((result: string | string[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         newUuids: result,
                         message: 'Node(s) pasted successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -201,15 +187,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async cutNode(uuids: string | string[]): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'cut-node', uuids).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         cutUuids: result,
                         message: 'Node(s) cut successfully'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -217,12 +200,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async resetNodeTransform(uuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'reset-node', { uuid }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Node transform reset to default'
-                });
+                resolve(ok(undefined, 'Node transform reset to default'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -230,12 +210,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async resetComponent(uuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'reset-component', { uuid }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Component reset to default values'
-                });
+                resolve(ok(undefined, 'Component reset to default values'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -248,12 +225,9 @@ export class SceneAdvancedTools implements ToolExecutor {
         void assetUuid;
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Prefab restored successfully'
-                });
+                resolve(ok(undefined, 'Prefab restored successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -265,15 +239,12 @@ export class SceneAdvancedTools implements ToolExecutor {
                 name,
                 args
             }).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         result: result,
                         message: `Method '${name}' executed successfully`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -285,12 +256,9 @@ export class SceneAdvancedTools implements ToolExecutor {
                 method,
                 args
             }).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: result
-                });
+                resolve(ok(result));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -298,12 +266,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async sceneSnapshot(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'snapshot').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Scene snapshot created'
-                });
+                resolve(ok(undefined, 'Scene snapshot created'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -311,12 +276,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async sceneSnapshotAbort(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'snapshot-abort').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Scene snapshot aborted'
-                });
+                resolve(ok(undefined, 'Scene snapshot aborted'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -324,15 +286,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async beginUndoRecording(nodeUuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'begin-recording', nodeUuid).then((undoId: string) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         undoId: undoId,
                         message: 'Undo recording started'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -340,12 +299,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async endUndoRecording(undoId: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'end-recording', undoId).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Undo recording ended'
-                });
+                resolve(ok(undefined, 'Undo recording ended'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -353,12 +309,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async cancelUndoRecording(undoId: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'cancel-recording', undoId).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Undo recording cancelled'
-                });
+                resolve(ok(undefined, 'Undo recording cancelled'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -366,12 +319,9 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async softReloadScene(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'soft-reload').then(() => {
-                resolve({
-                    success: true,
-                    message: 'Scene soft reloaded successfully'
-                });
+                resolve(ok(undefined, 'Scene soft reloaded successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -379,15 +329,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async querySceneReady(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-is-ready').then((ready: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         ready: ready,
                         message: ready ? 'Scene is ready' : 'Scene is not ready'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -395,15 +342,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async querySceneDirty(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-dirty').then((dirty: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         dirty: dirty,
                         message: dirty ? 'Scene has unsaved changes' : 'Scene is clean'
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -416,16 +360,13 @@ export class SceneAdvancedTools implements ToolExecutor {
             }
 
             Editor.Message.request('scene', 'query-classes', options).then((classes: any[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         classes: classes,
                         count: classes.length,
                         extendsFilter: extendsClass
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -433,15 +374,12 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async querySceneComponents(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-components').then((components: any[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         components: components,
                         count: components.length
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -449,16 +387,13 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async queryComponentHasScript(className: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-component-has-script', className).then((hasScript: boolean) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         className: className,
                         hasScript: hasScript,
                         message: hasScript ? `Component '${className}' has script` : `Component '${className}' does not have script`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -466,17 +401,14 @@ export class SceneAdvancedTools implements ToolExecutor {
     private async queryNodesByAssetUuid(assetUuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-nodes-by-asset-uuid', assetUuid).then((nodeUuids: string[]) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         assetUuid: assetUuid,
                         nodeUuids: nodeUuids,
                         count: nodeUuids.length,
                         message: `Found ${nodeUuids.length} nodes using asset`
-                    }
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }

@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, PrefabInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
@@ -144,9 +145,9 @@ export class PrefabTools implements ToolExecutor {
                     uuid: asset.uuid,
                     folder: asset.url.substring(0, asset.url.lastIndexOf('/'))
                 }));
-                resolve({ success: true, data: prefabs });
+                resolve(ok(prefabs));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -161,22 +162,19 @@ export class PrefabTools implements ToolExecutor {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
                 if (!assetInfo) {
-                    resolve({ success: false, error: `Prefab not found: ${prefabPath}` });
+                    resolve(fail(`Prefab not found: ${prefabPath}`));
                     return;
                 }
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         uuid: assetInfo.uuid,
                         name: assetInfo.name,
                         url: assetInfo.url,
                         type: assetInfo.type,
                         source: assetInfo.source,
                         message: 'Prefab metadata retrieved (instantiate_prefab to add it to the scene)',
-                    },
-                });
+                    }));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -227,16 +225,13 @@ export class PrefabTools implements ToolExecutor {
                     prefabPath: args.prefabPath
                 });
                 
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         nodeUuid: uuid,
                         prefabPath: args.prefabPath,
                         parentUuid: args.parentUuid,
                         position: args.position,
                         message: '預製體實例化成功，已建立預製體關聯'
-                    }
-                });
+                    }));
             } catch (err: any) {
                 resolve({ 
                     success: false, 
@@ -253,10 +248,7 @@ export class PrefabTools implements ToolExecutor {
                 // 支持 prefabPath 和 savePath 兩種參數名
                 const pathParam = args.prefabPath || args.savePath;
                 if (!pathParam) {
-                    resolve({
-                        success: false,
-                        error: '缺少預製體路徑參數。請提供 prefabPath 或 savePath。'
-                    });
+                    resolve(fail('缺少預製體路徑參數。請提供 prefabPath 或 savePath。'));
                     return;
                 }
 
@@ -293,10 +285,7 @@ export class PrefabTools implements ToolExecutor {
                     },
                 });
             } catch (error) {
-                resolve({
-                    success: false,
-                    error: `創建預製體時發生錯誤: ${error}`
-                });
+                resolve(fail(`創建預製體時發生錯誤: ${error}`));
             }
         });
     }
@@ -312,17 +301,13 @@ export class PrefabTools implements ToolExecutor {
                 data: { ...(facadeResult.data ?? {}), prefabPath, nodeUuid },
             };
         }
-        return {
-            success: false,
-            error: facadeResult.error ?? 'applyPrefab failed via scene facade',
-            data: { prefabPath, nodeUuid },
-        };
+        return fail(facadeResult.error ?? 'applyPrefab failed via scene facade', { prefabPath, nodeUuid });
     }
 
     private async setLink(a: { mode: 'link' | 'unlink'; nodeUuid: string; assetUuid?: string; removeNested: boolean }): Promise<ToolResponse> {
         if (a.mode === 'link') {
             if (!a.assetUuid) {
-                return { success: false, error: 'set_link with mode="link" requires assetUuid' };
+                return fail('set_link with mode="link" requires assetUuid');
             }
             return runSceneMethodAsToolResponse('linkPrefab', [a.nodeUuid, a.assetUuid]);
         }
@@ -340,12 +325,9 @@ export class PrefabTools implements ToolExecutor {
         // node from its linked prefab asset, which matches the "revert" intent.
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
-                resolve({
-                    success: true,
-                    message: 'Prefab instance reverted successfully',
-                });
+                resolve(ok(undefined, 'Prefab instance reverted successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -368,9 +350,9 @@ export class PrefabTools implements ToolExecutor {
                     modifyTime: metaInfo.modifyTime,
                     dependencies: metaInfo.depends || []
                 };
-                resolve({ success: true, data: info });
+                resolve(ok(info));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
@@ -381,10 +363,7 @@ export class PrefabTools implements ToolExecutor {
                 // 讀取預製體文件內容
                 Editor.Message.request('asset-db', 'query-asset-info', prefabPath).then((assetInfo: any) => {
                     if (!assetInfo) {
-                        resolve({
-                            success: false,
-                            error: '預製體文件不存在'
-                        });
+                        resolve(fail('預製體文件不存在'));
                         return;
                     }
 
@@ -394,39 +373,24 @@ export class PrefabTools implements ToolExecutor {
                             const prefabData = JSON.parse(content);
                             const validationResult = this.validatePrefabFormat(prefabData);
                             
-                            resolve({
-                                success: true,
-                                data: {
+                            resolve(ok({
                                     isValid: validationResult.isValid,
                                     issues: validationResult.issues,
                                     nodeCount: validationResult.nodeCount,
                                     componentCount: validationResult.componentCount,
                                     message: validationResult.isValid ? '預製體格式有效' : '預製體格式存在問題'
-                                }
-                            });
+                                }));
                         } catch (parseError) {
-                            resolve({
-                                success: false,
-                                error: '預製體文件格式錯誤，無法解析JSON'
-                            });
+                            resolve(fail('預製體文件格式錯誤，無法解析JSON'));
                         }
                     }).catch((error: any) => {
-                        resolve({
-                            success: false,
-                            error: `讀取預製體文件失敗: ${error.message}`
-                        });
+                        resolve(fail(`讀取預製體文件失敗: ${error.message}`));
                     });
                 }).catch((error: any) => {
-                    resolve({
-                        success: false,
-                        error: `查詢預製體信息失敗: ${error.message}`
-                    });
+                    resolve(fail(`查詢預製體信息失敗: ${error.message}`));
                 });
             } catch (error) {
-                resolve({
-                    success: false,
-                    error: `驗證預製體時發生錯誤: ${error}`
-                });
+                resolve(fail(`驗證預製體時發生錯誤: ${error}`));
             }
         });
     }
@@ -484,19 +448,13 @@ export class PrefabTools implements ToolExecutor {
             // assetUuid is preserved on the request shape for response context
             // but does not flow into the editor message.
             Editor.Message.request('scene', 'restore-prefab', { uuid: nodeUuid }).then(() => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         nodeUuid: nodeUuid,
                         assetUuid: assetUuid,
                         message: '預製體節點還原成功'
-                    }
-                });
+                    }));
             }).catch((error: any) => {
-                resolve({
-                    success: false,
-                    error: `預製體節點還原失敗: ${error.message}`
-                });
+                resolve(fail(`預製體節點還原失敗: ${error.message}`));
             });
         });
     }

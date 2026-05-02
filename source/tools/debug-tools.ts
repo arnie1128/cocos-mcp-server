@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
@@ -301,13 +302,10 @@ export class DebugTools implements ToolExecutor {
     private async executeScriptCompat(script: string): Promise<ToolResponse> {
         const out = await this.executeJavaScript(script, 'scene');
         if (out.success && out.data && 'result' in out.data) {
-            return {
-                success: true,
-                data: {
+            return ok({
                     result: out.data.result,
                     message: 'Script executed successfully',
-                },
-            };
+                });
         }
         return out;
     }
@@ -316,12 +314,9 @@ export class DebugTools implements ToolExecutor {
         try {
             // Note: Editor.Message.send may not return a promise in all versions
             Editor.Message.send('console', 'clear');
-            return {
-                success: true,
-                message: 'Console cleared successfully'
-            };
+            return ok(undefined, 'Console cleared successfully');
         } catch (err: any) {
-            return { success: false, error: err.message };
+            return fail(err.message);
         }
     }
 
@@ -332,7 +327,7 @@ export class DebugTools implements ToolExecutor {
         if (context === 'editor') {
             return this.executeInEditorContext(code);
         }
-        return { success: false, error: `Unknown execute_javascript context: ${context}` };
+        return fail(`Unknown execute_javascript context: ${context}`);
     }
 
     private executeInSceneContext(code: string): Promise<ToolResponse> {
@@ -342,26 +337,19 @@ export class DebugTools implements ToolExecutor {
                 method: 'eval',
                 args: [code]
             }).then((result: any) => {
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         context: 'scene',
                         result: result,
-                    },
-                    message: 'Scene script executed successfully'
-                });
+                    }, 'Scene script executed successfully'));
             }).catch((err: Error) => {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             });
         });
     }
 
     private async executeInEditorContext(code: string): Promise<ToolResponse> {
         if (!isEditorContextEvalEnabled()) {
-            return {
-                success: false,
-                error: 'Editor context eval is disabled. Enable `enableEditorContextEval` in MCP server settings (panel UI) to opt in. This grants AI-generated code access to Editor.Message + Node fs APIs in the host process; only enable when you trust the upstream prompt source.',
-            };
+            return fail('Editor context eval is disabled. Enable `enableEditorContextEval` in MCP server settings (panel UI) to opt in. This grants AI-generated code access to Editor.Message + Node fs APIs in the host process; only enable when you trust the upstream prompt source.');
         }
         try {
             // Wrap in async IIFE so AI can use top-level await transparently;
@@ -370,19 +358,12 @@ export class DebugTools implements ToolExecutor {
             const wrapped = `(async () => { ${code} \n })()`;
             // eslint-disable-next-line no-eval
             const result = await (0, eval)(wrapped);
-            return {
-                success: true,
-                data: {
+            return ok({
                     context: 'editor',
                     result: result,
-                },
-                message: 'Editor script executed successfully',
-            };
+                }, 'Editor script executed successfully');
         } catch (err: any) {
-            return {
-                success: false,
-                error: `Editor eval failed: ${err?.message ?? String(err)}`,
-            };
+            return fail(`Editor eval failed: ${err?.message ?? String(err)}`);
         }
     }
 
@@ -420,7 +401,7 @@ export class DebugTools implements ToolExecutor {
 
             if (rootUuid) {
                 buildTree(rootUuid).then(tree => {
-                    resolve({ success: true, data: tree });
+                    resolve(ok(tree));
                 });
             } else {
                 Editor.Message.request('scene', 'query-hierarchy').then(async (hierarchy: any) => {
@@ -429,9 +410,9 @@ export class DebugTools implements ToolExecutor {
                         const tree = await buildTree(rootNode.uuid);
                         trees.push(tree);
                     }
-                    resolve({ success: true, data: trees });
+                    resolve(ok(trees));
                 }).catch((err: Error) => {
-                    resolve({ success: false, error: err.message });
+                    resolve(fail(err.message));
                 });
             }
         });
@@ -447,15 +428,12 @@ export class DebugTools implements ToolExecutor {
                     triangles: stats.triangles || 0,
                     memory: stats.memory || {}
                 };
-                resolve({ success: true, data: perfStats });
+                resolve(ok(perfStats));
             }).catch(() => {
                 // Fallback to basic stats
-                resolve({
-                    success: true,
-                    data: {
+                resolve(ok({
                         message: 'Performance stats not available in edit mode'
-                    }
-                });
+                    }));
             });
         });
     }
@@ -498,9 +476,9 @@ export class DebugTools implements ToolExecutor {
                 issues: issues
             };
 
-            return { success: true, data: result };
+            return ok(result);
         } catch (err: any) {
-            return { success: false, error: err.message };
+            return fail(err.message);
         }
     }
 
@@ -532,7 +510,7 @@ export class DebugTools implements ToolExecutor {
             uptime: process.uptime()
         };
 
-        return { success: true, data: info };
+        return ok(info);
     }
 
     private resolveProjectLogPath(): { path: string } | { error: string } {
@@ -550,7 +528,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
-                return { success: false, error: resolved.error };
+                return fail(resolved.error);
             }
             const logFilePath = resolved.path;
 
@@ -578,9 +556,7 @@ export class DebugTools implements ToolExecutor {
                 );
             }
             
-            return {
-                success: true,
-                data: {
+            return ok({
                     totalLines: logLines.length,
                     requestedLines: lines,
                     filteredLines: filteredLines.length,
@@ -588,13 +564,9 @@ export class DebugTools implements ToolExecutor {
                     filterKeyword: filterKeyword || null,
                     logs: filteredLines,
                     logFilePath: logFilePath
-                }
-            };
+                });
         } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to read project logs: ${error.message}`
-            };
+            return fail(`Failed to read project logs: ${error.message}`);
         }
     }
 
@@ -602,7 +574,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
-                return { success: false, error: resolved.error };
+                return fail(resolved.error);
             }
             const logFilePath = resolved.path;
 
@@ -610,9 +582,7 @@ export class DebugTools implements ToolExecutor {
             const logContent = fs.readFileSync(logFilePath, 'utf8');
             const lineCount = logContent.split('\n').filter(line => line.trim() !== '').length;
             
-            return {
-                success: true,
-                data: {
+            return ok({
                     filePath: logFilePath,
                     fileSize: stats.size,
                     fileSizeFormatted: this.formatFileSize(stats.size),
@@ -620,13 +590,9 @@ export class DebugTools implements ToolExecutor {
                     lineCount: lineCount,
                     created: stats.birthtime.toISOString(),
                     accessible: fs.constants.R_OK
-                }
-            };
+                });
         } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to get log file info: ${error.message}`
-            };
+            return fail(`Failed to get log file info: ${error.message}`);
         }
     }
 
@@ -634,7 +600,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
-                return { success: false, error: resolved.error };
+                return fail(resolved.error);
             }
             const logFilePath = resolved.path;
 
@@ -682,22 +648,16 @@ export class DebugTools implements ToolExecutor {
                 }
             }
             
-            return {
-                success: true,
-                data: {
+            return ok({
                     pattern: pattern,
                     totalMatches: matches.length,
                     maxResults: maxResults,
                     contextLines: contextLines,
                     logFilePath: logFilePath,
                     matches: matches
-                }
-            };
+                });
         } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to search project logs: ${error.message}`
-            };
+            return fail(`Failed to search project logs: ${error.message}`);
         }
     }
 
@@ -873,7 +833,7 @@ export class DebugTools implements ToolExecutor {
             let filePath = savePath;
             if (!filePath) {
                 const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
-                if (!resolved.ok) return { success: false, error: resolved.error };
+                if (!resolved.ok) return fail(resolved.error);
                 filePath = resolved.filePath;
             } else {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
@@ -882,7 +842,7 @@ export class DebugTools implements ToolExecutor {
                 // v2.8.2 retest fix: use the helper's resolvedPath so a
                 // relative savePath actually lands inside the project root.
                 const guard = this.assertSavePathWithinProject(filePath);
-                if (!guard.ok) return { success: false, error: guard.error };
+                if (!guard.ok) return fail(guard.error);
                 filePath = guard.resolvedPath;
             }
             const win = this.pickWindow(windowTitle);
@@ -897,9 +857,9 @@ export class DebugTools implements ToolExecutor {
             if (includeBase64) {
                 data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
             }
-            return { success: true, data, message: `Screenshot saved to ${filePath}` };
+            return ok(data, `Screenshot saved to ${filePath}`);
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -986,16 +946,13 @@ export class DebugTools implements ToolExecutor {
             if (mode === 'window') {
                 const r = probeWindowMode();
                 if (!r.ok) {
-                    return {
-                        success: false,
-                        error: `${r.error} Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). If your cocos preview is set to "embedded", call this tool with mode="embedded" or mode="auto". Visible window titles: ${r.visibleTitles.join(', ') || '(none)'}`,
-                    };
+                    return fail(`${r.error} Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). If your cocos preview is set to "embedded", call this tool with mode="embedded" or mode="auto". Visible window titles: ${r.visibleTitles.join(', ') || '(none)'}`);
                 }
                 win = r.win;
                 resolvedMode = 'window';
             } else if (mode === 'embedded') {
                 const r = probeEmbeddedMode();
-                if (!r.ok) return { success: false, error: r.error };
+                if (!r.ok) return fail(r.error);
                 win = r.win;
                 resolvedMode = 'embedded';
             } else {
@@ -1007,10 +964,7 @@ export class DebugTools implements ToolExecutor {
                 } else {
                     const er = probeEmbeddedMode();
                     if (!er.ok) {
-                        return {
-                            success: false,
-                            error: `${wr.error} ${er.error} Launch cocos preview first or check debug_get_preview_mode to see how cocos is configured. Visible window titles: ${wr.visibleTitles.join(', ') || '(none)'}`,
-                        };
+                        return fail(`${wr.error} ${er.error} Launch cocos preview first or check debug_get_preview_mode to see how cocos is configured. Visible window titles: ${wr.visibleTitles.join(', ') || '(none)'}`);
                     }
                     win = er.win;
                     resolvedMode = 'embedded';
@@ -1048,14 +1002,14 @@ export class DebugTools implements ToolExecutor {
             let filePath = savePath;
             if (!filePath) {
                 const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
-                if (!resolved.ok) return { success: false, error: resolved.error };
+                if (!resolved.ok) return fail(resolved.error);
                 filePath = resolved.filePath;
             } else {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
                 // also gets containment-checked.
                 // v2.8.2 retest fix: use resolvedPath for relative-path support.
                 const guard = this.assertSavePathWithinProject(filePath);
-                if (!guard.ok) return { success: false, error: guard.error };
+                if (!guard.ok) return fail(guard.error);
                 filePath = guard.resolvedPath;
             }
             const image = await win.webContents.capturePage();
@@ -1074,9 +1028,9 @@ export class DebugTools implements ToolExecutor {
             const message = captureNote
                 ? `Preview screenshot saved to ${filePath} (${captureNote})`
                 : `Preview screenshot saved to ${filePath} (mode=${resolvedMode})`;
-            return { success: true, data, message };
+            return ok(data, message);
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1094,10 +1048,7 @@ export class DebugTools implements ToolExecutor {
             // Probe at module level (no key) to get the whole category.
             const raw: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
             if (raw === undefined || raw === null) {
-                return {
-                    success: false,
-                    error: 'preferences/query-config returned null for "preview" — cocos may not expose this category, or your build differs from 3.8.x.',
-                };
+                return fail('preferences/query-config returned null for "preview" — cocos may not expose this category, or your build differs from 3.8.x.');
             }
             // Heuristic interpretation.
             // v2.8.3 retest finding: cocos 3.8.7 actually stores the
@@ -1171,15 +1122,11 @@ export class DebugTools implements ToolExecutor {
                     }
                 }
             }
-            return {
-                success: true,
-                data: { interpreted, interpretedFromKey, raw },
-                message: interpreted === 'unknown'
+            return ok({ interpreted, interpretedFromKey, raw }, interpreted === 'unknown'
                     ? 'Read cocos preview config but could not interpret a mode label; inspect data.raw and pass mode= explicitly to capture_preview_screenshot.'
-                    : `cocos preview is configured as "${interpreted}" (from key "${interpretedFromKey}"). Pass mode="${interpreted === 'browser' ? 'window' : interpreted}" to capture_preview_screenshot, or rely on mode="auto".`,
-            };
+                    : `cocos preview is configured as "${interpreted}" (from key "${interpretedFromKey}"). Pass mode="${interpreted === 'browser' ? 'window' : interpreted}" to capture_preview_screenshot, or rely on mode="auto".`);
         } catch (err: any) {
-            return { success: false, error: `preferences/query-config 'preview' failed: ${err?.message ?? String(err)}` };
+            return fail(`preferences/query-config 'preview' failed: ${err?.message ?? String(err)}`);
         }
     }
 
@@ -1208,18 +1155,10 @@ export class DebugTools implements ToolExecutor {
             };
             const previousMode = await queryCurrent();
             if (!attemptAnyway) {
-                return {
-                    success: false,
-                    error: `debug_set_preview_mode is NOT SUPPORTED on cocos 3.8.7+ (landmine #17). Programmatic preview-mode switching has no working IPC path: preferences/set-config returns truthy but does not persist, and 6 surveyed reference projects (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) all confirm no working alternative exists. **Switch via the cocos preview dropdown in the editor toolbar instead** (current mode: "${previousMode ?? 'unknown'}", requested: "${mode}"). To re-probe whether a newer cocos build now exposes a write path, re-call with attemptAnyway=true (diagnostic only — does NOT freeze the editor).`,
-                    data: { previousMode, requestedMode: mode, supported: false },
-                };
+                return fail(`debug_set_preview_mode is NOT SUPPORTED on cocos 3.8.7+ (landmine #17). Programmatic preview-mode switching has no working IPC path: preferences/set-config returns truthy but does not persist, and 6 surveyed reference projects (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) all confirm no working alternative exists. **Switch via the cocos preview dropdown in the editor toolbar instead** (current mode: "${previousMode ?? 'unknown'}", requested: "${mode}"). To re-probe whether a newer cocos build now exposes a write path, re-call with attemptAnyway=true (diagnostic only — does NOT freeze the editor).`, { previousMode, requestedMode: mode, supported: false });
             }
             if (previousMode === mode) {
-                return {
-                    success: true,
-                    data: { previousMode, newMode: mode, confirmed: true, noOp: true },
-                    message: `cocos preview already set to "${mode}"; no change applied.`,
-                };
+                return ok({ previousMode, newMode: mode, confirmed: true, noOp: true }, `cocos preview already set to "${mode}"; no change applied.`);
             }
             type Strategy = { id: string; payload: () => Promise<any> };
             const strategies: Strategy[] = [
@@ -1275,19 +1214,11 @@ export class DebugTools implements ToolExecutor {
                 }
             }
             if (!winner) {
-                return {
-                    success: false,
-                    error: `set-config strategies all failed to flip preview.current.platform from "${previousMode ?? 'unknown'}" to "${mode}". Tried 4 shapes; cocos returned values but the read-back never matched the requested mode. The set-config channel may have changed in this cocos build; switch via the cocos preview dropdown manually for now and report which shape works.`,
-                    data: { previousMode, requestedMode: mode, attempts },
-                };
+                return fail(`set-config strategies all failed to flip preview.current.platform from "${previousMode ?? 'unknown'}" to "${mode}". Tried 4 shapes; cocos returned values but the read-back never matched the requested mode. The set-config channel may have changed in this cocos build; switch via the cocos preview dropdown manually for now and report which shape works.`, { previousMode, requestedMode: mode, attempts });
             }
-            return {
-                success: true,
-                data: { previousMode, newMode: mode, confirmed: true, strategy: winner.strategy, attempts },
-                message: `cocos preview switched: "${previousMode ?? 'unknown'}" → "${mode}" via ${winner.strategy}. Restore via debug_set_preview_mode(mode="${previousMode ?? 'browser'}", confirm=true) when done if needed.`,
-            };
+            return ok({ previousMode, newMode: mode, confirmed: true, strategy: winner.strategy, attempts }, `cocos preview switched: "${previousMode ?? 'unknown'}" → "${mode}" via ${winner.strategy}. Restore via debug_set_preview_mode(mode="${previousMode ?? 'browser'}", confirm=true) when done if needed.`);
         } catch (err: any) {
-            return { success: false, error: `preferences/set-config 'preview' failed: ${err?.message ?? String(err)}` };
+            return fail(`preferences/set-config 'preview' failed: ${err?.message ?? String(err)}`);
         }
     }
 
@@ -1300,7 +1231,7 @@ export class DebugTools implements ToolExecutor {
                 // sufficient because path.join preserves dirname for any
                 // suffix the loop appends.
                 const resolved = this.resolveAutoCaptureFile(`batch-${Date.now()}`);
-                if (!resolved.ok) return { success: false, error: resolved.error };
+                if (!resolved.ok) return fail(resolved.error);
                 prefix = resolved.filePath;
             } else {
                 // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit prefix
@@ -1308,7 +1239,7 @@ export class DebugTools implements ToolExecutor {
                 // itself — every emitted file lives in the same dirname.
                 // v2.8.2 retest fix: use resolvedPath for relative-prefix support.
                 const guard = this.assertSavePathWithinProject(prefix);
-                if (!guard.ok) return { success: false, error: guard.error };
+                if (!guard.ok) return fail(guard.error);
                 prefix = guard.resolvedPath;
             }
             const win = this.pickWindow(windowTitle);
@@ -1324,17 +1255,13 @@ export class DebugTools implements ToolExecutor {
                 fs.writeFileSync(filePath, png);
                 captures.push({ index: i, delayMs: delay, filePath, size: png.length });
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     count: captures.length,
                     windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
                     captures,
-                },
-                message: `Captured ${captures.length} screenshots`,
-            };
+                }, `Captured ${captures.length} screenshots`);
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1344,7 +1271,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const url: string = await Editor.Message.request('preview', 'query-preview-url' as any) as any;
             if (!url || typeof url !== 'string') {
-                return { success: false, error: 'preview/query-preview-url returned empty result; check that cocos preview server is running' };
+                return fail('preview/query-preview-url returned empty result; check that cocos preview server is running');
             }
             const data: any = { url };
             if (action === 'open') {
@@ -1372,9 +1299,9 @@ export class DebugTools implements ToolExecutor {
                     ? `Launched ${url} in default browser (page render not awaited)`
                     : `Returned URL ${url} but launch failed: ${data.launchError}`)
                 : url;
-            return { success: true, data, message };
+            return ok(data, message);
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1492,9 +1419,7 @@ export class DebugTools implements ToolExecutor {
             : !sceneAlive
                 ? 'cocos editor scene-script is frozen (likely landmine #16 after preview_control(start)). Press Ctrl+R in the cocos editor to reload the scene-script renderer; do not issue more scene/* tool calls until recovered.'
                 : 'editor healthy; scene-script and host both responsive.';
-        return {
-            success: true,
-            data: {
+        return ok({
                 hostAlive,
                 sceneAlive,
                 sceneLatencyMs,
@@ -1502,9 +1427,7 @@ export class DebugTools implements ToolExecutor {
                 hostError,
                 sceneError,
                 totalProbeMs: Date.now() - t0,
-            },
-            message: suggestion,
-        };
+            }, suggestion);
     }
 
     // v2.9.x polish (Codex r1 single-🟡 from v2.8.1 review): module-level
@@ -1520,16 +1443,10 @@ export class DebugTools implements ToolExecutor {
         // acknowledged the risk. op="stop" is always safe — bypass the
         // gate so callers can recover from a half-applied state.
         if (op === 'start' && !acknowledgeFreezeRisk) {
-            return {
-                success: false,
-                error: 'debug_preview_control(op="start") is parked due to landmine #16 — the cocos 3.8.7 softReloadScene race freezes the editor regardless of preview mode (verified embedded + browser). v2.10 cross-repo refresh confirmed no reference project ships a safer path — harady and cocos-code-mode use the same channel family and hit the same race. **Strongly preferred alternatives** (please use these instead): (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE needed); (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview launched via debug_preview_url(action="open"). Only re-call with acknowledgeFreezeRisk=true if neither alternative fits AND the human user is prepared to press Ctrl+R in cocos if the editor freezes.',
-            };
+            return fail('debug_preview_control(op="start") is parked due to landmine #16 — the cocos 3.8.7 softReloadScene race freezes the editor regardless of preview mode (verified embedded + browser). v2.10 cross-repo refresh confirmed no reference project ships a safer path — harady and cocos-code-mode use the same channel family and hit the same race. **Strongly preferred alternatives** (please use these instead): (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE needed); (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview launched via debug_preview_url(action="open"). Only re-call with acknowledgeFreezeRisk=true if neither alternative fits AND the human user is prepared to press Ctrl+R in cocos if the editor freezes.');
         }
         if (DebugTools.previewControlInFlight) {
-            return {
-                success: false,
-                error: 'Another debug_preview_control call is already in flight. PIE state changes go through cocos\' SceneFacadeFSM and double-firing during the in-flight window risks compounding the landmine #16 freeze. Wait for the previous call to resolve, then retry.',
-            };
+            return fail('Another debug_preview_control call is already in flight. PIE state changes go through cocos\' SceneFacadeFSM and double-firing during the in-flight window risks compounding the landmine #16 freeze. Wait for the previous call to resolve, then retry.');
         }
         DebugTools.previewControlInFlight = true;
         try {
@@ -1580,9 +1497,9 @@ export class DebugTools implements ToolExecutor {
     private async queryDevices(): Promise<ToolResponse> {
         try {
             const devices: any[] = await Editor.Message.request('device', 'query') as any;
-            return { success: true, data: { devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 } };
+            return ok({ devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 });
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1591,15 +1508,15 @@ export class DebugTools implements ToolExecutor {
     private async gameCommand(type: string, args: any, timeoutMs: number = 10000): Promise<ToolResponse> {
         const queued = queueGameCommand(type, args);
         if (!queued.ok) {
-            return { success: false, error: queued.error };
+            return fail(queued.error);
         }
         const awaited = await awaitCommandResult(queued.id, timeoutMs);
         if (!awaited.ok) {
-            return { success: false, error: awaited.error };
+            return fail(awaited.error);
         }
         const result = awaited.result;
         if (result.success === false) {
-            return { success: false, error: result.error ?? 'GameDebugClient reported failure', data: result.data };
+            return fail(result.error ?? 'GameDebugClient reported failure', result.data);
         }
         // Built-in screenshot path: client sends back a base64 dataUrl;
         // landing the bytes to disk on host side keeps the result envelope
@@ -1607,19 +1524,15 @@ export class DebugTools implements ToolExecutor {
         if (type === 'screenshot' && result.data && typeof result.data.dataUrl === 'string') {
             const persisted = this.persistGameScreenshot(result.data.dataUrl, result.data.width, result.data.height);
             if (!persisted.ok) {
-                return { success: false, error: persisted.error };
+                return fail(persisted.error);
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     type,
                     filePath: persisted.filePath,
                     size: persisted.size,
                     width: result.data.width,
                     height: result.data.height,
-                },
-                message: `Game canvas captured to ${persisted.filePath}`,
-            };
+                }, `Game canvas captured to ${persisted.filePath}`);
         }
         // v2.9.x T-V29-5: built-in record_stop path — same persistence
         // pattern as screenshot, but with webm/mp4 extension and a
@@ -1627,21 +1540,17 @@ export class DebugTools implements ToolExecutor {
         if (type === 'record_stop' && result.data && typeof result.data.dataUrl === 'string') {
             const persisted = this.persistGameRecording(result.data.dataUrl);
             if (!persisted.ok) {
-                return { success: false, error: persisted.error };
+                return fail(persisted.error);
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     type,
                     filePath: persisted.filePath,
                     size: persisted.size,
                     mimeType: result.data.mimeType,
                     durationMs: result.data.durationMs,
-                },
-                message: `Game canvas recording saved to ${persisted.filePath} (${persisted.size} bytes, ${result.data.durationMs}ms)`,
-            };
+                }, `Game canvas recording saved to ${persisted.filePath} (${persisted.size} bytes, ${result.data.durationMs}ms)`);
         }
-        return { success: true, data: { type, ...result.data }, message: `Game command ${type} ok` };
+        return ok({ type, ...result.data }, `Game command ${type} ok`);
     }
 
     // v2.9.x T-V29-5: thin wrappers around game_command for AI ergonomics.
@@ -1660,7 +1569,7 @@ export class DebugTools implements ToolExecutor {
     }
 
     private async gameClientStatus(): Promise<ToolResponse> {
-        return { success: true, data: getClientStatus() };
+        return ok(getClientStatus());
     }
 
     // v2.6.1 review fix (codex 🔴 + claude W1): bound the legitimate range
@@ -1754,21 +1663,17 @@ export class DebugTools implements ToolExecutor {
         try {
             const projectPath = Editor?.Project?.path;
             if (!projectPath) {
-                return { success: false, error: 'wait_compile: editor context unavailable (no Editor.Project.path)' };
+                return fail('wait_compile: editor context unavailable (no Editor.Project.path)');
             }
             const result = await waitForCompile(projectPath, timeoutMs);
             if (!result.success) {
-                return { success: false, error: result.error ?? 'wait_compile failed', data: result };
+                return fail(result.error ?? 'wait_compile failed', result);
             }
-            return {
-                success: true,
-                message: result.compiled
+            return ok(result, result.compiled
                     ? `Compile finished in ${result.waitedMs}ms`
-                    : (result.note ?? 'No compile triggered or timed out'),
-                data: result,
-            };
+                    : (result.note ?? 'No compile triggered or timed out'));
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1776,7 +1681,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const projectPath = Editor?.Project?.path;
             if (!projectPath) {
-                return { success: false, error: 'run_script_diagnostics: editor context unavailable (no Editor.Project.path)' };
+                return fail('run_script_diagnostics: editor context unavailable (no Editor.Project.path)');
             }
             const result = await runScriptDiagnostics(projectPath, { tsconfigPath });
             return {
@@ -1802,7 +1707,7 @@ export class DebugTools implements ToolExecutor {
                 },
             };
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 
@@ -1814,7 +1719,7 @@ export class DebugTools implements ToolExecutor {
         try {
             const projectPath = Editor?.Project?.path;
             if (!projectPath) {
-                return { success: false, error: 'get_script_diagnostic_context: editor context unavailable' };
+                return fail('get_script_diagnostic_context: editor context unavailable');
             }
             // v2.9.x polish (Gemini r2 single-🟡 from v2.8.1 review): converge
             // on assertSavePathWithinProject. The previous bespoke realpath
@@ -1824,32 +1729,26 @@ export class DebugTools implements ToolExecutor {
             // prefix-collision edges uniformly).
             const guard = this.assertSavePathWithinProject(file);
             if (!guard.ok) {
-                return { success: false, error: `get_script_diagnostic_context: ${guard.error}` };
+                return fail(`get_script_diagnostic_context: ${guard.error}`);
             }
             const resolved = guard.resolvedPath;
             if (!fs.existsSync(resolved)) {
-                return { success: false, error: `get_script_diagnostic_context: file not found: ${resolved}` };
+                return fail(`get_script_diagnostic_context: file not found: ${resolved}`);
             }
             const stat = fs.statSync(resolved);
             if (stat.size > 5 * 1024 * 1024) {
-                return { success: false, error: `get_script_diagnostic_context: file too large (${stat.size} bytes); refusing to read.` };
+                return fail(`get_script_diagnostic_context: file too large (${stat.size} bytes); refusing to read.`);
             }
             const content = fs.readFileSync(resolved, 'utf8');
             const allLines = content.split(/\r?\n/);
             if (line < 1 || line > allLines.length) {
-                return {
-                    success: false,
-                    error: `get_script_diagnostic_context: line ${line} out of range 1..${allLines.length}`,
-                };
+                return fail(`get_script_diagnostic_context: line ${line} out of range 1..${allLines.length}`);
             }
             const start = Math.max(1, line - contextLines);
             const end = Math.min(allLines.length, line + contextLines);
             const window = allLines.slice(start - 1, end);
             const projectResolvedNorm = path.resolve(projectPath);
-            return {
-                success: true,
-                message: `Read ${window.length} lines of context around ${path.relative(projectResolvedNorm, resolved)}:${line}`,
-                data: {
+            return ok({
                     file: path.relative(projectResolvedNorm, resolved),
                     absolutePath: resolved,
                     targetLine: line,
@@ -1857,10 +1756,9 @@ export class DebugTools implements ToolExecutor {
                     endLine: end,
                     totalLines: allLines.length,
                     lines: window.map((text, i) => ({ line: start + i, text })),
-                },
-            };
+                }, `Read ${window.length} lines of context around ${path.relative(projectResolvedNorm, resolved)}:${line}`);
         } catch (err: any) {
-            return { success: false, error: err?.message ?? String(err) };
+            return fail(err?.message ?? String(err));
         }
     }
 }

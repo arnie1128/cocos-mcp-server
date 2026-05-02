@@ -78,7 +78,10 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 181 (v2.9.4 added 2: `debug_record_start` +
+Total tool count today: 185 (v2.10.2 added 4 animation-state tools:
+`animation_list_animation_states`, `animation_get_animation_state_info`,
+`animation_set_animation_speed`, `animation_check_animation_finished`;
+v2.9.4 added 2: `debug_record_start` +
 `debug_record_stop` MediaRecorder bridge; v2.9.x collapsed 12
 referenceImage_* tools into 1 op-router `referenceImage_manage`; v2.9.0
 added 2: `debug_check_editor_health` + `debug_set_preview_mode`; v2.8.3

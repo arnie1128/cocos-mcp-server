@@ -1,3 +1,4 @@
+import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
@@ -131,16 +132,13 @@ export class BroadcastTools implements ToolExecutor {
                 timestamp: new Date(entry.timestamp).toISOString()
             }));
 
-            resolve({
-                success: true,
-                data: {
+            resolve(ok({
                     log: recentLog,
                     count: recentLog.length,
                     totalCount: filteredLog.length,
                     filter: messageType || 'all',
                     message: 'Broadcast log retrieved successfully'
-                }
-            });
+                }));
         });
     }
 
@@ -149,24 +147,18 @@ export class BroadcastTools implements ToolExecutor {
             try {
                 if (!this.listeners.has(messageType)) {
                     this.addBroadcastListener(messageType);
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             messageType: messageType,
                             message: `Started listening for broadcast: ${messageType}`
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             messageType: messageType,
                             message: `Already listening for broadcast: ${messageType}`
-                        }
-                    });
+                        }));
                 }
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }
@@ -176,24 +168,18 @@ export class BroadcastTools implements ToolExecutor {
             try {
                 if (this.listeners.has(messageType)) {
                     this.removeBroadcastListener(messageType);
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             messageType: messageType,
                             message: `Stopped listening for broadcast: ${messageType}`
-                        }
-                    });
+                        }));
                 } else {
-                    resolve({
-                        success: true,
-                        data: {
+                    resolve(ok({
                             messageType: messageType,
                             message: `Was not listening for broadcast: ${messageType}`
-                        }
-                    });
+                        }));
                 }
             } catch (err: any) {
-                resolve({ success: false, error: err.message });
+                resolve(fail(err.message));
             }
         });
     }
@@ -202,13 +188,10 @@ export class BroadcastTools implements ToolExecutor {
         return new Promise((resolve) => {
             const previousCount = this.messageLog.length;
             this.messageLog = [];
-            resolve({
-                success: true,
-                data: {
+            resolve(ok({
                     clearedCount: previousCount,
                     message: 'Broadcast log cleared successfully'
-                }
-            });
+                }));
         });
     }
 
@@ -219,14 +202,11 @@ export class BroadcastTools implements ToolExecutor {
                 listenerCount: this.listeners.get(messageType)?.length || 0
             }));
 
-            resolve({
-                success: true,
-                data: {
+            resolve(ok({
                     listeners: activeListeners,
                     count: activeListeners.length,
                     message: 'Active listeners retrieved successfully'
-                }
-            });
+                }));
         });
     }
 }
