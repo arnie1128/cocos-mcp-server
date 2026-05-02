@@ -229,6 +229,30 @@ function getJson(pathname) {
         // 14. tools/list should carry [specialist] / [primary] prefix tags (v2.3.0)
         if (!/\[specialist\] Echo/.test(list.body)) throw new Error('tools/list should prefix non-primary tools with [specialist]');
 
+        // 15. v2.6.0 T-V26-1: /game/status reports idle when no client polled
+        const gameStatusIdle = await getJson('/game/status');
+        console.log('[/game/status idle]', gameStatusIdle.status, gameStatusIdle.body);
+        if (gameStatusIdle.status !== 200) throw new Error('/game/status non-200');
+        if (!/"connected":false/.test(gameStatusIdle.body)) throw new Error('/game/status should report connected:false before any poll');
+        if (!/"queued":false/.test(gameStatusIdle.body)) throw new Error('/game/status should report queued:false initially');
+
+        // 16. /health includes gameClient block (v2.6.0)
+        const healthV26 = await getJson('/health');
+        if (!/"gameClient"/.test(healthV26.body)) throw new Error('/health should include gameClient block in v2.6.0');
+
+        // 17. /game/command GET returns null when nothing queued + flips lastPollAt
+        const cmdEmpty = await getJson('/game/command');
+        console.log('[/game/command empty]', cmdEmpty.status, cmdEmpty.body);
+        if (cmdEmpty.status !== 200) throw new Error('/game/command non-200');
+        if (cmdEmpty.body.trim() !== 'null') throw new Error('/game/command should return null when idle');
+        const gameStatusAfterPoll = await getJson('/game/status');
+        if (!/"connected":true/.test(gameStatusAfterPoll.body)) throw new Error('/game/status should mark connected after a poll');
+
+        // 18. /game/result with no pending command should 409
+        const resultRejected = await postJson('/game/result', { id: 'cmd_zzz', success: true });
+        console.log('[/game/result no pending]', resultRejected.status, resultRejected.body);
+        if (resultRejected.status !== 409) throw new Error('/game/result should reject when no command pending');
+
         console.log('\n✅ all smoke checks passed');
     } catch (err) {
         console.error('\n❌ smoke test failed:', err.message);

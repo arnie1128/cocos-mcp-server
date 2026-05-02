@@ -4,6 +4,7 @@ import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
 import { z } from '../lib/schema';
 import { defineTools, ToolDef } from '../lib/define-tools';
 import { runScriptDiagnostics, waitForCompile } from '../lib/ts-diagnostics';
+import { queueGameCommand, awaitCommandResult, getClientStatus } from '../lib/game-command-queue';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -126,6 +127,22 @@ export class DebugTools implements ToolExecutor {
                     tsconfigPath: z.string().optional().describe('Optional override (absolute or project-relative). Default: tsconfig.json or temp/tsconfig.cocos.json.'),
                 }),
                 handler: a => this.runScriptDiagnostics(a.tsconfigPath),
+            },
+            {
+                name: 'game_command',
+                description: 'Send a runtime command to a GameDebugClient running inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/contentSize/active/components by name). Custom command types are forwarded to the client\'s customCommands map (e.g. "state", "navigate"). Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
+                inputSchema: z.object({
+                    type: z.string().min(1).describe('Command type. Built-ins: screenshot, click, inspect. Customs: any string the GameDebugClient registered in customCommands.'),
+                    args: z.any().optional().describe('Command-specific arguments. For "click"/"inspect": {name: string} node name. For "screenshot": {} (no args).'),
+                    timeoutMs: z.number().min(500).max(60000).default(10000).describe('Max wait for client response. Default 10000ms.'),
+                }),
+                handler: a => this.gameCommand(a.type, a.args, a.timeoutMs),
+            },
+            {
+                name: 'game_client_status',
+                description: 'Read GameDebugClient connection status: connected (polled within 2s), last poll timestamp, whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
+                inputSchema: z.object({}),
+                handler: () => this.gameClientStatus(),
             },
             {
                 name: 'get_script_diagnostic_context',
@@ -668,6 +685,70 @@ export class DebugTools implements ToolExecutor {
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
         }
+    }
+
+    // v2.6.0 T-V26-1: GameDebugClient bridge handlers ---------------------
+
+    private async gameCommand(type: string, args: any, timeoutMs: number = 10000): Promise<ToolResponse> {
+        const queued = queueGameCommand(type, args);
+        if (!queued.ok) {
+            return { success: false, error: queued.error };
+        }
+        const awaited = await awaitCommandResult(queued.id, timeoutMs);
+        if (!awaited.ok) {
+            return { success: false, error: awaited.error };
+        }
+        const result = awaited.result;
+        if (result.success === false) {
+            return { success: false, error: result.error ?? 'GameDebugClient reported failure', data: result.data };
+        }
+        // Built-in screenshot path: client sends back a base64 dataUrl;
+        // landing the bytes to disk on host side keeps the result envelope
+        // small and reuses the existing project-rooted capture dir guard.
+        if (type === 'screenshot' && result.data && typeof result.data.dataUrl === 'string') {
+            const persisted = this.persistGameScreenshot(result.data.dataUrl, result.data.width, result.data.height);
+            if (!persisted.ok) {
+                return { success: false, error: persisted.error };
+            }
+            return {
+                success: true,
+                data: {
+                    type,
+                    filePath: persisted.filePath,
+                    size: persisted.size,
+                    width: result.data.width,
+                    height: result.data.height,
+                },
+                message: `Game canvas captured to ${persisted.filePath}`,
+            };
+        }
+        return { success: true, data: { type, ...result.data }, message: `Game command ${type} ok` };
+    }
+
+    private async gameClientStatus(): Promise<ToolResponse> {
+        return { success: true, data: getClientStatus() };
+    }
+
+    private persistGameScreenshot(dataUrl: string, width?: number, height?: number): { ok: true; filePath: string; size: number } | { ok: false; error: string } {
+        const dirResult = this.ensureCaptureDir();
+        if (!dirResult.ok) return { ok: false, error: dirResult.error };
+        const m = /^data:image\/(png|jpeg|webp);base64,(.*)$/i.exec(dataUrl);
+        if (!m) {
+            return { ok: false, error: 'GameDebugClient returned screenshot dataUrl in unexpected format (expected data:image/{png|jpeg|webp};base64,...)' };
+        }
+        const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+        const buf = Buffer.from(m[2], 'base64');
+        const filePath = path.join(dirResult.dir, `game-${Date.now()}.${ext}`);
+        // ensureCaptureDir already roots under Editor.Project.path; re-resolve
+        // both paths via realpath to catch a symlinked temp dir escaping the
+        // project root (defensive — same pattern as v2.5.0 file-editor).
+        const realDir = fs.realpathSync(dirResult.dir);
+        const realParent = path.dirname(filePath);
+        if (path.resolve(realParent) !== path.resolve(realDir)) {
+            return { ok: false, error: 'screenshot save path resolved outside the capture directory' };
+        }
+        fs.writeFileSync(filePath, buf);
+        return { ok: true, filePath, size: buf.length };
     }
 
     // v2.4.8 A1: TS diagnostics handlers ----------------------------------

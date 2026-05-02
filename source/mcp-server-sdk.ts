@@ -22,6 +22,11 @@ import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 import { BroadcastBridge } from './lib/broadcast-bridge';
 import { PromptRegistry, createPromptRegistry } from './prompts/registry';
+import {
+    consumePendingCommand,
+    setCommandResult,
+    getClientStatus,
+} from './lib/game-command-queue';
 
 const SERVER_NAME = 'cocos-mcp-server';
 // v2.5.1 round-1 review fix (gemini 🔴): keep this in sync with package.json's
@@ -397,7 +402,51 @@ export class MCPServer {
             }
             if (pathname === '/health' && req.method === 'GET') {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'ok', tools: this.toolsList.length }));
+                // T-V26-1: include GameDebugClient liveness so AI / user can
+                // verify the polling client is up before issuing
+                // debug_game_command.
+                const gameClient = getClientStatus();
+                res.end(JSON.stringify({
+                    status: 'ok',
+                    tools: this.toolsList.length,
+                    gameClient: {
+                        connected: gameClient.connected,
+                        lastPollAt: gameClient.lastPollAt,
+                    },
+                }));
+                return;
+            }
+            // T-V26-1: GameDebugClient polls this for the next pending command.
+            // Single-flight queue lives in lib/game-command-queue.ts.
+            if (pathname === '/game/command' && req.method === 'GET') {
+                const cmd = consumePendingCommand();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(cmd ?? null));
+                return;
+            }
+            if (pathname === '/game/result' && req.method === 'POST') {
+                const body = await readBody(req);
+                let parsed: any;
+                try {
+                    parsed = JSON.parse(body);
+                } catch (err: any) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ok: false, error: `Invalid JSON: ${err.message}` }));
+                    return;
+                }
+                if (!parsed || typeof parsed.id !== 'string') {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ok: false, error: 'expected {id, success, data?, error?}' }));
+                    return;
+                }
+                const accepted = setCommandResult(parsed);
+                res.writeHead(accepted.ok ? 204 : 409, { 'Content-Type': 'application/json' });
+                res.end(accepted.ok ? '' : JSON.stringify({ ok: false, error: accepted.reason }));
+                return;
+            }
+            if (pathname === '/game/status' && req.method === 'GET') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(getClientStatus()));
                 return;
             }
             if (pathname === '/api/tools' && req.method === 'GET') {
