@@ -5,14 +5,16 @@
 
 ## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.10.0 partial — preview landmines closed, feature backlog open）
 
-**當下版本**：v2.10.3（Stage 3 完成）。**18 categories / 186 tools**（+1 get_users from #7）。
+**當下版本**：v2.10.4（v2.10.x cycle 完）。**18 categories / 180 tools**（preferences 7→1 macro 收 6）。
 
 **v2.10.x 進度**：
 - v2.10.0 ✅ landmine #16/#17 closure + cross-repo refresh
 - v2.10.1 ✅ Stage 1 #10 — tool description/title infra（codex gpt-5.5 + 我手補 5 檔）
 - v2.10.2 ✅ Stage 2 #1/#2/#4/#11 — TS def expand / game_command sub-action / animation +4 / Polish A 助手 + 共用 schema + ok/fail 遷移 ~677 LOC 減
 - v2.10.3 ✅ Stage 3 #3/#5/#6/#7/#12 — interpreters 8→15 / record format/quality / priority labeling / get_users(uuid) / Polish B 3 lib 抽取（cors / log-parser / node-classifications）
-- v2.10.4 ⏳ Stage 4 — #8 prefs macro / #9 discover prompt / #13 Polish C
+- v2.10.4 ✅ Stage 4 #8/#9/#13 — preferences 7→1 macro / discover_then_act prompt template / Polish C 移除冗餘 try/catch（codex CLI direct）+ scene.ts 54 leftover ok/fail sites 補完 + node-classifications partial-match 改嚴格 Set lookup
+
+**v2.10.x cycle wrap**：tool count 181→180 (淨減 1，路徑：+4 anim / +1 get_users / -7 prefs / +1 prefs_manage)，LOC 整體淨減 ~1500（Polish A 677 + Polish B 42 + Polish C 150 + scene.ts ok/fail 約 30 + 各種冗餘移除）。
 
 **v2.10.0 已 land**（本 session）：
 - Cross-repo survey 從 v2.2.0 baseline refresh 到 v2.9.7 baseline，產出 v2.10 推進清單（10 candidates）

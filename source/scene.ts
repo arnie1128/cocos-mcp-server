@@ -227,24 +227,16 @@ export const methods: { [key: string]: (...any: any) => any } = {
             return await _captureALS.run(slot, async () => {
                 const fn = methods[methodName];
                 if (typeof fn !== 'function') {
-                    return {
-                        success: false,
-                        error: `runWithCapture: method ${methodName} not found`,
-                        capturedLogs: slot.entries,
-                    };
+                    return { ...fail(`runWithCapture: method ${methodName} not found`), capturedLogs: slot.entries };
                 }
                 try {
                     const result = await fn(...(methodArgs ?? []));
                     if (result && typeof result === 'object' && !Array.isArray(result)) {
                         return { ...result, capturedLogs: (result as any).capturedLogs ?? slot.entries };
                     }
-                    return { success: true, data: result, capturedLogs: slot.entries };
+                    return { ...ok(result), capturedLogs: slot.entries };
                 } catch (err: any) {
-                    return {
-                        success: false,
-                        error: err?.message ?? String(err),
-                        capturedLogs: slot.entries,
-                    };
+                    return { ...fail(err?.message ?? String(err)), capturedLogs: slot.entries };
                 }
             });
         } finally {
@@ -682,15 +674,15 @@ export const methods: { [key: string]: (...any: any) => any } = {
             const cc = require('cc');
             const ctx = resolveComponentContext(nodeUuid, componentType);
             if (!ctx.ok) {
-                return { success: false, error: ctx.error };
+                return fail(ctx.error);
             }
             const targetNode = findNodeByUuidDeep(ctx.scene, targetUuid);
             if (!targetNode) {
-                return { success: false, error: `Target node with UUID ${targetUuid} not found` };
+                return fail(`Target node with UUID ${targetUuid} not found`);
             }
             const arr = ctx.component[eventArrayProperty];
             if (!Array.isArray(arr)) {
-                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array (got ${typeof arr})` };
+                return fail(`Property '${eventArrayProperty}' on ${componentType} is not an array (got ${typeof arr})`);
             }
 
             const eh = new cc.EventHandler();
@@ -701,17 +693,14 @@ export const methods: { [key: string]: (...any: any) => any } = {
             arr.push(eh);
 
             Editor.Message.send('scene', 'snapshot');
-            return {
-                success: true,
-                data: {
+            return ok({
                     index: arr.length - 1,
                     count: arr.length,
                     componentUuid: ctx.component.uuid,
                     componentEnabled: ctx.component.enabled !== false,
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -735,11 +724,11 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const ctx = resolveComponentContext(nodeUuid, componentType);
             if (!ctx.ok) {
-                return { success: false, error: ctx.error };
+                return fail(ctx.error);
             }
             const arr = ctx.component[eventArrayProperty];
             if (!Array.isArray(arr)) {
-                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array` };
+                return fail(`Property '${eventArrayProperty}' on ${componentType} is not an array`);
             }
 
             // Trim around comparisons so callers passing UUIDs / handler
@@ -764,22 +753,19 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 });
             }
             if (removeAt < 0 || removeAt >= arr.length) {
-                return { success: false, error: 'No matching event handler to remove' };
+                return fail('No matching event handler to remove');
             }
             const removed = arr.splice(removeAt, 1)[0];
             Editor.Message.send('scene', 'snapshot');
-            return {
-                success: true,
-                data: {
+            return ok({
                     index: removeAt,
                     remaining: arr.length,
                     removed: serializeEventHandler(removed),
                     componentUuid: ctx.component.uuid,
                     componentEnabled: ctx.component.enabled !== false,
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -790,21 +776,18 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const ctx = resolveComponentContext(nodeUuid, componentType);
             if (!ctx.ok) {
-                return { success: false, error: ctx.error };
+                return fail(ctx.error);
             }
             const arr = ctx.component[eventArrayProperty];
             if (!Array.isArray(arr)) {
-                return { success: false, error: `Property '${eventArrayProperty}' on ${componentType} is not an array` };
+                return fail(`Property '${eventArrayProperty}' on ${componentType} is not an array`);
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     count: arr.length,
                     handlers: arr.map(serializeEventHandler),
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -820,18 +803,16 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const clips: any[] = anim.clips ?? [];
             const defaultClipName = anim.defaultClip?.name ?? null;
-            return {
-                success: true,
-                data: {
+            return ok({
                     nodeUuid,
                     nodeName: node.name,
                     defaultClip: defaultClipName,
@@ -842,10 +823,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
                         duration: typeof c.duration === 'number' ? c.duration : null,
                         wrapMode: c.wrapMode ?? null,
                     })),
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -853,12 +833,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const clips: any[] = typeof anim.getAnimationClips === 'function'
                 ? anim.getAnimationClips()
@@ -874,9 +854,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
                     currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
                     isPlaying: state.isPlaying === true,
                 }));
-            return { success: true, data: states };
+            return ok(states);
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -884,28 +864,25 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const state = anim.getState(stateName);
             if (!state) {
-                return { success: false, error: `Animation state '${stateName}' not found` };
+                return fail(`Animation state '${stateName}' not found`);
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     speed: typeof state.speed === 'number' ? state.speed : null,
                     isPlaying: state.isPlaying === true,
                     currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
                     totalTime: typeof state.totalTime === 'number' ? state.totalTime : null,
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -913,29 +890,26 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const state = anim.getState(stateName);
             if (!state) {
-                return { success: false, error: `Animation state '${stateName}' not found` };
+                return fail(`Animation state '${stateName}' not found`);
             }
             state.speed = speed;
-            return {
-                success: true,
-                data: {
+            return ok({
                     speed: state.speed,
                     isPlaying: state.isPlaying === true,
                     currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
                     totalTime: typeof state.totalTime === 'number' ? state.totalTime : null,
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -943,22 +917,22 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const state = anim.getState(stateName);
             if (!state) {
-                return { success: false, error: `Animation state '${stateName}' not found` };
+                return fail(`Animation state '${stateName}' not found`);
             }
             const currentTime = typeof state.currentTime === 'number' ? state.currentTime : 0;
             const totalTime = typeof state.totalTime === 'number' ? state.totalTime : 0;
-            return { success: true, data: { finished: currentTime >= totalTime } };
+            return ok({ finished: currentTime >= totalTime });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -966,12 +940,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             if (clipName) {
                 // Validate clip exists before calling play() — cc.Animation.play
@@ -979,25 +953,18 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 // typos in AI-generated calls.
                 const known = (anim.clips ?? []).some((c: any) => c?.name === clipName);
                 if (!known && (anim.defaultClip?.name !== clipName)) {
-                    return {
-                        success: false,
-                        error: `Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`,
-                    };
+                    return fail(`Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`);
                 }
                 anim.play(clipName);
             } else {
                 if (!anim.defaultClip) {
-                    return { success: false, error: 'No clipName given and no defaultClip configured' };
+                    return fail('No clipName given and no defaultClip configured');
                 }
                 anim.play();
             }
-            return {
-                success: true,
-                message: `Playing '${clipName ?? anim.defaultClip?.name}' on ${node.name}`,
-                data: { nodeUuid, clipName: clipName ?? anim.defaultClip?.name ?? null },
-            };
+            return ok({ nodeUuid, clipName: clipName ?? anim.defaultClip?.name ?? null }, `Playing '${clipName ?? anim.defaultClip?.name}' on ${node.name}`);
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -1005,17 +972,17 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             anim.stop();
-            return { success: true, message: `Stopped animation on ${node.name}` };
+            return ok(undefined, `Stopped animation on ${node.name}`);
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -1036,9 +1003,9 @@ export const methods: { [key: string]: (...any: any) => any } = {
         try {
             const { director } = require('cc');
             const scene = director.getScene();
-            if (!scene) return { success: false, error: 'No active scene' };
+            if (!scene) return fail('No active scene');
             const node = findNodeByUuidDeep(scene, nodeUuid);
-            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            if (!node) return fail(`Node ${nodeUuid} not found`);
             // v2.4.9 review fix (claude + codex 🟡): use indexOf on the
             // resolved anim instance directly. The previous metadata-string
             // lookup (constructor.name / __classname__ / _cid) was fragile
@@ -1048,38 +1015,32 @@ export const methods: { [key: string]: (...any: any) => any } = {
             // the same instance's slot in __comps__.
             const anim = node.getComponent('cc.Animation');
             if (!anim) {
-                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+                return fail(`Node ${nodeUuid} has no cc.Animation component`);
             }
             const components: any[] = (node._components ?? node.components ?? []);
             const compIndex = components.indexOf(anim);
             if (compIndex === -1) {
-                return { success: false, error: `Node ${nodeUuid} cc.Animation component not found in __comps__ array (cocos editor inconsistency).` };
+                return fail(`Node ${nodeUuid} cc.Animation component not found in __comps__ array (cocos editor inconsistency).`);
             }
             let clipUuid: string | null = null;
             if (clipName !== null && clipName !== undefined) {
                 const clip = (anim.clips ?? []).find((c: any) => c?.name === clipName);
                 if (!clip) {
-                    return {
-                        success: false,
-                        error: `Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`,
-                    };
+                    return fail(`Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`);
                 }
                 clipUuid = clip._uuid ?? clip.uuid ?? null;
                 if (!clipUuid) {
-                    return { success: false, error: `Clip '${clipName}' has no asset uuid; cannot persist as defaultClip.` };
+                    return fail(`Clip '${clipName}' has no asset uuid; cannot persist as defaultClip.`);
                 }
             }
-            return {
-                success: true,
-                data: {
+            return ok({
                     componentIndex: compIndex,
                     clipUuid,
                     currentDefaultClip: anim.defaultClip?.name ?? null,
                     currentPlayOnLoad: anim.playOnLoad === true,
-                },
-            };
+                });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
@@ -1114,10 +1075,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
     async changePreviewPlayState(state: boolean) {
         try {
             if (typeof cce === 'undefined' || cce === null) {
-                return {
-                    success: false,
-                    error: 'cce global is not available; this method must run in a scene-script context.',
-                };
+                return fail('cce global is not available; this method must run in a scene-script context.');
             }
             // v2.8.2: probe the three candidate locations the SceneFacade
             // singleton has been observed at across cocos builds. Same
@@ -1131,18 +1089,12 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 c => c && typeof c.changePreviewPlayState === 'function',
             );
             if (!facade) {
-                return {
-                    success: false,
-                    error: 'No SceneFacade with changePreviewPlayState found on cce (cce.SceneFacade / cce.SceneFacadeManager / .instance). Cocos version may not support PIE control via this facade — use the toolbar play button manually.',
-                };
+                return fail('No SceneFacade with changePreviewPlayState found on cce (cce.SceneFacade / cce.SceneFacadeManager / .instance). Cocos version may not support PIE control via this facade — use the toolbar play button manually.');
             }
             await facade.changePreviewPlayState(Boolean(state));
-            return {
-                success: true,
-                data: { requestedState: Boolean(state) },
-            };
+            return ok({ requestedState: Boolean(state) });
         } catch (error: any) {
-            return { success: false, error: error?.message ?? String(error) };
+            return fail(error?.message ?? String(error));
         }
     },
 
