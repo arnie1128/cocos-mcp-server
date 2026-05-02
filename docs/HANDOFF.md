@@ -5,29 +5,60 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.5.1 + reload-retested → next: v2.6.0）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.6.0 → v2.6.2 三方 round-2 ship-it → next: v2.7.0 / live-test / 收尾）
 
-**當下版本**：v2.5.1（origin/main HEAD = `3aa83e1`，已 push、**已同步到
-`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.5.0
-file-editor + Notifications + Prompts 落地 + 1 輪三方 review patch（v2.5.1）。
-Round 2 三方一致 🟢 ship-it。Reload 後實機 retest 17 條全綠，包含
-T-V25-3 Notifications 端到端 subscribe→broadcast→SSE 推送、CRLF 寫入
-disk bytes 確認、regex `$1` backreference 展開等 round-1 fix verified。
-**18 categories / 181 tools**。
+**當下版本**：v2.6.2（origin/main HEAD = `27e7716`，已 push）。v2.6.0
+落地 cross-LLM 兼容 + runtime QA + UUID 兼容；v2.6.1 三方 round-1 patch
+（5 🔴 + 6 🟡 全清）；v2.6.2 round-2 一個 doc-only fix；round-3
+三方一致 🟢 ship-it。**18 categories / 183 tools**（+2 vs v2.5.x：
+`debug_game_command` / `debug_game_client_status`）。
 
-**下一個動工**：**v2.6.0** — 跨 LLM 兼容 + runtime QA（4-5 天）。
-細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.6.0](roadmap/06-version-plan-v23-v27.md)。
-- Gemini-compat schema patch（cocos-cli 路線）— zod-to-inline-JSON-Schema-7
-  覆寫 `tools/list` handler，避免 `$ref` 讓 Gemini parser 掛掉。`vec3Schema`
-  / `prefabPositionSchema` / `transformPositionSchema` 等 reused subschema
-  跑 Gemini 都會炸。0.5-1 天。
-- `debug_game_command` + `GameDebugClient` injection（harady 路線）—
-  注一個 client 進 cocos preview process，AI 透過 `debug_game_command`
-  能 screenshot / state / navigate / click / inspect。AI runtime QA 大門。
-  3-4 天。
-- 同梱：`decodeUuid` UUID 兼容層（RomaRogov）+ FunplayAI
-  `capture_game_screenshot` / `capture_preview_screenshot`（preview-side
-  截圖，跟 GameDebugClient 同層）。
+**下一個動工**：**選項 A v2.7.0 spillover** 或 **選項 B v2.6.x 實機 reload retest**。
+
+> **建議**：先做選項 B（reload retest）— v2.6.0 的 GameDebugClient bridge
+> 沒在實機跑過，HTTP queue / screenshot 落盤 / single-flight claim 等
+> 都只跑了 smoke。需要 user 把 v2.6.2 同步到 `cocos_cs_349` extension
+> path，reload，跑 health 確認 `tools: 183`，然後丟一個簡單 game project
+> 試 `debug_game_command(type='inspect', args={name:'Canvas'})`。如果
+> 通過就動 v2.7.0；若有 bug 發 v2.6.3 patch。
+
+**v2.7.0 候選清單**（不保證全做，視 v2.6 reload-retest 結果 + 用戶優先級）：
+- 把 W7 CORS scoping for `/game/*` endpoints 補上（Claude r1 提）
+- `capture_preview_screenshot` — preview-window 截圖（Electron capturePage on Preview-in-Editor window，跟 game canvas 截圖層級不同）
+- `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有部分 code 註解）
+- RomaRogov macro-tool enum routing 模式
+- harady `debug_preview` 程式化啟停 preview + `debug_query_devices`
+- decorator 全面捨棄 `reflect-metadata` 路線檢討
+
+**v2.6.0 → v2.6.2 階段**：
+- **v2.6.0**：T-V26-Gemini-guard（`scripts/check-gemini-compat.js` —
+  發現 zod 4 + draft-7 已自動 inline，無 patch 需要，純 regression
+  guard + landmine #15）+ T-V26-1 debug_game_command + GameDebugClient
+  bridge（HTTP polling queue 路線、harady 為 prior art —
+  `source/lib/game-command-queue.ts` single-flight + claim + stale guard +
+  `lastPollAt` liveness；`source/mcp-server-sdk.ts` 3 endpoint
+  `/game/command` `/game/result` `/game/status` + `/health` 加
+  `gameClient` block；`source/tools/debug-tools.ts` 加
+  `debug_game_command` + `debug_game_client_status` 共 +2 tool；
+  `client/cocos-mcp-client.ts` + `README.md` 範本給 user 落到 game
+  source；`tsconfig.json` 加 `exclude:["client"]`；`scripts/smoke-mcp-sdk.js`
+  加 4 條 step 15-18）+ T-V26-decodeUuid（`source/lib/uuid-compat.ts`
+  base64 sub-asset UUID 兼容、應用在 `asset-meta-tools.ts resolveAssetInfo`）。
+- **v2.6.1**：round 1 — 5 🔴（`consumePendingCommand` re-delivery race /
+  `/game/result` body 無 size cap → DoS / screenshot base64 size 無 cap →
+  disk fill / `decodeUuid` false-positive on base64-shaped strings /
+  `persistGameScreenshot` symlink check 是 tautology）+ 6 ≥1-reviewer 🟡
+  （payload `success:boolean` validate / awaiter cleanup gap on id mismatch /
+  CLAUDE.md tool count stale 160 / `npm run check:gemini` + smoke scripts /
+  client `takeScreenshot` skip inactive + row-flip subarray.set + ccclass
+  fallback over constructor.name / `POLL_TIMESTAMP_FRESH_MS` 2s→5s /
+  `releaseDate` 日期錯 / smoke full round-trip + 400-shape）。
+- **v2.6.2**：round 2 — 1 ≥2-reviewer 🟡（CLAUDE.md landmine #15 仍寫
+  "181 v2.6.0" → 改 "183 v2.6.1"，Gemini r2 升 🔴 + Codex r2 🟡）。
+  Round 2 三方達成 🟢 ship-it（單方 🟡 4 條：symlink-check tautology 是
+  comment overclaim、413-after-destroy silent no-op、`queued` 命名 post-
+  claim cosmetic、b64 cap off-by-≤2-bytes meaningless — 全 deferred）。
+- **Round 3** confirms ship-it from all three reviewers, no findings.
 
 **v2.5.0 → v2.5.1 階段**：
 - **v2.5.0**：T-V25-1 fileEditor 4 tools（path-safety realpathSync + asset-db
@@ -65,6 +96,13 @@ disk bytes 確認、regex `$1` backreference 展開等 round-1 fix verified。
 
 | SHA | 內容 |
 |---|---|
+| `27e7716` | fix(v2.6.2): three-way review patch round 2 on v2.6.1 — 1 doc fix |
+| `7614497` | fix(v2.6.1): three-way review patch round 1 on v2.6.0 — 5 must-fix + 6 polish |
+| `4ce04cd` | release: v2.6.0 — cross-LLM compat + runtime QA |
+| `1c2d9cb` | feat(v2.6.0): debug_game_command + GameDebugClient bridge (T-V26-1) |
+| `e737a33` | docs(v2.6.0): T-V26-1 prior art — harady polling-queue route, ~1.5 day |
+| `e0307f0` | feat(v2.6.0): gemini-compat smoke guard + landmine #15 |
+| `1e828ba` | docs(handoff): wrap v2.5.x cycle — reload-retested, ready for v2.6.0 |
 | `3aa83e1` | docs(handoff): v2.5.1 reload retest — all green end-to-end |
 | `a6c0c9b` | docs(handoff): v2.5.0 → v2.5.1 wrap — 2-round three-way review converged 🟢 |
 | `1aa1120` | fix(v2.5.1): three-way review patch round 1 on v2.5.0 — 4 must-fix + 5 polish |
@@ -379,8 +417,11 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.7.0 改動前（v2.6.2 release 點 + 三方 ship-it round 3）→ `git reset --hard 27e7716`
+- v2.6.2 改動前（v2.6.1 release 點 + 三方 ship-it round 2 part-A）→ `git reset --hard 7614497`
+- v2.6.1 改動前（v2.6.0 release 點）→ `git reset --hard 4ce04cd`
+- v2.6.0 改動前（v2.5.1 release 點 + reload-retested）→ `git reset --hard 1e828ba`
 - v2.4.6 改動前（v2.4.5 release 點）→ `git reset --hard c4a759d`
-- v2.6.0 改動前（v2.5.1 release 點 + 三方 ship-it round 2）→ `git reset --hard 1aa1120`
 - v2.5.1 改動前（v2.5.0 release 點）→ `git reset --hard 543c06a`
 - v2.5.0 改動前（v2.4.12 release 點 + reload-retested）→ `git reset --hard 185f98c`
 - v2.4.12 改動前（v2.4.11 release 點 + 三方 ship-it round 4）→ `git reset --hard 8bb46e8`
@@ -516,10 +557,13 @@ v2.4.11 ✅ done（三方 review patch round 3 — 1 must-fix（refcount leak pa
 v2.4.12 ✅ done（reload retest fix — Node 22+ Windows .cmd shim 透過 shell:true + quoteForCmd + sync-throw try/catch，commit acfb930；retest doc 185f98c）
 v2.5.0 ✅ done（multi-client breadth — fileEditor 4 tools + probe-broadcast + Notifications subscribe + Prompts 4 templates，18 categories / 181 tools，commit 543c06a）
 v2.5.1 ✅ done（三方 review patch round 1 — 4 must-fix（SERVER_VERSION stale + notification unhandled rejection + prompts/get error envelope + replace_text $1 backreferences）+ 5 polish，commit 1aa1120）
+v2.6.0 ✅ done（cross-LLM compat + runtime QA — gemini-compat smoke guard + debug_game_command + GameDebugClient bridge + decodeUuid 兼容層，18 categories / 183 tools，commit 4ce04cd）
+v2.6.1 ✅ done（三方 review patch round 1 — 5 must-fix（consume re-delivery race + body unbounded DoS + screenshot size DoS + decodeUuid false-positive + symlink check broken）+ 6 polish，commit 7614497）
+v2.6.2 ✅ done（三方 review patch round 2 — 1 doc fix（CLAUDE.md landmine #15 stale "181 v2.6.0" → "183 v2.6.1"），commit 27e7716；round 3 三方一致 🟢 ship-it）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ 擴充功能（next v2.5.0 file-editor + Notifications + Prompts；細拆見 docs/roadmap/06）
+B-2 ⏳ 擴充功能（next v2.7.0 spillover；細拆見 docs/roadmap/06；v2.6.x 都已 ship）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 

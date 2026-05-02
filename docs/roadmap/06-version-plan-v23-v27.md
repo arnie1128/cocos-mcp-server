@@ -21,10 +21,17 @@
 | v2.4.5 | 三方 review patch round 2 on v2.4.3（7 worth-considering） | 0.3 天 | patch | ✅ done |
 | v2.4.6 | 三方 review patch round 3 on v2.4.3（1 must-fix + 1 polish） | 0.1 天 | patch | ✅ done |
 | v2.4.7 | landmine #14（cocos cumulative dirty flag）+ live-test cleanup fix bump | 0.1 天 | patch | ✅ done |
-| **v2.4.8** | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | patch | ⏳ next |
-| **v2.5.0** | 多 client 廣度（file-editor + Notifications + Prompts） | 5 天 | minor | ⏳ |
-| v2.6.0 | 跨 LLM 兼容 + runtime QA（Gemini-compat + debug_game_command） | 4-5 天 | minor | ⏳ |
-| v2.7.0 | spillover buffer / 動工到一半發現的延伸項 | — | minor | ⏳ |
+| v2.4.8 | 收 v2.4.0 同梱失蹤的 4 件（TS diagnostics + animation + capture-scene-logs + capability flag） | 3 天 | patch | ✅ done |
+| v2.4.9 | 三方 review patch round 1 on v2.4.8（2 must-fix + 4 polish） | 0.5 天 | patch | ✅ done |
+| v2.4.10 | 三方 review patch round 2 on v2.4.9（1 must-fix + 2 polish — AsyncLocalStorage 收 capture interleave） | 0.3 天 | patch | ✅ done |
+| v2.4.11 | 三方 review patch round 3 on v2.4.10（1 must-fix — refcount leak path） | 0.1 天 | patch | ✅ done |
+| v2.4.12 | reload retest fix — Node 22+ Windows .cmd shim spawn EINVAL | 0.1 天 | patch | ✅ done |
+| v2.5.0 | 多 client 廣度（file-editor + Notifications + Prompts） | 5 天 | minor | ✅ done |
+| v2.5.1 | 三方 review patch round 1 on v2.5.0（4 must-fix + 5 polish） | 0.5 天 | patch | ✅ done |
+| v2.6.0 | 跨 LLM 兼容 + runtime QA（Gemini-compat guard + debug_game_command + decodeUuid 兼容層） | 1.5 天（實際；估 4-5 天） | minor | ✅ done |
+| v2.6.1 | 三方 review patch round 1 on v2.6.0（5 must-fix + 6 polish） | 0.5 天 | patch | ✅ done |
+| v2.6.2 | 三方 review patch round 2 on v2.6.1（1 doc fix — landmine #15 stale tool count） | 0.05 天 | patch | ✅ done |
+| **v2.7.0** | spillover buffer / 動工到一半發現的延伸項 | — | minor | ⏳ next |
 
 > **版號順延說明**：原計畫 v2.4.1 = Asset interpreters，但 v2.4.0 的兩輪
 > 三方 review patch 吃了 v2.4.1 + v2.4.2 兩個 slot，Asset interpreters
