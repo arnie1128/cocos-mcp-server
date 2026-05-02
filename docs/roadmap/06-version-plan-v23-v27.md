@@ -31,7 +31,11 @@
 | v2.6.0 | 跨 LLM 兼容 + runtime QA（Gemini-compat guard + debug_game_command + decodeUuid 兼容層） | 1.5 天（實際；估 4-5 天） | minor | ✅ done |
 | v2.6.1 | 三方 review patch round 1 on v2.6.0（5 must-fix + 6 polish） | 0.5 天 | patch | ✅ done |
 | v2.6.2 | 三方 review patch round 2 on v2.6.1（1 doc fix — landmine #15 stale tool count） | 0.05 天 | patch | ✅ done |
-| **v2.7.0** | spillover buffer / 動工到一半發現的延伸項 | — | minor | ⏳ next |
+| v2.7.0 | preview-QA + security hardening（CORS scoping for /game/* + debug_preview_url + debug_query_devices + debug_capture_preview_screenshot） | 1 天（實際；估 5-6 天） | minor | ✅ done |
+| v2.7.1 | 三方 review patch round 1 on v2.7.0（4 must-fix + 4 ≥2-reviewer 🟡） | 0.5 天 | patch | ✅ done |
+| v2.7.2 | 三方 review patch round 2 on v2.7.1（CLAUDE.md architecture map drift + HANDOFF heading stale） | 0.1 天 | patch | ✅ done |
+| v2.7.3 | Codex round-2 re-attendance（2 must-fix HANDOFF body + v2.8.0 candidate prune + 2 polish） | 0.1 天 | patch | ✅ done |
+| **v2.8.0** | spillover buffer / 動工到一半發現的延伸項 | — | minor | ⏳ next |
 
 > **版號順延說明**：原計畫 v2.4.1 = Asset interpreters，但 v2.4.0 的兩輪
 > 三方 review patch 吃了 v2.4.1 + v2.4.2 兩個 slot，Asset interpreters

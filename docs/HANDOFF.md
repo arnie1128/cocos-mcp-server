@@ -111,6 +111,15 @@ v2.7.0 落地的 3 件）：
 
 | SHA | 內容 |
 |---|---|
+| `d1a868f` | fix(v2.7.3): codex round-2 re-attendance — 2 must-fix + 2 polish |
+| `dd88952` | fix(v2.7.2): three-way review patch round 2 on v2.7.1 — doc accuracy |
+| `39d044f` | fix(v2.7.1): three-way review patch round 1 on v2.7.0 — 4 must-fix + 4 polish |
+| `5c67031` | release: v2.7.0 — preview-QA + security hardening (#4 capture_preview_screenshot) |
+| `bfb305a` | feat(v2.7.0 #3): debug_preview_url + debug_query_devices |
+| `9fcfe29` | feat(v2.7.0 #2): CORS scoping for /game/* endpoints (W7) |
+| `0cf8abe` | docs(v2.7.0 #1): close 'drop reflect-metadata' verification — no-op |
+| `0e085ef` | docs(handoff): v2.6.2 reload retest — 22 checks green end-to-end |
+| `3f1bc2e` | docs(handoff): v2.6.x cycle wrap — round 3 three-way ship-it converged |
 | `27e7716` | fix(v2.6.2): three-way review patch round 2 on v2.6.1 — 1 doc fix |
 | `7614497` | fix(v2.6.1): three-way review patch round 1 on v2.6.0 — 5 must-fix + 6 polish |
 | `4ce04cd` | release: v2.6.0 — cross-LLM compat + runtime QA |
@@ -416,6 +425,58 @@ Cocos Creator reload 後 `/health` 回 `tools: 181`，
   argv 不經 shell parsing，spaces in paths 自然安全；quoteForCmd 不會被觸發。
   註解已寫進 `source/lib/ts-diagnostics.ts:execAsync`。
 
+### v2.7.0 — v2.7.3 三方 review 紀錄（3 輪 + 1 re-attendance）
+
+走「主 commit + 三方 review + 反修 patch」流程。**3 輪 review，3 輪反修**；
+其中 round-2 Codex 缺席（out-of-credits），re-attendance 後追加一輪修補。
+
+#### Round 1 — v2.7.0 commit `5c67031`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `resolveGameCorsOrigin` JSDoc 說 no-Origin 回 sentinel `'null'`，但 code 回 `'*'` — 程式正確、註解錯 | Claude + Codex 🟡 |
+| 2 | 🔴 must-fix | CHANGELOG #3 稱兩個新 tool 都走 "public Editor.Message channels"，但 `preview/query-preview-url` 在 `@types/protected/`、不算 public | Claude + Codex 🟡 + Gemini 🟡 三方 |
+| 3 | 🔴 must-fix | smoke step 21 缺 OPTIONS preflight 403 + ACAO-absent assertion lock | Claude |
+| 4 | 🔴 must-fix | IPv6 `[::1]` Node-version 漂移 — Node 22 帶括號、舊版可能裸 `::1` | Gemini 🔴 + Claude 🟡 |
+| 5 | 🟡 worth | `capturePreviewScreenshot` substring `'Preview'` 默認對中文/locale cocos 主視窗（含 "Cocos Creator Preview"）會誤匹配；delegate 到 `screenshot()` → `pickWindow` 又把負濾除掉 | Claude + Codex |
+| 6 | 🟡 worth | `previewUrl` `data.opened: true` 措辭誤導：`openExternal` 只保證 OS launcher 觸發、不代表 page 已 render | Codex + Gemini |
+| 7 | 🟡 worth | `CLAUDE.md` 工具總數仍記 183、debug-tools.ts 仍 9（v2.7.0 後實為 186 / 17）| Codex |
+| 8 | 🟡 worth | `HANDOFF.md` next entry blurb 仍說 183 tools | Codex |
+
+v2.7.1 commit `39d044f` 反修：4 🔴 + 4 ≥2-reviewer 🟡 全清。
+
+#### Round 2 — v2.7.1 commit `39d044f`
+
+reviewer attendance：Gemini ✅ full / Claude partial（stream stalled）/
+Codex 失敗 out-of-credits（resets 16:00）。
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `CLAUDE.md:51` debug 17 → live 20（v2.7.1 patch 自己算錯，少了 v2.3.0 的 4 件 / net 3 件）| Gemini r2 |
+| 2 | 🔴 must-fix | `CLAUDE.md:47` node 11 → live 12（drift）| Gemini r2 |
+| 3 | 🔴 must-fix | `CLAUDE.md:48` component 10 → live 11（drift）| Gemini r2 |
+| 4 | 🔴 must-fix | `CLAUDE.md` 架構地圖完全沒列 inspector / asset-meta / animation / file-editor 4 個檔案 | Gemini r2 |
+| 5 | 🟡 worth | `HANDOFF.md:8` heading 仍說 "next: v2.7.0"（v2.7.0 已 ship）| Claude r2 partial |
+
+v2.7.2 commit `dd88952` 反修：4 🔴 + 1 🟡（doc-only）。
+
+#### Round 2 re-attendance — Codex 對 v2.7.2 commit `dd88952`
+
+Codex credits 回後跑 `5c67031..dd88952` cumulative 補考，找出 v2.7.2 自己漏的：
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `HANDOFF.md:10` body 仍說「當下版本：v2.7.1」（v2.7.2 patch 改了 heading 沒改 body）| Codex r2-redux |
+| 2 | 🔴 must-fix | `HANDOFF.md:25-28` v2.8.0 candidates 仍列 `capture_preview_screenshot` / `debug_query_devices` / `debug_preview_url`（這 3 件在 v2.7.0 #3+#4 已落地）| Codex r2-redux |
+| 3 | 🟡 worth | smoke step 21 no-Origin case 只驗 200，未鎖 `ACAO === '*'` | Codex r2-redux |
+| 4 | 🟡 worth | `CLAUDE.md:51` v2.3.0 列 +4 但 `execute_script` 是 compat alias、實為淨 +3 | Codex r2-redux |
+
+v2.7.3 commit `d1a868f` 反修：2 🔴 + 2 🟡 全清。
+
+#### Round 3 — v2.7.3 commit `d1a868f`
+
+三方一致 🟢 ship-it（Claude / Codex / Gemini 全 0 🔴 0 🟡）。
+
 ### v2.4.8 — v2.4.11 三方 review 紀錄（4 輪）
 
 走「主 commit + 三方 review + 反修 patch」流程。**4 輪 review，3 輪反修**。
@@ -482,6 +543,10 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.8.0 改動前（v2.7.3 release 點 + 三方 ship-it round 3）→ `git reset --hard d1a868f`
+- v2.7.3 改動前（v2.7.2 release 點）→ `git reset --hard dd88952`
+- v2.7.2 改動前（v2.7.1 release 點）→ `git reset --hard 39d044f`
+- v2.7.1 改動前（v2.7.0 release 點）→ `git reset --hard 5c67031`
 - v2.7.0 改動前（v2.6.2 release 點 + 三方 ship-it round 3）→ `git reset --hard 27e7716`
 - v2.6.2 改動前（v2.6.1 release 點 + 三方 ship-it round 2 part-A）→ `git reset --hard 7614497`
 - v2.6.1 改動前（v2.6.0 release 點）→ `git reset --hard 4ce04cd`
@@ -626,6 +691,10 @@ v2.6.0 ✅ done（cross-LLM compat + runtime QA — gemini-compat smoke guard + 
 v2.6.1 ✅ done（三方 review patch round 1 — 5 must-fix（consume re-delivery race + body unbounded DoS + screenshot size DoS + decodeUuid false-positive + symlink check broken）+ 6 polish，commit 7614497）
 v2.6.2 ✅ done（三方 review patch round 2 — 1 doc fix（CLAUDE.md landmine #15 stale "181 v2.6.0" → "183 v2.6.1"），commit 27e7716；round 3 三方一致 🟢 ship-it）
 v2.6.2 reload-tested ✅（22 條全綠：/game/* 三 endpoint + debug_game_command timeout/round-trip + decodeUuid no-op/decode-and-use + regression all v2.5.x/v2.4.x）
+v2.7.0 ✅ done（preview-QA + security hardening — CORS scoping for /game/* + debug_preview_url + debug_query_devices + debug_capture_preview_screenshot，18 categories / 186 tools，commit 5c67031）
+v2.7.1 ✅ done（三方 review patch round 1 — 4 must-fix（resolveGameCorsOrigin doc/code mismatch + CHANGELOG 'public' channels misleading + smoke OPTIONS preflight + IPv6 [::1] portability）+ 4 polish，commit 39d044f）
+v2.7.2 ✅ done（三方 review patch round 2 — CLAUDE.md architecture map drift（debug 17→20 / node 11→12 / component 10→11 / +4 missing entries）+ HANDOFF heading stale，commit dd88952；Codex r2 出貨 due to out-of-credits）
+v2.7.3 ✅ done（Codex round-2 re-attendance — 2 must-fix（HANDOFF body 漏更新 v2.7.2 + v2.8.0 candidates 列已落地工具）+ 2 polish（smoke ACAO=* + CLAUDE.md v2.3.0 數學澄清），commit d1a868f；round 3 三方一致 🟢 ship-it）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
