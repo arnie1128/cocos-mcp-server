@@ -394,17 +394,27 @@ export class MCPServer {
         // /game/status are reads but the legitimate caller (GameDebugClient
         // running inside cocos preview / browser preview) is well-known.
         const isGameEndpoint = pathname?.startsWith('/game/') === true;
+        // v2.8.0 T-V28-1 (carryover from v2.7.0 Claude single-reviewer 🟡):
+        // hoist resolveGameCorsOrigin so the OPTIONS branch, the response-
+        // header branch, and the post-CORS 403 enforcement (later in
+        // requestHandler) share one classification call.
+        const gameAcao = isGameEndpoint
+            ? resolveGameCorsOrigin(req.headers.origin)
+            : null;
         if (isGameEndpoint) {
-            const acao = resolveGameCorsOrigin(req.headers.origin);
-            if (acao !== null) {
-                res.setHeader('Access-Control-Allow-Origin', acao);
-                // Vary so browser caches don't poison cross-origin responses.
-                res.setHeader('Vary', 'Origin');
+            // v2.8.0 T-V28-1 (carryover from v2.7.0 Claude single-reviewer 🟡):
+            // emit Vary: Origin on BOTH allow- and deny- branches so a shared
+            // browser cache cannot serve a cached allowed-origin response to a
+            // later disallowed origin (or vice versa). The header is set once
+            // here regardless of acao outcome.
+            res.setHeader('Vary', 'Origin');
+            if (gameAcao !== null) {
+                res.setHeader('Access-Control-Allow-Origin', gameAcao);
             } // else: omit ACAO entirely; browsers will block the response.
             // Reject preflight from disallowed origins fast so the request
             // never reaches the queue logic.
             if (req.method === 'OPTIONS') {
-                if (acao === null) {
+                if (gameAcao === null) {
                     res.writeHead(403);
                     res.end();
                     return;
@@ -454,7 +464,10 @@ export class MCPServer {
             // client (or a browser with simple-request bypass) can still
             // POST/GET. Reject 403 here to harden the queue against
             // cross-tab hijack.
-            if (isGameEndpoint && resolveGameCorsOrigin(req.headers.origin) === null) {
+            // v2.8.0 T-V28-1: reuse the already-classified gameAcao instead of
+            // re-running resolveGameCorsOrigin (cheap call but it kept origin
+            // classification logic in two places).
+            if (isGameEndpoint && gameAcao === null) {
                 res.writeHead(403, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ ok: false, error: 'origin not allowed for /game/* endpoints' }));
                 return;
