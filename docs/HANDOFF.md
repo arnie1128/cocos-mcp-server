@@ -5,16 +5,22 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.6）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.7 + live-tested）
 
-**當下版本**：v2.4.6（origin/main HEAD = `ac0539f`，已 push、無 in-flight
-任務）。v2.4.3 asset interpreters 落地 + **三輪**三方 review patch（v2.4.4 /
-v2.4.5 / v2.4.6）。
+**當下版本**：v2.4.7（origin/main HEAD = `6e63bbd`，已 push、無 in-flight
+任務、**已同步到 `cocos_cs_349` extension path 並實機 reload 通過**）。
+v2.4.3 asset interpreters 落地 + **三輪**三方 review patch（v2.4.4 / v2.4.5
+/ v2.4.6）+ v2.4.7 landmine doc + live-test cleanup fix bump + 實機 reload
+測試所有 v2.4.0 / v2.4.3 新 tool。
 
 **最近 commit**（最新到舊，僅列 v2.4.3 cycle 後）：
 
 | SHA | 內容 |
 |---|---|
+| `6e63bbd` | docs(roadmap): renumber v2.4.1 → v2.4.3 (asset interpreters slot shift) |
+| `acdfac1` | release: v2.4.7 — landmine #14 (cocos cumulative dirty flag) + bump for live-test fix sync |
+| `ebab029` | fix(live-test): cleanup orphans + skip scene-switch when dirty |
+| `15e585b` | docs(handoff): v2.4.3-v2.4.6 wrap |
 | `ac0539f` | fix(v2.4.6): round-3 review fixes on v2.4.5 (1 must-fix + 1 polish) |
 | `c4a759d` | fix(v2.4.5): round-2 review polish on v2.4.4 (7 worth-considering) |
 | `ba6e39e` | fix(v2.4.4): three-way review fixes on v2.4.3 (2 must-fix + 5 polish) |
@@ -22,9 +28,6 @@ v2.4.5 / v2.4.6）。
 | `c928769` | feat(v2.4.3 step B): 8 specialized asset interpreters |
 | `1c92f1a` | feat(v2.4.3 step A): asset-interpreter scaffold (interface + base + manager) |
 | `5c4907b` | docs(handoff): v2.4.0/2.4.1/2.4.2 wrap |
-| `2b5c1f2` | fix(v2.4.2): second-round review fixes on v2.4.1 (2 must-fix + 4 polish) |
-| `c39e1aa` | fix(v2.4.1): three-way review fixes on v2.4.0 (9 issues) |
-| `0231b10` | release: v2.4.0 (6-step refactor + InstanceReference + TS definitions) |
 
 **v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
 行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
@@ -157,6 +160,43 @@ v2.4.6 commit `ac0539f` 反修。
 
 三方 🟢 ship-it 一致通過。
 
+### v2.4.7 改動摘要
+
+| 區 | 內容 |
+|---|---|
+| live-test cleanup（commit `ebab029`，pre-bump） | (1) `paste.data.uuids` → `data.newUuids` 修讀錯導致的 orphan paste node；(2) prefab section 改用 `make.data.instanceNodeUuid` 抓真 instance UUID + 先刪 instance 再刪 asset，避免 `(Missing Node)`；(3) scene-switch 前 re-query dirty，dirty 就 skip 不觸發 cocos save-changes 彈窗 |
+| **CLAUDE.md landmine #14** | cocos cumulative dirty flag 不可程式化清除：scene `query-dirty` 存在但無 `clear-dirty`/`discard`/`revert` channel；`scene-facade-interface.d.ts` 也只暴露 `querySceneDirty`。create+delete round-trip 仍 dirty。AI workflow「mutate scene → switch scene」會觸發 cocos save-changes modal 並 block IPC reply（同 landmine #12 pattern，不同 channel）|
+| 為什麼 bump | source/ 沒改，但 `cocos_cs_349` plugin panel 要看到新版號才知道 reload 是否生效；user request 為「修正版本順延小版號 + reload 後實機驗證」 |
+| Roadmap doc 同步 | `docs/roadmap/06-version-plan-v23-v27.md` 從 v2.4.1 改稱 v2.4.3 並補版號順延說明（commit `6e63bbd`） |
+
+### v2.4.7 reload 後實機測試紀錄
+
+**環境**：`D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server/` 已同步
+v2.4.7（dist + package.json + CHANGELOG.md），Cocos Creator 開 cocos_cs_349
+project + reload extension panel，`/health` 回 `tools: 170`。
+
+| 測項 | 結果 |
+|---|---|
+| `inspector_get_common_types_definition` | ✅ 9 cc value types + InstanceReference<T> |
+| `inspector_get_instance_definition` (Canvas) | ✅ TS class 正確 + Vec3 type + Enum hint 註解（v2.4.5 fix）+ `__comps__` 尾端註解 |
+| `inspector` reference.type mismatch warning（v2.4.2 fix） | ✅ type='cc.Sprite' vs dump='cc.Node' → warning 正確出 |
+| `node_set_node_properties` 3 props batch | ✅ name + active + position 順序寫入；read-back 對 |
+| batch-set 重複 path reject | ✅ `duplicate path(s) in entries: name` |
+| batch-set overlap warning | ✅ `position ⊃ position.x` warning + 仍寫成功 |
+| `component_set_component_properties` | ✅ UITransform.contentSize + anchorPoint sequential |
+| `set_component_property` reference={id,type} | ✅ |
+| Conflict detection reference vs nodeUuid | ✅ `resolveReference: ... conflicts ...` |
+| `nodeName` fallback | ✅ |
+| Malformed reference (id missing) | ✅ zod schema 層先擋住（更早的防線） |
+| Scene 收尾 | ✅ 4 root nodes，無 orphan |
+
+**實機觀察**：
+- inspector tooltip 還是 raw `i18n:scene.cc.Node.properties.position.tooltip` 字串
+  （Editor.I18n.t() 沒 resolve）。base.ts 的 extractFromUserData 有解，但 inspector
+  的 walker 沒有 — 下次 patch 可整合，但只是 nice-to-have。
+- live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
+  或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
+
 ### 下一個動工
 
 **選項 A（推薦）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
@@ -165,10 +205,9 @@ v2.4.6 commit `ac0539f` 反修。
 - T-P3-3 Notifications（resources/updated subscribe；前置：先寫 probe-broadcast script 量實機事件密度）
 - T-P3-2 Prompts capability（FunplayAI 路線，4 個 template）
 
-**選項 B**：實機 live-test v2.4.3 asset-meta tool（`assetMeta_get_properties` /
-`assetMeta_set_properties`）+ v2.4.0 InstanceReference 流程。Live-test 前需
-ping user（feedback memory: notify-before-live-test）。建議先做這個，因為
-v2.4.3 是新 user-facing surface，沒實機驗過就推 v2.5.0 風險疊加。
+**選項 B**：實機 live-test `assetMeta_*` 三個 tool 真正 set_properties path（v2.4.7
+的 reload 測試只驗了 read + guard rejection；真正寫 image asset meta 沒測，
+因為會改 user 的真實檔案）。要 user 同意 + 指定可改的 disposable asset 才能跑。
 
 **動工前讀**：
 
@@ -211,6 +250,7 @@ v2.4.3 是新 user-facing surface，沒實機驗過就推 v2.5.0 風險疊加。
 | **v2.4.4** | 三方 review patch round 1 on v2.4.3（2 must-fix + 5 polish） | 0.5 天 | ✅ done |
 | **v2.4.5** | 三方 review patch round 2 on v2.4.4（7 worth-considering） | 0.3 天 | ✅ done |
 | **v2.4.6** | 三方 review patch round 3 on v2.4.5（1 must-fix + 1 polish） | 0.1 天 | ✅ done |
+| **v2.4.7** | landmine #14 + live-test cleanup fix bump + roadmap renumber + 實機 reload 測試 | 0.2 天 | ✅ done |
 | **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ next |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
@@ -264,6 +304,7 @@ v2.4.3 ✅ done（asset-meta 編輯系統 — assetMeta category +3 tools，170 
 v2.4.4 ✅ done（三方 review patch round 1 — 2 must-fix（proto pollution + ImageInterpreter routing） + 5 polish，commit ba6e39e）
 v2.4.5 ✅ done（三方 review patch round 2 — 7 polish 全清，commit c4a759d）
 v2.4.6 ✅ done（三方 review patch round 3 — 1 must-fix（Number('')→0） + 1 polish，commit ac0539f）
+v2.4.7 ✅ done（landmine #14 + live-test cleanup fix + roadmap renumber + 實機 reload 測試，commit 6e63bbd）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
@@ -365,6 +406,7 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.4.7 改動前（v2.4.6 release 點 + 三方 ship-it） | `git reset --hard ac0539f` 然後 `git push --force-with-lease` |
 | v2.4.6 改動前（v2.4.5 release 點） | `git reset --hard c4a759d` 然後 `git push --force-with-lease` |
 | v2.4.5 改動前（v2.4.4 release 點） | `git reset --hard ba6e39e` 然後 `git push --force-with-lease` |
 | v2.4.4 改動前（v2.4.3 release 點） | `git reset --hard aa95e53` 然後 `git push --force-with-lease` |
