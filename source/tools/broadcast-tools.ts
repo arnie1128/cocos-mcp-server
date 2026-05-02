@@ -13,6 +13,7 @@ export class BroadcastTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'get_broadcast_log',
+                title: 'Read broadcast log',
                 description: 'Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
                 inputSchema: z.object({
                     limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
@@ -22,6 +23,7 @@ export class BroadcastTools implements ToolExecutor {
             },
             {
                 name: 'listen_broadcast',
+                title: 'Listen for broadcast',
                 description: 'Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
                 inputSchema: z.object({
                     messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
@@ -30,6 +32,7 @@ export class BroadcastTools implements ToolExecutor {
             },
             {
                 name: 'stop_listening',
+                title: 'Stop broadcast listener',
                 description: 'Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
                 inputSchema: z.object({
                     messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
@@ -38,12 +41,14 @@ export class BroadcastTools implements ToolExecutor {
             },
             {
                 name: 'clear_broadcast_log',
+                title: 'Clear broadcast log',
                 description: 'Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
                 inputSchema: z.object({}),
                 handler: () => this.clearBroadcastLog(),
             },
             {
                 name: 'get_active_listeners',
+                title: 'Read active listeners',
                 description: 'List extension-local broadcast listener types and counts for diagnostics.',
                 inputSchema: z.object({}),
                 handler: () => this.getActiveListeners(),

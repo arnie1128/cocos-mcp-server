@@ -42,6 +42,7 @@ import type { ToolExecutor, ToolResponse } from '../types';
 
 interface DecoratedToolMeta {
     name: string;
+    title?: string;
     description: string;
     inputSchema: z.ZodTypeAny;
     methodKey: string | symbol;
@@ -51,6 +52,7 @@ const DECORATED_TOOLS_KEY = Symbol('mcpToolDefs');
 
 export interface McpToolOptions {
     name: string;
+    title?: string;
     description: string;
     inputSchema: z.ZodTypeAny;
 }
@@ -77,6 +79,7 @@ export function mcpTool(opts: McpToolOptions): MethodDecorator {
         }
         (ctor[DECORATED_TOOLS_KEY] as DecoratedToolMeta[]).push({
             name: opts.name,
+            title: opts.title,
             description: opts.description,
             inputSchema: opts.inputSchema,
             methodKey: propertyKey,
@@ -95,6 +98,7 @@ export function defineToolsFromDecorators(instance: any): ToolExecutor {
     const metas: DecoratedToolMeta[] = (ctor[DECORATED_TOOLS_KEY] as DecoratedToolMeta[] | undefined) ?? [];
     const defs: ToolDef[] = metas.map(m => ({
         name: m.name,
+        title: m.title,
         description: m.description,
         inputSchema: m.inputSchema,
         handler: async (args: any): Promise<ToolResponse> => {

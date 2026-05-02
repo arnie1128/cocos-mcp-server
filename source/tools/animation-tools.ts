@@ -28,6 +28,7 @@ import { logger } from '../lib/log';
 
 const animationListClips: ToolDef = {
     name: 'list_clips',
+    title: 'List animation clips',
     description: 'List animation clips registered on a node\'s cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.',
     inputSchema: z.object({
         ...nodeReferenceShape,
@@ -41,6 +42,7 @@ const animationListClips: ToolDef = {
 
 const animationPlay: ToolDef = {
     name: 'play',
+    title: 'Play animation clip',
     description: 'Play an animation clip on a node\'s cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).',
     inputSchema: z.object({
         ...nodeReferenceShape,
@@ -55,6 +57,7 @@ const animationPlay: ToolDef = {
 
 const animationStop: ToolDef = {
     name: 'stop',
+    title: 'Stop animation',
     description: 'Stop the currently playing animation on a node\'s cc.Animation component. No-op if nothing is playing.',
     inputSchema: z.object({
         ...nodeReferenceShape,
@@ -68,6 +71,7 @@ const animationStop: ToolDef = {
 
 const animationSetClip: ToolDef = {
     name: 'set_clip',
+    title: 'Configure animation clip',
     description: 'Configure a node\'s cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.',
     inputSchema: z.object({
         ...nodeReferenceShape,

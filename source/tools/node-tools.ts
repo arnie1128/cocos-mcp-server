@@ -57,7 +57,7 @@ export class NodeTools implements ToolExecutor {
 
     constructor() {
         const defs: ToolDef[] = [
-            { name: 'create_node', description: 'Create a node in current scene; supports empty, components, or prefab/asset instance. Provide parentUuid for predictable placement.',
+            { name: 'create_node', title: 'Create scene node', description: 'Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.',
                 inputSchema: z.object({
                     name: z.string().describe('New node name. The response returns the created UUID.'),
                     parentUuid: z.string().optional().describe('Parent node UUID. Strongly recommended; omit only when creating at scene root.'),
@@ -78,22 +78,22 @@ export class NodeTools implements ToolExecutor {
                         scale: vec3Schema.optional(),
                     }).optional().describe('Initial transform applied after create-node via set_node_transform.'),
                 }), handler: a => this.createNode(a) },
-            { name: 'get_node_info', description: 'Read one node by UUID, including transform, children, and component summary. No mutation.',
+            { name: 'get_node_info', title: 'Read node info', description: 'Read one node by UUID, including transform, children, and component summary. No mutation.',
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to inspect.'),
                 }), handler: a => this.getNodeInfo(a.uuid) },
-            { name: 'find_nodes', description: 'Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
+            { name: 'find_nodes', title: 'Find nodes by pattern', description: 'Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
                 inputSchema: z.object({
                     pattern: z.string().describe('Node name search pattern. Partial match unless exactMatch=true.'),
                     exactMatch: z.boolean().default(false).describe('Require exact node name match. Default false.'),
                 }), handler: a => this.findNodes(a.pattern, a.exactMatch) },
-            { name: 'find_node_by_name', description: 'Find the first node with an exact name. No mutation; only safe when the name is unique enough.',
+            { name: 'find_node_by_name', title: 'Find node by name', description: 'Find the first node with an exact name. No mutation; only safe when the name is unique enough.',
                 inputSchema: z.object({
                     name: z.string().describe('Exact node name to find. Returns the first match only.'),
                 }), handler: a => this.findNodeByName(a.name) },
-            { name: 'get_all_nodes', description: 'List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
+            { name: 'get_all_nodes', title: 'List all nodes', description: 'List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
                 inputSchema: z.object({}), handler: () => this.getAllNodes() },
-            { name: 'set_node_property', description: 'Write a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+            { name: 'set_node_property', title: 'Set node property', description: 'Set a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
                     uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
@@ -106,7 +106,7 @@ export class NodeTools implements ToolExecutor {
                     if ('response' in r) return r.response;
                     return this.setNodeProperty(r.uuid, a.property, a.value);
                 } },
-            { name: 'set_node_transform', description: 'Write position/rotation/scale with 2D/3D normalization; mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+            { name: 'set_node_transform', title: 'Set node transform', description: 'Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
                     uuid: z.string().optional().describe('Node UUID whose transform should be changed. Used when reference is omitted.'),
@@ -120,26 +120,26 @@ export class NodeTools implements ToolExecutor {
                     if ('response' in r) return r.response;
                     return this.setNodeTransform({ ...a, uuid: r.uuid });
                 } },
-            { name: 'delete_node', description: 'Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
+            { name: 'delete_node', title: 'Delete scene node', description: 'Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to delete. Children are removed with the node.'),
                 }), handler: a => this.deleteNode(a.uuid) },
-            { name: 'move_node', description: 'Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.',
+            { name: 'move_node', title: 'Reparent scene node', description: 'Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.',
                 inputSchema: z.object({
                     nodeUuid: z.string().describe('Node UUID to reparent.'),
                     newParentUuid: z.string().describe('New parent node UUID.'),
                     siblingIndex: z.number().default(-1).describe('Sibling index under the new parent. Currently advisory; move uses set-parent.'),
                 }), handler: a => this.moveNode(a.nodeUuid, a.newParentUuid, a.siblingIndex) },
-            { name: 'duplicate_node', description: 'Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.',
+            { name: 'duplicate_node', title: 'Duplicate scene node', description: 'Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.',
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to duplicate.'),
                     includeChildren: z.boolean().default(true).describe('Whether children should be included; actual behavior follows Cocos duplicate-node.'),
                 }), handler: a => this.duplicateNode(a.uuid, a.includeChildren) },
-            { name: 'detect_node_type', description: 'Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.',
+            { name: 'detect_node_type', title: 'Detect node type', description: 'Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.',
                 inputSchema: z.object({
                     uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
                 }), handler: a => this.detectNodeType(a.uuid) },
-            { name: 'set_node_properties', description: 'Batch-write multiple node properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+            { name: 'set_node_properties', title: 'Set node properties', description: 'Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
                 inputSchema: z.object({
                     reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form.'),
                     uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),

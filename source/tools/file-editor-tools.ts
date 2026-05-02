@@ -157,6 +157,7 @@ async function refreshAssetDb(absPath: string): Promise<void> {
 
 const insertText: ToolDef = {
     name: 'insert_text',
+    title: 'Insert text at line',
     description: REDUNDANT_TAG + 'Insert a new line at the given 1-based line number. If line exceeds total, text is appended at end of file. Triggers cocos asset-db refresh on cocos-recognised extensions (.ts/.json/.scene/.prefab/etc.) so the editor reimports.',
     inputSchema: z.object({
         filePath: z.string().describe('Path to the file (absolute or project-relative).'),
@@ -199,6 +200,7 @@ const insertText: ToolDef = {
 
 const deleteLines: ToolDef = {
     name: 'delete_lines',
+    title: 'Delete line range',
     description: REDUNDANT_TAG + 'Delete a range of lines (1-based, inclusive). Triggers cocos asset-db refresh.',
     inputSchema: z.object({
         filePath: z.string().describe('Path to the file (absolute or project-relative).'),
@@ -245,6 +247,7 @@ const deleteLines: ToolDef = {
 
 const replaceText: ToolDef = {
     name: 'replace_text',
+    title: 'Replace text in file',
     description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Regex backreferences ($1, $&, $`, $\') work when useRegex:true. Triggers cocos asset-db refresh.',
     inputSchema: z.object({
         filePath: z.string().describe('Path to the file (absolute or project-relative).'),
@@ -328,6 +331,7 @@ const replaceText: ToolDef = {
 
 const queryText: ToolDef = {
     name: 'query_text',
+    title: 'Read line range',
     description: REDUNDANT_TAG + 'Read a range of lines (1-based, inclusive). Returns lines with line numbers; total line count of file in data.totalLines. Read-only; no asset-db refresh.',
     inputSchema: z.object({
         filePath: z.string().describe('Path to the file (absolute or project-relative).'),

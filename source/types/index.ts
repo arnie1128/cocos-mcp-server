@@ -26,6 +26,9 @@ export interface ServerStatus {
 export interface ToolDefinition {
     name: string;
     description: string;
+    annotations?: {
+        title?: string;
+    };
     inputSchema: any;
 }
 

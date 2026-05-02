@@ -48,12 +48,14 @@ export class DebugTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'clear_console',
+                title: 'Clear console',
                 description: 'Clear the Cocos Editor Console UI. No project side effects.',
                 inputSchema: z.object({}),
                 handler: () => this.clearConsole(),
             },
             {
                 name: 'execute_javascript',
+                title: 'Execute JavaScript',
                 description: '[primary] Execute JavaScript in scene or editor context. Use this as the default first tool for compound operations (read → mutate → verify) — one call replaces 5-10 narrow specialist tools and avoids per-call token overhead. context="scene" inspects/mutates cc.Node graph; context="editor" runs in host process for Editor.Message + fs (default off, opt-in).',
                 inputSchema: z.object({
                     code: z.string().describe('JavaScript source to execute. Has access to cc.* in scene context, Editor.* in editor context.'),
@@ -63,6 +65,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'execute_script',
+                title: 'Run scene JavaScript',
                 description: '[compat] Scene-only JavaScript eval. Prefer execute_javascript with context="scene" — kept as compatibility entrypoint for older clients.',
                 inputSchema: z.object({
                     script: z.string().describe('JavaScript to execute in scene context via console/eval. Can read or mutate the current scene.'),
@@ -71,6 +74,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_node_tree',
+                title: 'Read debug node tree',
                 description: 'Read a debug node tree from a root or scene root for hierarchy/component inspection.',
                 inputSchema: z.object({
                     rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
@@ -80,12 +84,14 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_performance_stats',
+                title: 'Read performance stats',
                 description: 'Try to read scene query-performance stats; may return unavailable in edit mode.',
                 inputSchema: z.object({}),
                 handler: () => this.getPerformanceStats(),
             },
             {
                 name: 'validate_scene',
+                title: 'Validate current scene',
                 description: 'Run basic current-scene health checks for missing assets and node-count warnings.',
                 inputSchema: z.object({
                     checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
@@ -95,12 +101,14 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_editor_info',
+                title: 'Read editor info',
                 description: 'Read Editor/Cocos/project/process information and memory summary.',
                 inputSchema: z.object({}),
                 handler: () => this.getEditorInfo(),
             },
             {
                 name: 'get_project_logs',
+                title: 'Read project logs',
                 description: 'Read temp/logs/project.log tail with optional level/keyword filters.',
                 inputSchema: z.object({
                     lines: z.number().min(1).max(10000).default(100).describe('Number of lines to read from the end of temp/logs/project.log. Default 100.'),
@@ -111,12 +119,14 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_log_file_info',
+                title: 'Read log file info',
                 description: 'Read temp/logs/project.log path, size, line count, and timestamps.',
                 inputSchema: z.object({}),
                 handler: () => this.getLogFileInfo(),
             },
             {
                 name: 'search_project_logs',
+                title: 'Search project logs',
                 description: 'Search temp/logs/project.log for string/regex and return line context.',
                 inputSchema: z.object({
                     pattern: z.string().describe('Search string or regex. Invalid regex is treated as a literal string.'),
@@ -127,6 +137,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'screenshot',
+                title: 'Capture editor screenshot',
                 description: 'Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
                 inputSchema: z.object({
                     savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/screenshot-<timestamp>.png.'),
@@ -137,6 +148,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'capture_preview_screenshot',
+                title: 'Capture preview screenshot',
                 description: 'Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user\'s preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
                 inputSchema: z.object({
                     savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
@@ -148,21 +160,24 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_preview_mode',
-                description: 'Read the cocos preview configuration via Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
+                title: 'Read preview mode',
+                description: 'Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
                 inputSchema: z.object({}),
                 handler: () => this.getPreviewMode(),
             },
             {
                 name: 'set_preview_mode',
-                description: '⚠ EXPERIMENTAL — does NOT actually flip cocos 3.8.7 preview mode (verified live v2.9.1, see landmine #17). Switch cocos preview mode programmatically via the typed Editor.Message preferences/set-config channel. v2.9.1 attempts 4 known shapes (nested object / dot-path with global/local protocol / no protocol) and verifies via read-back; all 4 silently no-op on cocos 3.8.7 — set-config returns truthy but preview.current.platform is never persisted, suggesting cocos treats this as a readonly category or derives current.platform from non-prefs runtime state. Tool still useful for diagnostics: data.attempts records every shape tried and its read-back observation. For now, switch the preview mode via the cocos dropdown manually. Pending reference-project comparison (v2.9 candidate) to find the correct write path.',
+                title: 'Set preview mode',
+                description: '❌ NOT SUPPORTED on cocos 3.8.7+ (landmine #17). Programmatic preview-mode switching is impossible from a third-party extension on cocos 3.8.7: `preferences/set-config` against `preview.current.platform` returns truthy but never persists, and **none of 6 surveyed reference projects (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) ship a working alternative** (v2.10 cross-repo refresh, 2026-05-02). The field is effectively read-only — only the cocos preview dropdown writes it. **Use the cocos preview dropdown in the editor toolbar to switch modes**. Default behavior is hard-fail; pass attemptAnyway=true ONLY for diagnostic probing (returns 4-strategy attempt log so you can verify against a future cocos build whether any shape now works).',
                 inputSchema: z.object({
                     mode: z.enum(['browser', 'gameView', 'simulator']).describe('Target preview platform. "browser" opens preview in the user default browser. "gameView" embeds the gameview in the main editor (in-editor preview). "simulator" launches the cocos simulator. Maps directly to the cocos preview.current.platform value.'),
-                    confirm: z.boolean().default(false).describe('Required to commit the change. Default false returns the current value plus a hint, without modifying preferences. Set true to actually write.'),
+                    attemptAnyway: z.boolean().default(false).describe('Diagnostic opt-in. Default false returns NOT_SUPPORTED with the cocos UI redirect. Set true ONLY to re-probe the 4 set-config shapes against a new cocos build — useful when validating whether a future cocos version exposes a write path. Returns data.attempts with every shape tried and its read-back observation. Does NOT freeze the editor (the call merely no-ops).'),
                 }),
-                handler: a => this.setPreviewMode(a.mode, a.confirm ?? false),
+                handler: a => this.setPreviewMode(a.mode, a.attemptAnyway ?? false),
             },
             {
                 name: 'batch_screenshot',
+                title: 'Capture batch screenshots',
                 description: 'Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
                 inputSchema: z.object({
                     savePathPrefix: z.string().optional().describe('Path prefix for batch output files. Files written as <prefix>-<index>.png. Must resolve inside the cocos project root (containment check via realpath). Default: <project>/temp/mcp-captures/batch-<timestamp>.'),
@@ -173,6 +188,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'wait_compile',
+                title: 'Wait for compile',
                 description: 'Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(500).max(120000).default(15000).describe('Max wait time in ms before giving up. Default 15000.'),
@@ -181,6 +197,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'run_script_diagnostics',
+                title: 'Run script diagnostics',
                 description: 'Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.',
                 inputSchema: z.object({
                     tsconfigPath: z.string().optional().describe('Optional override (absolute or project-relative). Default: tsconfig.json or temp/tsconfig.cocos.json.'),
@@ -189,7 +206,8 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'preview_url',
-                description: 'Resolve the cocos browser-preview URL (e.g. http://localhost:7456) via the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
+                title: 'Resolve preview URL',
+                description: 'Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
                 inputSchema: z.object({
                     action: z.enum(['query', 'open']).default('query').describe('"query" returns the URL; "open" returns the URL AND opens it in the user default browser via electron.shell.openExternal.'),
                 }),
@@ -197,13 +215,15 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'query_devices',
-                description: 'List preview devices configured in the cocos project (cc.IDeviceItem entries). Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
+                title: 'List preview devices',
+                description: 'List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
                 inputSchema: z.object({}),
                 handler: () => this.queryDevices(),
             },
             {
                 name: 'game_command',
-                description: 'Send a runtime command to a GameDebugClient running inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/contentSize/active/components by name). Custom command types are forwarded to the client\'s customCommands map (e.g. "state", "navigate"). Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
+                title: 'Send game command',
+                description: 'Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/contentSize/active/components by name). Custom command types are forwarded to the client\'s customCommands map (e.g. "state", "navigate"). Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
                 inputSchema: z.object({
                     type: z.string().min(1).describe('Command type. Built-ins: screenshot, click, inspect. Customs: any string the GameDebugClient registered in customCommands.'),
                     args: z.any().optional().describe('Command-specific arguments. For "click"/"inspect": {name: string} node name. For "screenshot": {} (no args).'),
@@ -213,6 +233,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'record_start',
+                title: 'Start game recording',
                 description: 'Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.',
                 inputSchema: z.object({
                     mimeType: z.enum(['video/webm', 'video/mp4']).optional().describe('Container/codec hint for MediaRecorder. Default: browser auto-pick (webm preferred where supported, falls back to mp4). Some browsers reject unsupported types — record_start surfaces a clear error in that case.'),
@@ -223,7 +244,8 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'record_stop',
-                description: 'Stop the in-progress game canvas recording and persist the result to <project>/temp/mcp-captures/recording-<timestamp>.{webm|mp4}. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.',
+                title: 'Stop game recording',
+                description: 'Stop the in-progress game canvas recording and persist it under <project>/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(1000).max(120000).default(30000).describe('Max wait for the client to assemble + return the recording blob. Recordings of several seconds at high bitrate may need longer than the default 30s — raise on long recordings.'),
                 }),
@@ -231,12 +253,14 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'game_client_status',
-                description: 'Read GameDebugClient connection status: connected (polled within 2s), last poll timestamp, whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
+                title: 'Read game client status',
+                description: 'Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
                 handler: () => this.gameClientStatus(),
             },
             {
                 name: 'check_editor_health',
+                title: 'Check editor health',
                 description: 'Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.',
                 inputSchema: z.object({
                     sceneTimeoutMs: z.number().min(200).max(10000).default(1500).describe('Timeout for the scene-script probe in ms. Below this scene is considered frozen. Default 1500ms.'),
@@ -245,7 +269,8 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'preview_control',
-                description: '⚠ PARKED — known to freeze cocos 3.8.7 (landmine #16). Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacadeManager.changePreviewPlayState method. **start hits a cocos 3.8.7 softReloadScene race** that returns success but freezes the editor (spinning indicator, Ctrl+R required to recover). Verified in both embedded and browser preview modes. **stop is safe** and reliable. To prevent accidental triggering, start now requires explicit `acknowledgeFreezeRisk: true`. **Recommended alternatives instead of start**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode — no PIE needed; (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview. Pending v2.9 reference-project comparison to find a safer call path.',
+                title: 'Control preview playback',
+                description: '⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16). Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacadeManager.changePreviewPlayState method. **start hits a cocos 3.8.7 softReloadScene race** that returns success but freezes the editor (spinning indicator, Ctrl+R required to recover). Verified in both embedded and browser preview modes. v2.10 cross-repo refresh confirmed: none of 6 surveyed peers (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) ship a safer call path — harady and cocos-code-mode use the `Editor.Message scene/editor-preview-set-play` channel and hit the same race. **stop is safe** and reliable. To prevent accidental triggering, start requires explicit `acknowledgeFreezeRisk: true`. **Strongly preferred alternatives instead of start**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode — no PIE needed; (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview launched via debug_preview_url(action="open").',
                 inputSchema: z.object({
                     op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button) — REQUIRES acknowledgeFreezeRisk=true on cocos 3.8.7 due to landmine #16. "stop" exits PIE play and returns to scene mode (always safe).'),
                     acknowledgeFreezeRisk: z.boolean().default(false).describe('Required to be true for op="start" on cocos 3.8.7 due to landmine #16 (softReloadScene race that freezes the editor). Set true ONLY when the human user has explicitly accepted the risk and is prepared to press Ctrl+R if the editor freezes. Ignored for op="stop" which is reliable.'),
@@ -254,6 +279,7 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'get_script_diagnostic_context',
+                title: 'Read diagnostic context',
                 description: 'Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.',
                 inputSchema: z.object({
                     file: z.string().describe('Absolute or project-relative path to the source file. Diagnostics from run_script_diagnostics already use a path tsc emitted, which is suitable here.'),
@@ -1157,38 +1183,35 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    // v2.9.0 T-V29-2: counterpart to getPreviewMode. Writes
-    // preview.current.platform via the typed
-    // Editor.Message.request('preferences', 'set-config', ...) channel.
+    // v2.10 T-V210-1: hard-fail by default. Per cross-repo refresh
+    // 2026-05-02, none of 6 surveyed cocos-mcp peers ship a working
+    // preview-mode setter — the cocos 3.8.7 preview category is
+    // effectively readonly to third-party extensions (landmine #17).
+    // Default behavior is now NOT_SUPPORTED with a UI redirect.
     //
-    // v2.9.0 retest fix: the initial implementation passed
-    // ('preview', 'current.platform', value) and returned success but
-    // the write did NOT take effect — cocos's set-config doesn't seem
-    // to support dot-path keys. Strategies tried in order:
+    // The 4-strategy probe is preserved behind `attemptAnyway=true`
+    // so a future cocos build can be validated quickly: read the
+    // returned data.attempts log to see whether any shape now works.
+    // The setter does NOT freeze the editor (set-config silently
+    // no-ops, cf. preview_control which DOES freeze — landmine #16).
+    //
+    // Strategies tried in order:
     //   1. ('preview', 'current', { platform: value })  — nested object
     //   2. ('preview', 'current.platform', value, 'global') — explicit protocol
     //   3. ('preview', 'current.platform', value, 'local')  — explicit protocol
-    //   4. ('preview', 'current.platform', value)          — no protocol (original)
-    // Each attempt is followed by a fresh query-config to verify the
-    // value actually flipped. We return the strategy that worked plus
-    // the raw set-config return for diagnostics.
-    //
-    // Confirm gate: `confirm=false` (default) is a dry-run that returns
-    // the current value + suggested call. `confirm=true` actually
-    // writes. This avoids AI-induced preference drift when the LLM is
-    // exploring tool capabilities.
-    private async setPreviewMode(mode: 'browser' | 'gameView' | 'simulator', confirm: boolean): Promise<ToolResponse> {
+    //   4. ('preview', 'current.platform', value)          — no protocol
+    private async setPreviewMode(mode: 'browser' | 'gameView' | 'simulator', attemptAnyway: boolean): Promise<ToolResponse> {
         try {
             const queryCurrent = async (): Promise<string | null> => {
                 const cfg: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
                 return cfg?.preview?.current?.platform ?? null;
             };
             const previousMode = await queryCurrent();
-            if (!confirm) {
+            if (!attemptAnyway) {
                 return {
-                    success: true,
-                    data: { previousMode, requestedMode: mode, confirmed: false },
-                    message: `Dry run only — current cocos preview mode is "${previousMode ?? 'unknown'}", requested "${mode}". Re-call with confirm=true to actually switch. Caller is responsible for restoring the original mode when done if appropriate.`,
+                    success: false,
+                    error: `debug_set_preview_mode is NOT SUPPORTED on cocos 3.8.7+ (landmine #17). Programmatic preview-mode switching has no working IPC path: preferences/set-config returns truthy but does not persist, and 6 surveyed reference projects (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) all confirm no working alternative exists. **Switch via the cocos preview dropdown in the editor toolbar instead** (current mode: "${previousMode ?? 'unknown'}", requested: "${mode}"). To re-probe whether a newer cocos build now exposes a write path, re-call with attemptAnyway=true (diagnostic only — does NOT freeze the editor).`,
+                    data: { previousMode, requestedMode: mode, supported: false },
                 };
             }
             if (previousMode === mode) {
@@ -1499,7 +1522,7 @@ export class DebugTools implements ToolExecutor {
         if (op === 'start' && !acknowledgeFreezeRisk) {
             return {
                 success: false,
-                error: 'debug_preview_control(op="start") is parked due to landmine #16 — the cocos 3.8.7 softReloadScene race freezes the editor regardless of preview mode (verified embedded + browser). To proceed anyway, re-call with acknowledgeFreezeRisk=true AND ensure the human user is prepared to press Ctrl+R in cocos if the editor freezes. **Strongly preferred alternatives**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE needed); (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview. Pending v2.9 reference-project comparison.',
+                error: 'debug_preview_control(op="start") is parked due to landmine #16 — the cocos 3.8.7 softReloadScene race freezes the editor regardless of preview mode (verified embedded + browser). v2.10 cross-repo refresh confirmed no reference project ships a safer path — harady and cocos-code-mode use the same channel family and hit the same race. **Strongly preferred alternatives** (please use these instead): (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode (no PIE needed); (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview launched via debug_preview_url(action="open"). Only re-call with acknowledgeFreezeRisk=true if neither alternative fits AND the human user is prepared to press Ctrl+R in cocos if the editor freezes.',
             };
         }
         if (DebugTools.previewControlInFlight) {

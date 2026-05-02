@@ -3,24 +3,57 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.9.7 done — next: v2.10 對比參考專案 + simulator/MediaRecorder live-test）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.10.0 partial — preview landmines closed, feature backlog open）
 
-**當下版本**：v2.9.7（v2.9.x cumulative review converged — 3 rounds, 1 single-issue follow-up）。**18 categories / 181 tools**。目前沒有 in-flight work；下一步是 v2.10。
+**當下版本**：v2.10.0（cross-repo refresh + preview landmine 文件級結案）。**18 categories / 181 tools**。
 
-**v2.9.x cycle 收尾**：v2.9.0 +2 tools（check_editor_health / set_preview_mode）→ v2.9.1 setter no-op live-test + landmines #16/#17 → v2.9.2 polish batch → v2.9.3 macro-tool routing + park gates → v2.9.4 MediaRecorder bridge → v2.9.5/v2.9.6/v2.9.7 cumulative review patches。完整紀錄見 [`docs/archive/handoff/v2.9.md`](archive/handoff/v2.9.md)，release notes 見 [`docs/releases/v2.9.md`](releases/v2.9.md)。
+**v2.10.0 已 land**（本 session）：
+- Cross-repo survey 從 v2.2.0 baseline refresh 到 v2.9.7 baseline，產出 v2.10 推進清單（10 candidates）
+- **Landmine #16/#17 結案**（不靠抄參考專案解決，全業界都沒解）：
+  - `debug_preview_control(op="start")` description 與 parked-error 改為明確指向 embedded screenshot / game_command 兩條替代路徑，不再宣稱「pending future investigation」
+  - `debug_set_preview_mode` 從 ⚠ EXPERIMENTAL 改為 ❌ NOT_SUPPORTED 預設硬擋；`attemptAnyway: true` opt-in 才進 4-strategy 診斷探測
+  - CLAUDE.md landmine #16/#17 更新，記錄 v2.10 cross-repo 比對結論
+- LOC 重量檔案盤點（top 5 = 41.5% LOC，可省 ~520 LOC，文件記錄於 cross-repo-survey.md）
 
-**未解 issues**（v2.10 對比參考專案後再動）：
-- landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race，editor 凍結需 Ctrl+R。tool 已加 acknowledgeFreezeRisk park gate。
-- landmine #17 — set_preview_mode 4 strategies 全 silent no-op；setter 仍 ⚠ EXPERIMENTAL。
-- pre-existing `node-tools.ts` query-current-scene fallback 收斂到 typed channel。
-- MediaRecorder live-test 需 browser-preview 環境 + client wired into game。
+**v2.10.x 推進清單**（依優先序；明確要求項標 ⭐；完整版見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)）：
 
-**下一個動工**：v2.10 對比參考專案（landmines #16 + #17 解 preview_control freeze 與 set_preview_mode no-op）→ simulator/MediaRecorder live-test → node-tools typed-channel cleanup。
+功能擴充：
+1. ⭐ **完整 TS class 定義生成擴充**（= Discover-then-act 三步式 Step 2 補完）— component dump / `@property` / enum / ProjectSettings。1.5 天
+2. ⭐ **`debug_game_command` sub-action 補齊** — `state` / `navigate` / UI inspect 強化。1 天
+3. **asset-interpreters 擴充** — 8 → ≥15。2 天
+4. **animation-tools 補 4 個**。0.5 天
+5. **`debug_record_*` format/quality 控制**。0.3 天
+6. **Tool priority labeling**（[primary]/[specialist]）。0.3 天
+7. **`get_users(uuid)`** asset 被誰參考查詢。0.3 天
+8. **macro-tool enum routing 推廣** preferences-tools 13→1。1 天
+9. **Discover-then-act workflow prompt template**（optional，用 v2.5 已 ship 的 prompts framework）。0.3 天
+
+文件 / 描述重構：
+10. ⭐ **Tool description / title 重構**（codex 背景跑中）— `<details>` 摺疊 / 第一句 summary / `annotations.title` / 整體 trim。1.5 天
+
+LOC 精簡（合計 ~950 LOC，分三批）：
+11. **Polish 批 A**（~300 LOC）— `ok()/fail()` helper / 共用 schema / narrative 外移。1 天
+12. **Polish 批 B**（~500 LOC）— top-5 餘額 + 中型檔案 narrative 外移。1.5 天
+13. **Polish 批 C**（~150 LOC，中風險）— 冗餘 try/catch 移除。1 天
+
+**先前推進過項目實作狀態**（由 cocos-code-mode + RomaRogov 萃取）：
+- Discover-then-act 三步式：🟡 **部分落地**（三步 tool 都有，gap 在 Step 2，等同 #1）
+- InstanceReference {id, type}：✅ 已 ship（v2.4.0）
+- 動態 TS 定義生成：🟡 部分 → #1
+- Asset interpreters 系統：🟡 部分（8/21+） → #3
+- Prompts capability：✅ 已 ship（v2.5.0 T-V25-4，先前誤標為 spillover 已修正）
+
+**推薦執行順序**：
+- v2.10.1：#10（codex 跑中）+ tools.md 重生
+- v2.10.2（~3 天）：#1 + #2 + #4 + #11
+- v2.10.3（~3 天）：#3 + #5 + #6 + #7 + #12
+- v2.10.4 或 v2.11（~2-3 天）：#8 + #9 + #13
 
 ## 最近 Commit
 
 | SHA | 內容 |
 |---|---|
+| `pending` | release: v2.10.0 — cross-repo refresh + landmine #16/#17 closure |
 | `5573190` | release: v2.9.7 — cumulative review round-3 patch + cycle wrap |
 | `e9fd3c0` | fix(v2.9.6): cumulative review round-2 patch — 4 must-fix + 2 polish |
 | `e425aa7` | fix(v2.9.5): cumulative review round-1 patch — 5 must-fix + 4 polish |

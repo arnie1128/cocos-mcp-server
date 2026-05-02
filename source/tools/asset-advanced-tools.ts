@@ -9,6 +9,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'save_asset_meta',
+                title: 'Save asset meta',
                 description: 'Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
                 inputSchema: z.object({
                     urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
@@ -18,6 +19,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'generate_available_url',
+                title: 'Generate asset URL',
                 description: 'Return a collision-free asset URL derived from the requested URL.',
                 inputSchema: z.object({
                     url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
@@ -26,12 +28,14 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'query_asset_db_ready',
+                title: 'Check asset-db readiness',
                 description: 'Check whether asset-db reports ready before batch operations.',
                 inputSchema: z.object({}),
                 handler: () => this.queryAssetDbReady(),
             },
             {
                 name: 'open_asset_external',
+                title: 'Open asset externally',
                 description: 'Open an asset through the editor/OS external handler; does not edit content.',
                 inputSchema: z.object({
                     urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
@@ -40,6 +44,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'batch_import_assets',
+                title: 'Import assets in batch',
                 description: 'Import files from a disk directory into asset-db; mutates project assets.',
                 inputSchema: z.object({
                     sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
@@ -52,6 +57,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'batch_delete_assets',
+                title: 'Delete assets in batch',
                 description: 'Delete multiple asset-db URLs; mutates project assets.',
                 inputSchema: z.object({
                     urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
@@ -60,6 +66,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'validate_asset_references',
+                title: 'Validate asset references',
                 description: 'Lightly scan assets under a directory for broken asset-info references.',
                 inputSchema: z.object({
                     directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
@@ -68,6 +75,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'get_asset_dependencies',
+                title: 'Read asset dependencies',
                 description: 'Unsupported dependency-analysis placeholder; always reports unsupported.',
                 inputSchema: z.object({
                     urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
@@ -77,6 +85,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'get_unused_assets',
+                title: 'Find unused assets',
                 description: 'Unsupported unused-asset placeholder; always reports unsupported.',
                 inputSchema: z.object({
                     directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
@@ -86,6 +95,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'compress_textures',
+                title: 'Compress textures',
                 description: 'Unsupported texture-compression placeholder; always reports unsupported.',
                 inputSchema: z.object({
                     directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
@@ -96,6 +106,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             },
             {
                 name: 'export_asset_manifest',
+                title: 'Export asset manifest',
                 description: 'Return asset inventory for a directory as json/csv/xml text; does not write a file.',
                 inputSchema: z.object({
                     directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),

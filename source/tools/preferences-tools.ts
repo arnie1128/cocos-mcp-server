@@ -9,6 +9,7 @@ export class PreferencesTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'open_preferences_settings',
+                title: 'Open preferences settings',
                 description: 'Open Cocos Preferences UI, optionally on a tab; UI side effect only.',
                 inputSchema: z.object({
                     tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Preferences tab to open. Omit for the default settings panel.'),
@@ -18,6 +19,7 @@ export class PreferencesTools implements ToolExecutor {
             },
             {
                 name: 'query_preferences_config',
+                title: 'Read preferences config',
                 description: 'Read a Preferences config category/path/type; query before setting values.',
                 inputSchema: z.object({
                     name: z.string().default('general').describe('Preferences category or extension/plugin name. Default general.'),
@@ -28,6 +30,7 @@ export class PreferencesTools implements ToolExecutor {
             },
             {
                 name: 'set_preferences_config',
+                title: 'Set preferences config',
                 description: 'Write a Preferences config value; mutates Cocos global/local settings.',
                 inputSchema: z.object({
                     name: z.string().describe('Preferences category or extension/plugin name to modify.'),
@@ -39,12 +42,14 @@ export class PreferencesTools implements ToolExecutor {
             },
             {
                 name: 'get_all_preferences',
+                title: 'Read all preferences',
                 description: 'Read common Preferences categories; may not include every extension category.',
                 inputSchema: z.object({}),
                 handler: () => this.getAllPreferences(),
             },
             {
                 name: 'reset_preferences',
+                title: 'Reset preferences',
                 description: 'Reset one Preferences category to defaults; all-category reset is unsupported.',
                 inputSchema: z.object({
                     name: z.string().optional().describe('Single preference category to reset. Resetting all categories is not supported.'),
@@ -54,6 +59,7 @@ export class PreferencesTools implements ToolExecutor {
             },
             {
                 name: 'export_preferences',
+                title: 'Export preferences',
                 description: 'Return readable Preferences as JSON data; does not write a file.',
                 inputSchema: z.object({
                     exportPath: z.string().optional().describe('Label for the returned export path. Current implementation returns JSON data only; it does not write a file.'),
@@ -62,6 +68,7 @@ export class PreferencesTools implements ToolExecutor {
             },
             {
                 name: 'import_preferences',
+                title: 'Import preferences',
                 description: 'Unsupported Preferences import placeholder; never modifies settings.',
                 inputSchema: z.object({
                     importPath: z.string().describe('Preferences file path to import. Current implementation reports unsupported and does not modify settings.'),

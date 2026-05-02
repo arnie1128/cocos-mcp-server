@@ -76,6 +76,7 @@ export class InspectorTools implements ToolExecutor {
 
     @mcpTool({
         name: 'get_common_types_definition',
+        title: 'Read cocos common types',
         description: 'Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. AI can prepend this to inspector_get_instance_definition output before generating type-safe code. No scene query.',
         inputSchema: z.object({}),
     })
@@ -88,6 +89,7 @@ export class InspectorTools implements ToolExecutor {
 
     @mcpTool({
         name: 'get_instance_definition',
+        title: 'Read instance TS definition',
         description: 'Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. The generated class includes a comment listing the components attached to the node (with UUIDs). AI should call this BEFORE writing properties so it sees the real property names + types instead of guessing. Pair with get_common_types_definition for Vec2/Color/etc references. v2.4.1 note: only node-shaped references are inspected here — component/asset definition support is deferred until a verified Cocos query-component channel is wired.',
         inputSchema: z.object({
             reference: instanceReferenceSchema.describe('Target node. {id} = node UUID, {type} optional cc class label. Component or asset references will return an error in v2.4.1.'),

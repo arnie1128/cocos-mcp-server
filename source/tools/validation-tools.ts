@@ -9,6 +9,7 @@ export class ValidationTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'validate_json_params',
+                title: 'Validate/repair JSON args',
                 description: 'Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
                 inputSchema: z.object({
                     jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
@@ -18,6 +19,7 @@ export class ValidationTools implements ToolExecutor {
             },
             {
                 name: 'safe_string_value',
+                title: 'Escape string for JSON',
                 description: 'Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
                 inputSchema: z.object({
                     value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
@@ -26,6 +28,7 @@ export class ValidationTools implements ToolExecutor {
             },
             {
                 name: 'format_mcp_request',
+                title: 'Format MCP request',
                 description: 'Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
                 inputSchema: z.object({
                     toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),

@@ -15,6 +15,8 @@ import { z, toInputSchema, validateArgs } from './schema';
 export interface ToolDef {
     /** Tool name (without category prefix). */
     name: string;
+    /** Optional short human-readable title for docs / tool UIs. */
+    title?: string;
     /** Tool description shown in tools/list. */
     description: string;
     /** Zod input schema. Validation runs before the handler. */
@@ -36,6 +38,7 @@ export interface ToolDef {
  */
 export function defineTool<S extends z.ZodTypeAny>(def: {
     name: string;
+    title?: string;
     description: string;
     inputSchema: S;
     handler: (args: z.infer<S>) => Promise<ToolResponse>;
@@ -56,6 +59,7 @@ export function defineTools(defs: ReadonlyArray<ToolDef>): ToolExecutor {
             return defs.map(d => ({
                 name: d.name,
                 description: d.description,
+                annotations: d.title ? { title: d.title } : undefined,
                 inputSchema: toInputSchema(d.inputSchema),
             }));
         },

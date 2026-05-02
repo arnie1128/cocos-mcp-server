@@ -103,6 +103,7 @@ export class AssetMetaTools implements ToolExecutor {
 
     @mcpTool({
         name: 'list_interpreters',
+        title: 'List asset interpreters',
         description: 'List the asset importer types this server has specialized interpreters for. The "*" entry is the read-only fallback used for any importer not in the list. Use to plan assetMeta_set_properties calls — writes against the fallback always reject. No side effects.',
         inputSchema: z.object({}),
     })
@@ -118,6 +119,7 @@ export class AssetMetaTools implements ToolExecutor {
 
     @mcpTool({
         name: 'get_properties',
+        title: 'Read asset meta properties',
         description: 'Read an asset\'s meta + sub-meta userData via its importer-specific interpreter. Returns {properties: {path: {type, value, tooltip?, enumList?}}, arrays: {path: {type}}}. Use BEFORE assetMeta_set_properties so AI sees the real property names + types instead of guessing. Pair `includeTooltips: true` when AI needs context for unfamiliar importers. Note: useAdvancedInspection is reserved — full material editing is deferred to v2.5+, so the flag has no effect in v2.4.x.',
         inputSchema: assetTargetSchema.extend({
             includeTooltips: z.boolean().default(false).describe('Include i18n-resolved tooltip text for each property. Slower; only request when AI is exploring an unfamiliar importer.'),
@@ -140,6 +142,7 @@ export class AssetMetaTools implements ToolExecutor {
 
     @mcpTool({
         name: 'set_properties',
+        title: 'Write asset meta properties',
         description: 'Batch-write asset meta fields. Each entry is {propertyPath, propertyType, propertyValue}; the interpreter validates the path against an allow-list (userData.*, subMetas.*, platformSettings.*) and rejects unknown roots, prototype-pollution segments (__proto__, constructor, prototype), and empty segments. On commit the interpreter calls asset-db save-asset-meta + refresh-asset so cocos re-imports with the new settings. Use after assetMeta_get_properties to ensure paths/types are correct. Returns per-entry success/error so partial failures are visible; entries that succeeded on disk but failed re-import carry a `warning` field instead of being flipped to failure.',
         inputSchema: assetTargetSchema.extend({
             properties: z.array(z.object({

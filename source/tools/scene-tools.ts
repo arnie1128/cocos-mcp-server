@@ -14,18 +14,21 @@ export class SceneTools implements ToolExecutor {
         const defs: ToolDef[] = [
             {
                 name: 'get_current_scene',
+                title: 'Read current scene',
                 description: 'Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
                 inputSchema: z.object({}),
                 handler: () => this.getCurrentScene(),
             },
             {
                 name: 'get_scene_list',
+                title: 'List scene assets',
                 description: 'List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
                 inputSchema: z.object({}),
                 handler: () => this.getSceneList(),
             },
             {
                 name: 'open_scene',
+                title: 'Open scene by path',
                 description: 'Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
                 inputSchema: z.object({
                     scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
@@ -34,12 +37,14 @@ export class SceneTools implements ToolExecutor {
             },
             {
                 name: 'save_scene',
+                title: 'Save current scene',
                 description: 'Save the currently open scene back to its scene asset. Mutates the project file on disk.',
                 inputSchema: z.object({}),
                 handler: () => this.saveScene(),
             },
             {
                 name: 'create_scene',
+                title: 'Create scene asset',
                 description: 'Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
                 inputSchema: z.object({
                     sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
@@ -56,6 +61,7 @@ export class SceneTools implements ToolExecutor {
             },
             {
                 name: 'save_scene_as',
+                title: 'Copy scene asset',
                 description: 'Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
                 inputSchema: z.object({
                     path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
@@ -66,12 +72,14 @@ export class SceneTools implements ToolExecutor {
             },
             {
                 name: 'close_scene',
+                title: 'Close current scene',
                 description: 'Close the current scene. Editor state side effect; save first if unsaved changes matter.',
                 inputSchema: z.object({}),
                 handler: () => this.closeScene(),
             },
             {
                 name: 'get_scene_hierarchy',
+                title: 'Read scene hierarchy',
                 description: 'Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
                 inputSchema: z.object({
                     includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),

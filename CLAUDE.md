@@ -365,9 +365,17 @@ v2.1.6 after measure showed lossy-only gains).
       Ctrl+R to recover. Hypothesis: `getCurrentSceneInfo` reads
       cached `director.getScene()` state without going through
       the wedged code path, so it doesn't probe deep enough.
-      The probe needs a different path that exercises whichever
-      part of scene-script is actually hung. Pending reference-
-      project comparison to identify a more sensitive probe.
+      **v2.10 cross-repo refresh confirmed**: no reference project
+      ships a more sensitive probe — harady's preview tooling has
+      the same blind spot. Treat this as a known cocos 3.8.7 limit;
+      do not invest more time chasing a remote-detection probe.
+      Instead, AI workflows should use the alternative paths
+      documented above (embedded screenshot / game_command via
+      browser preview).
+    - **v2.10 fix (landed)**: `debug_preview_control(op="start")`
+      description and parked-error message now explicitly cite the
+      v2.10 cross-repo finding and direct AI to the alternatives
+      instead of hinting at "pending future investigation".
 17. **`preferences/set-config 'preview' …'current.platform'`
     silently no-ops on cocos 3.8.7** (verified v2.9.1 retest /
     2026-05-02).
@@ -401,16 +409,21 @@ v2.1.6 after measure showed lossy-only gains).
       haven't found
 
     Practical guidance:
-    - The setter currently surfaces all 4 attempt results in
-      `data.attempts` for diagnostics — it doesn't lie about
-      success.
+    - **v2.10 cross-repo refresh confirmed: NONE of 6 surveyed peers
+      (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI /
+      cocos-cli) ship a working preview-mode setter.** No reference
+      project has cracked this — the field is effectively read-only
+      to third-party extensions on cocos 3.8.7. See
+      `docs/research/cross-repo-survey.md` §v2.10 Preview landmine.
+    - **v2.10 fix (landed)**: `debug_set_preview_mode` now hard-fails
+      by default with a NOT_SUPPORTED error and a redirect to the
+      cocos UI dropdown. The 4-strategy diagnostic probe is preserved
+      behind `attemptAnyway: true` so a future cocos build can be
+      validated quickly via `data.attempts`.
     - For AI workflows that need to switch preview mode, route
-      the user to the cocos preview dropdown manually until a
-      working shape is found.
-    - v2.9 spillover candidate: compare against reference projects
-      (harady / RomaRogov / cocos-cli / FunplayAI / Spaydo /
-      cocos-code-mode) to see if any of them ship a working
-      preview-mode setter.
+      the user to the cocos preview dropdown manually. The setter
+      itself does not freeze the editor (it merely no-ops); only
+      `preview_control(start)` triggers landmine #16.
 
 ## Conventions
 

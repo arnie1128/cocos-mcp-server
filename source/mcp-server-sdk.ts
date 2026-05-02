@@ -128,6 +128,7 @@ export class MCPServer {
             tools: this.toolsList.map(t => ({
                 name: t.name,
                 description: t.description,
+                annotations: t.annotations,
                 inputSchema: t.inputSchema,
             })),
         }));
@@ -345,6 +346,7 @@ export class MCPServer {
                 next.push({
                     name: fqName,
                     description: alreadyTagged ? desc : `[specialist] ${desc}`,
+                    annotations: tool.annotations,
                     inputSchema: tool.inputSchema,
                 });
             }
