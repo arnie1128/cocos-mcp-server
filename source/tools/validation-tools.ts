@@ -1,50 +1,29 @@
 import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 export class ValidationTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'validate_json_params',
-                title: 'Validate/repair JSON args',
-                description: '[specialist] Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
-                inputSchema: z.object({
-                    jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
-                    expectedSchema: z.object({}).passthrough().optional().describe('Optional simple JSON schema; checks only basic type and required fields.'),
-                }),
-                handler: a => this.validateJsonParams(a.jsonString, a.expectedSchema),
-            },
-            {
-                name: 'safe_string_value',
-                title: 'Escape string for JSON',
-                description: '[specialist] Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
-                inputSchema: z.object({
-                    value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
-                }),
-                handler: a => this.createSafeStringValue(a.value),
-            },
-            {
-                name: 'format_mcp_request',
-                title: 'Format MCP request',
-                description: '[specialist] Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
-                inputSchema: z.object({
-                    toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),
-                    arguments: z.object({}).passthrough().describe('Arguments object for the target tool. This helper formats only; it does not execute the tool.'),
-                }),
-                handler: a => this.formatMcpRequest(a.toolName, a.arguments),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async validateJsonParams(jsonString: string, expectedSchema?: any): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'validate_json_params',
+        title: 'Validate/repair JSON args',
+        description: '[specialist] Validate and lightly repair a JSON argument string before calling another tool. No Cocos side effects; useful for diagnosing escaping or required-field errors.',
+        inputSchema: z.object({
+            jsonString: z.string().describe('JSON string to parse and lightly repair before a tool call. Handles common escaping, quote, and trailing-comma mistakes.'),
+            expectedSchema: z.object({}).passthrough().optional().describe('Optional simple JSON schema; checks only basic type and required fields.'),
+        }),
+    })
+    async validateJsonParams(args: { jsonString: string; expectedSchema?: any }): Promise<ToolResponse> {
+        const { jsonString, expectedSchema } = args;
         // First try to parse as-is
         let parsed;
         try {
@@ -82,7 +61,16 @@ export class ValidationTools implements ToolExecutor {
             });
     }
 
-    private async createSafeStringValue(value: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'safe_string_value',
+        title: 'Escape string for JSON',
+        description: '[specialist] Escape a raw string for safe use inside JSON arguments. No Cocos side effects; useful for Label text or custom data containing quotes/newlines.',
+        inputSchema: z.object({
+            value: z.string().describe('Raw string that must be embedded safely inside JSON arguments.'),
+        }),
+    })
+    async safeStringValue(args: { value: string }): Promise<ToolResponse> {
+        const { value } = args;
         const safeValue = this.escapJsonString(value);
         return ok({
                 originalValue: value,
@@ -92,7 +80,18 @@ export class ValidationTools implements ToolExecutor {
             });
     }
 
-    private async formatMcpRequest(toolName: string, toolArgs: any): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'format_mcp_request',
+        title: 'Format MCP request',
+        description: '[specialist] Format a complete MCP tools/call request and curl example. Formatting only; does not execute the target tool.',
+        inputSchema: z.object({
+            toolName: z.string().describe('MCP tool name to wrap, e.g. create_node or set_component_property.'),
+            arguments: z.object({}).passthrough().describe('Arguments object for the target tool. This helper formats only; it does not execute the tool.'),
+        }),
+    })
+    async formatMcpRequest(args: { toolName: string; arguments: any }): Promise<ToolResponse> {
+        const toolName = args.toolName;
+        const toolArgs = args.arguments;
         try {
             const mcpRequest = {
                 jsonrpc: '2.0',

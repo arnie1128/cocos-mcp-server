@@ -1,8 +1,8 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor, ComponentInfo } from '../types';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import { resolveOrToolError } from '../lib/resolve-node';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
@@ -121,176 +121,245 @@ export class ComponentTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            { name: 'add_component', title: 'Add node component', description: '[specialist] Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
-                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
-                    componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    return this.addComponent(r.uuid, a.componentType);
-                } },
-            { name: 'remove_component', title: 'Remove node component', description: "[specialist] Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
-                    componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
-                }), handler: a => this.removeComponent(a.nodeUuid, a.componentType) },
-            { name: 'get_components', title: 'List node components', description: '[specialist] List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID whose components should be listed.'),
-                }), handler: a => this.getComponents(a.nodeUuid) },
-            { name: 'get_component_info', title: 'Read component info', description: '[specialist] Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID that owns the component.'),
-                    componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
-                }), handler: a => this.getComponentInfo(a.nodeUuid, a.componentType) },
-            { name: 'set_component_property', title: 'Set component property', description: '[specialist] Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
-                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
-                    componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
-                    property: z.string().describe(setComponentPropertyPropertyDescription),
-                    propertyType: z.enum([
-                        'string', 'number', 'boolean', 'integer', 'float',
-                        'color', 'vec2', 'vec3', 'size',
-                        'node', 'component', 'spriteFrame', 'prefab', 'asset',
-                        'nodeArray', 'colorArray', 'numberArray', 'stringArray',
-                    ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
-                    value: z.any().describe(setComponentPropertyValueDescription),
-                    preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    return this.setComponentProperty({ ...a, nodeUuid: r.uuid });
-                } },
-            { name: 'attach_script', title: 'Attach script component', description: '[specialist] Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
-                    scriptPath: z.string().describe('Script asset db:// path, e.g. db://assets/scripts/MyScript.ts.'),
-                }), handler: a => this.attachScript(a.nodeUuid, a.scriptPath) },
-            { name: 'get_available_components', title: 'List available components', description: '[specialist] List curated built-in component types by category. No scene query; custom project scripts are not discovered here.',
-                inputSchema: z.object({
-                    category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter for the built-in curated list.'),
-                }), handler: a => this.getAvailableComponents(a.category) },
-            { name: 'add_event_handler', title: 'Add event handler', description: '[specialist] Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
-                    componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
-                    eventArrayProperty: z.string().default('clickEvents').describe('Component property holding the EventHandler array (cc.Button.clickEvents, cc.Toggle.checkEvents, …)'),
-                    targetNodeUuid: z.string().describe('Node UUID where the callback component lives (most often the same as nodeUuid)'),
-                    componentName: z.string().describe('Class name (cc-class) of the script that owns the callback method'),
-                    handler: z.string().describe('Method name on the target component, e.g. "onClick"'),
-                    customEventData: z.string().optional().describe('Optional string passed back when the event fires'),
-                }),
-                handler: async a => {
-                    const resp = await runSceneMethodAsToolResponse('addEventHandler', [
-                        a.nodeUuid, a.componentType, a.eventArrayProperty,
-                        a.targetNodeUuid, a.componentName, a.handler, a.customEventData,
-                    ]);
-                    if (resp.success) {
-                        await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
-                    }
-                    return resp;
-                } },
-            { name: 'remove_event_handler', title: 'Remove event handler', description: '[specialist] Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID owning the component'),
-                    componentType: z.string().default('cc.Button').describe('Component class name'),
-                    eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
-                    index: z.number().int().min(0).optional().describe('Zero-based index to remove. Takes precedence over targetNodeUuid/handler matching when provided.'),
-                    targetNodeUuid: z.string().optional().describe('Match handlers whose target node has this UUID'),
-                    handler: z.string().optional().describe('Match handlers with this method name'),
-                }),
-                handler: async a => {
-                    const resp = await runSceneMethodAsToolResponse('removeEventHandler', [
-                        a.nodeUuid, a.componentType, a.eventArrayProperty,
-                        a.index ?? null, a.targetNodeUuid ?? null, a.handler ?? null,
-                    ]);
-                    if (resp.success) {
-                        await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
-                    }
-                    return resp;
-                } },
-            { name: 'list_event_handlers', title: 'List event handlers', description: '[specialist] List EventHandler entries on a component event array. No mutation; use before remove_event_handler.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID owning the component'),
-                    componentType: z.string().default('cc.Button').describe('Component class name'),
-                    eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
-                }),
-                handler: a => runSceneMethodAsToolResponse('listEventHandlers', [
-                    a.nodeUuid, a.componentType, a.eventArrayProperty,
-                ]) },
-            { name: 'set_component_properties', title: 'Set component properties', description: '[specialist] Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
-                    nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
-                    componentType: z.string().describe('Component type/cid shared by all entries.'),
-                    properties: z.array(z.object({
-                        property: z.string().describe('Property name on the component, e.g. fontSize, color, sizeMode.'),
-                        propertyType: z.enum([
-                            'string', 'number', 'boolean', 'integer', 'float',
-                            'color', 'vec2', 'vec3', 'size',
-                            'node', 'component', 'spriteFrame', 'prefab', 'asset',
-                            'nodeArray', 'colorArray', 'numberArray', 'stringArray',
-                        ]).describe('Property data type for value conversion.'),
-                        value: z.any().describe('Property value matching propertyType.'),
-                        preserveContentSize: z.boolean().default(false).describe('See set_component_property; only honoured when componentType="cc.Sprite" and property="spriteFrame".'),
-                    })).min(1).max(20).describe('Property entries. Capped at 20 per call.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    const results: Array<{ property: string; success: boolean; error?: string }> = [];
-                    for (const entry of a.properties) {
-                        const resp = await this.setComponentProperty({
-                            nodeUuid: r.uuid,
-                            componentType: a.componentType,
-                            property: entry.property,
-                            propertyType: entry.propertyType,
-                            value: entry.value,
-                            preserveContentSize: entry.preserveContentSize ?? false,
-                        });
-                        results.push({
-                            property: entry.property,
-                            success: !!resp.success,
-                            error: resp.success ? undefined : (resp.error ?? resp.message ?? 'unknown'),
-                        });
-                    }
-                    const failed = results.filter(x => !x.success);
-                    return {
-                        success: failed.length === 0,
-                        data: {
-                            nodeUuid: r.uuid,
-                            componentType: a.componentType,
-                            total: results.length,
-                            failedCount: failed.length,
-                            results,
-                        },
-                        message: failed.length === 0
-                            ? `Wrote ${results.length} component properties`
-                            : `${failed.length}/${results.length} component property writes failed`,
-                    };
-                } },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async addComponent(nodeUuid: string, componentType: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'add_component',
+        title: 'Add node component',
+        description: '[specialist] Add a component to a node. Mutates scene; verify the component type or script class name first. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
+        inputSchema: z.object({
+            reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+            nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+            nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
+            componentType: z.string().describe('Component type to add, e.g. cc.Sprite, cc.Label, cc.Button, or a custom script class name.'),
+        }),
+    })
+    async addComponent(a: any): Promise<ToolResponse> {
+        const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+        if ('response' in r) return r.response;
+        return this.addComponentImpl(r.uuid, a.componentType);
+    }
+
+    @mcpTool({
+        name: 'remove_component',
+        title: 'Remove node component',
+        description: "[specialist] Remove a component from a node. Mutates scene; componentType must be the cid/type returned by get_components, not a guessed script name.",
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID that owns the component to remove.'),
+            componentType: z.string().describe('Component cid (type field from getComponents). Do NOT use script name or class name. Example: "cc.Sprite" or "9b4a7ueT9xD6aRE+AlOusy1"'),
+        }),
+    })
+    async removeComponent(a: any): Promise<ToolResponse> {
+        return this.removeComponentImpl(a.nodeUuid, a.componentType);
+    }
+
+    @mcpTool({
+        name: 'get_components',
+        title: 'List node components',
+        description: '[specialist] List all components on a node. Includes type/cid and basic properties; use before remove_component or set_component_property.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID whose components should be listed.'),
+        }),
+    })
+    async getComponents(a: any): Promise<ToolResponse> {
+        return this.getComponentsImpl(a.nodeUuid);
+    }
+
+    @mcpTool({
+        name: 'get_component_info',
+        title: 'Read component info',
+        description: '[specialist] Read detailed data for one component on a node. No mutation; use to inspect property names and value shapes before editing.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID that owns the component.'),
+            componentType: z.string().describe('Component type/cid to inspect. Use get_components first if unsure.'),
+        }),
+    })
+    async getComponentInfo(a: any): Promise<ToolResponse> {
+        return this.getComponentInfoImpl(a.nodeUuid, a.componentType);
+    }
+
+    @mcpTool({
+        name: 'set_component_property',
+        title: 'Set component property',
+        description: '[specialist] Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',
+        inputSchema: z.object({
+            reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+            nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+            nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
+            componentType: z.string().describe('Component type - Can be built-in components (e.g., cc.Label) or custom script components (e.g., MyScript). If unsure about component type, use get_components first to retrieve all components on the node.'),
+            property: z.string().describe(setComponentPropertyPropertyDescription),
+            propertyType: z.enum([
+                'string', 'number', 'boolean', 'integer', 'float',
+                'color', 'vec2', 'vec3', 'size',
+                'node', 'component', 'spriteFrame', 'prefab', 'asset',
+                'nodeArray', 'colorArray', 'numberArray', 'stringArray',
+            ]).describe('Property type - Must explicitly specify the property data type for correct value conversion and validation'),
+            value: z.any().describe(setComponentPropertyValueDescription),
+            preserveContentSize: z.boolean().default(false).describe('Sprite-specific workflow flag. Only honoured when componentType="cc.Sprite" and property="spriteFrame": before the assign, sets cc.Sprite.sizeMode to CUSTOM (0) so the engine does NOT overwrite cc.UITransform.contentSize with the texture\'s native dimensions. Use when building UI procedurally and the node\'s pre-set size must be kept; leave false (default) to keep cocos\' standard TRIMMED auto-fit behaviour.'),
+        }),
+    })
+    async setComponentPropertyTool(a: any): Promise<ToolResponse> {
+        const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+        if ('response' in r) return r.response;
+        return this.setComponentProperty({ ...a, nodeUuid: r.uuid });
+    }
+
+    @mcpTool({
+        name: 'attach_script',
+        title: 'Attach script component',
+        description: '[specialist] Attach a script asset as a component to a node. Mutates scene; use get_components afterward because custom scripts may appear as cid.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID to attach the script component to.'),
+            scriptPath: z.string().describe('Script asset db:// path, e.g. db://assets/scripts/MyScript.ts.'),
+        }),
+    })
+    async attachScript(a: any): Promise<ToolResponse> {
+        return this.attachScriptImpl(a.nodeUuid, a.scriptPath);
+    }
+
+    @mcpTool({
+        name: 'get_available_components',
+        title: 'List available components',
+        description: '[specialist] List curated built-in component types by category. No scene query; custom project scripts are not discovered here.',
+        inputSchema: z.object({
+            category: z.enum(['all', 'renderer', 'ui', 'physics', 'animation', 'audio']).default('all').describe('Component category filter for the built-in curated list.'),
+        }),
+    })
+    async getAvailableComponents(a: any): Promise<ToolResponse> {
+        return this.getAvailableComponentsImpl(a.category);
+    }
+
+    @mcpTool({
+        name: 'add_event_handler',
+        title: 'Add event handler',
+        description: '[specialist] Append a cc.EventHandler to a component event array. Nudges the editor model for persistence. Mutates scene; use for Button/Toggle/Slider callbacks.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID owning the component (e.g. the Button node)'),
+            componentType: z.string().default('cc.Button').describe('Component class name; defaults to cc.Button'),
+            eventArrayProperty: z.string().default('clickEvents').describe('Component property holding the EventHandler array (cc.Button.clickEvents, cc.Toggle.checkEvents, …)'),
+            targetNodeUuid: z.string().describe('Node UUID where the callback component lives (most often the same as nodeUuid)'),
+            componentName: z.string().describe('Class name (cc-class) of the script that owns the callback method'),
+            handler: z.string().describe('Method name on the target component, e.g. "onClick"'),
+            customEventData: z.string().optional().describe('Optional string passed back when the event fires'),
+        }),
+    })
+    async addEventHandler(a: any): Promise<ToolResponse> {
+        const resp = await runSceneMethodAsToolResponse('addEventHandler', [
+            a.nodeUuid, a.componentType, a.eventArrayProperty,
+            a.targetNodeUuid, a.componentName, a.handler, a.customEventData,
+        ]);
+        if (resp.success) {
+            await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+        }
+        return resp;
+    }
+
+    @mcpTool({
+        name: 'remove_event_handler',
+        title: 'Remove event handler',
+        description: '[specialist] Remove EventHandler entries from a component event array. Nudges the editor model for persistence. Mutates scene; match by index or targetNodeUuid+handler.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID owning the component'),
+            componentType: z.string().default('cc.Button').describe('Component class name'),
+            eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+            index: z.number().int().min(0).optional().describe('Zero-based index to remove. Takes precedence over targetNodeUuid/handler matching when provided.'),
+            targetNodeUuid: z.string().optional().describe('Match handlers whose target node has this UUID'),
+            handler: z.string().optional().describe('Match handlers with this method name'),
+        }),
+    })
+    async removeEventHandler(a: any): Promise<ToolResponse> {
+        const resp = await runSceneMethodAsToolResponse('removeEventHandler', [
+            a.nodeUuid, a.componentType, a.eventArrayProperty,
+            a.index ?? null, a.targetNodeUuid ?? null, a.handler ?? null,
+        ]);
+        if (resp.success) {
+            await nudgeEditorModel(a.nodeUuid, a.componentType, resp.data?.componentUuid);
+        }
+        return resp;
+    }
+
+    @mcpTool({
+        name: 'list_event_handlers',
+        title: 'List event handlers',
+        description: '[specialist] List EventHandler entries on a component event array. No mutation; use before remove_event_handler.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID owning the component'),
+            componentType: z.string().default('cc.Button').describe('Component class name'),
+            eventArrayProperty: z.string().default('clickEvents').describe('EventHandler array property name'),
+        }),
+    })
+    async listEventHandlers(a: any): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('listEventHandlers', [
+            a.nodeUuid, a.componentType, a.eventArrayProperty,
+        ]);
+    }
+
+    @mcpTool({
+        name: 'set_component_properties',
+        title: 'Set component properties',
+        description: '[specialist] Batch-set multiple properties on the same component in one tool call. Mutates scene; each property is written sequentially through set_component_property to share nodeUuid+componentType resolution. Returns per-entry success/error so partial failures are visible. Use when AI needs to set 3+ properties on a single component at once. Accepts reference={id,type} (preferred), nodeUuid, or nodeName.',
+        inputSchema: z.object({
+            reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type} for the host node. Preferred form.'),
+            nodeUuid: z.string().optional().describe('Target node UUID. Used when reference is omitted.'),
+            nodeName: z.string().optional().describe('Target node name (depth-first first match). Used when reference and nodeUuid are omitted.'),
+            componentType: z.string().describe('Component type/cid shared by all entries.'),
+            properties: z.array(z.object({
+                property: z.string().describe('Property name on the component, e.g. fontSize, color, sizeMode.'),
+                propertyType: z.enum([
+                    'string', 'number', 'boolean', 'integer', 'float',
+                    'color', 'vec2', 'vec3', 'size',
+                    'node', 'component', 'spriteFrame', 'prefab', 'asset',
+                    'nodeArray', 'colorArray', 'numberArray', 'stringArray',
+                ]).describe('Property data type for value conversion.'),
+                value: z.any().describe('Property value matching propertyType.'),
+                preserveContentSize: z.boolean().default(false).describe('See set_component_property; only honoured when componentType="cc.Sprite" and property="spriteFrame".'),
+            })).min(1).max(20).describe('Property entries. Capped at 20 per call.'),
+        }),
+    })
+    async setComponentProperties(a: any): Promise<ToolResponse> {
+        const r = await resolveReference({ reference: a.reference, nodeUuid: a.nodeUuid, nodeName: a.nodeName });
+        if ('response' in r) return r.response;
+        const results: Array<{ property: string; success: boolean; error?: string }> = [];
+        for (const entry of a.properties) {
+            const resp = await this.setComponentProperty({
+                nodeUuid: r.uuid,
+                componentType: a.componentType,
+                property: entry.property,
+                propertyType: entry.propertyType,
+                value: entry.value,
+                preserveContentSize: entry.preserveContentSize ?? false,
+            });
+            results.push({
+                property: entry.property,
+                success: !!resp.success,
+                error: resp.success ? undefined : (resp.error ?? resp.message ?? 'unknown'),
+            });
+        }
+        const failed = results.filter(x => !x.success);
+        return {
+            success: failed.length === 0,
+            data: {
+                nodeUuid: r.uuid,
+                componentType: a.componentType,
+                total: results.length,
+                failedCount: failed.length,
+                results,
+            },
+            message: failed.length === 0
+                ? `Wrote ${results.length} component properties`
+                : `${failed.length}/${results.length} component property writes failed`,
+        };
+    }
+    private async addComponentImpl(nodeUuid: string, componentType: string): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             // Snapshot existing components so we can detect post-add additions
             // even when Cocos reports them under a cid (custom scripts) rather
             // than the class name the caller supplied.
-            const beforeInfo = await this.getComponents(nodeUuid);
+            const beforeInfo = await this.getComponentsImpl(nodeUuid);
             const beforeList: any[] = beforeInfo.success && beforeInfo.data?.components ? beforeInfo.data.components : [];
             const beforeTypes = new Set(beforeList.map((c: any) => c.type));
 
@@ -313,7 +382,7 @@ export class ComponentTools implements ToolExecutor {
                 // 等待一段時間讓Editor完成組件添加
                 await new Promise(r => setTimeout(r, 100));
                 try {
-                    const afterInfo = await this.getComponents(nodeUuid);
+                    const afterInfo = await this.getComponentsImpl(nodeUuid);
                     if (!afterInfo.success || !afterInfo.data?.components) {
                         resolve(fail(`Failed to verify component addition: ${afterInfo.error || 'Unable to get node components'}`));
                         return;
@@ -365,10 +434,10 @@ export class ComponentTools implements ToolExecutor {
         });
     }
 
-    private async removeComponent(nodeUuid: string, componentType: string): Promise<ToolResponse> {
+    private async removeComponentImpl(nodeUuid: string, componentType: string): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             // 1. 查找節點上的所有組件
-            const allComponentsInfo = await this.getComponents(nodeUuid);
+            const allComponentsInfo = await this.getComponentsImpl(nodeUuid);
             if (!allComponentsInfo.success || !allComponentsInfo.data?.components) {
                 resolve(fail(`Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}`));
                 return;
@@ -386,7 +455,7 @@ export class ComponentTools implements ToolExecutor {
                     component: componentType
                 });
                 // 4. 再查一次確認是否移除
-                const afterRemoveInfo = await this.getComponents(nodeUuid);
+                const afterRemoveInfo = await this.getComponentsImpl(nodeUuid);
                 const stillExists = afterRemoveInfo.success && afterRemoveInfo.data?.components?.some((comp: any) => comp.type === componentType);
                 if (stillExists) {
                     resolve(fail(`Component cid '${componentType}' was not removed from node '${nodeUuid}'.`));
@@ -399,7 +468,7 @@ export class ComponentTools implements ToolExecutor {
         });
     }
 
-    private async getComponents(nodeUuid: string): Promise<ToolResponse> {
+    private async getComponentsImpl(nodeUuid: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 優先嚐試直接使用 Editor API 查詢節點信息
             Editor.Message.request('scene', 'query-node', nodeUuid).then((nodeData: any) => {
@@ -433,7 +502,7 @@ export class ComponentTools implements ToolExecutor {
         });
     }
 
-    private async getComponentInfo(nodeUuid: string, componentType: string): Promise<ToolResponse> {
+    private async getComponentInfoImpl(nodeUuid: string, componentType: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 優先嚐試直接使用 Editor API 查詢節點信息
             Editor.Message.request('scene', 'query-node', nodeUuid).then((nodeData: any) => {
@@ -571,7 +640,7 @@ export class ComponentTools implements ToolExecutor {
                 }
                 
                 // Step 1: 獲取組件信息，使用與getComponents相同的方法
-                const componentsResponse = await this.getComponents(nodeUuid);
+                const componentsResponse = await this.getComponentsImpl(nodeUuid);
                 if (!componentsResponse.success || !componentsResponse.data) {
                     resolve({
                         success: false,
@@ -971,7 +1040,7 @@ export class ComponentTools implements ToolExecutor {
                     let expectedComponentType = '';
                     
                     // 獲取當前組件的詳細信息，包括屬性元數據
-                    const currentComponentInfo = await this.getComponentInfo(nodeUuid, componentType);
+                    const currentComponentInfo = await this.getComponentInfoImpl(nodeUuid, componentType);
                     if (currentComponentInfo.success && currentComponentInfo.data?.properties?.[property]) {
                         const propertyMeta = currentComponentInfo.data.properties[property];
                         
@@ -1148,7 +1217,7 @@ export class ComponentTools implements ToolExecutor {
     }
 
 
-    private async attachScript(nodeUuid: string, scriptPath: string): Promise<ToolResponse> {
+    private async attachScriptImpl(nodeUuid: string, scriptPath: string): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             // 從腳本路徑提取組件類名
             const scriptName = scriptPath.split('/').pop()?.replace('.ts', '').replace('.js', '');
@@ -1157,7 +1226,7 @@ export class ComponentTools implements ToolExecutor {
                 return;
             }
             // 先查找節點上是否已存在該腳本組件
-            const allComponentsInfo = await this.getComponents(nodeUuid);
+            const allComponentsInfo = await this.getComponentsImpl(nodeUuid);
             if (allComponentsInfo.success && allComponentsInfo.data?.components) {
                 const existingScript = allComponentsInfo.data.components.find((comp: any) => comp.type === scriptName);
                 if (existingScript) {
@@ -1177,7 +1246,7 @@ export class ComponentTools implements ToolExecutor {
                 // 等待一段時間讓Editor完成組件添加
                 await new Promise(resolve => setTimeout(resolve, 100));
                 // 重新查詢節點信息驗證腳本是否真的添加成功
-                const allComponentsInfo2 = await this.getComponents(nodeUuid);
+                const allComponentsInfo2 = await this.getComponentsImpl(nodeUuid);
                 if (allComponentsInfo2.success && allComponentsInfo2.data?.components) {
                     const addedScript = allComponentsInfo2.data.components.find((comp: any) => comp.type === scriptName);
                     if (addedScript) {
@@ -1207,7 +1276,7 @@ export class ComponentTools implements ToolExecutor {
         });
     }
 
-    private async getAvailableComponents(category: string = 'all'): Promise<ToolResponse> {
+    private async getAvailableComponentsImpl(category: string = 'all'): Promise<ToolResponse> {
         const componentCategories: Record<string, string[]> = {
             renderer: ['cc.Sprite', 'cc.Label', 'cc.RichText', 'cc.Mask', 'cc.Graphics'],
             ui: ['cc.Button', 'cc.Toggle', 'cc.Slider', 'cc.ScrollView', 'cc.EditBox', 'cc.ProgressBar'],
@@ -1638,10 +1707,10 @@ export class ComponentTools implements ToolExecutor {
         try {
             // 重新獲取組件信息進行驗證
             debugLog(`[verifyPropertyChange] Calling getComponentInfo...`);
-            const componentInfo = await this.getComponentInfo(nodeUuid, componentType);
+            const componentInfo = await this.getComponentInfoImpl(nodeUuid, componentType);
             debugLog(`[verifyPropertyChange] getComponentInfo success:`, componentInfo.success);
             
-            const allComponents = await this.getComponents(nodeUuid);
+            const allComponents = await this.getComponentsImpl(nodeUuid);
             debugLog(`[verifyPropertyChange] getComponents success:`, allComponents.success);
             
             if (componentInfo.success && componentInfo.data) {

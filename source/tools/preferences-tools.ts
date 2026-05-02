@@ -1,7 +1,7 @@
 import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 // v2.10.4 #8 (RomaRogov macro-tool enum routing): collapse 7 flat
 // preferences tools into a single `preferences_manage({op, ...})` macro
@@ -50,40 +50,37 @@ export class PreferencesTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'manage',
-                title: 'Manage preferences',
-                description: '[specialist] Macro tool for cocos editor preferences. op routes to: open_settings (UI), query_config / set_config (read/write a path), get_all (dump common categories), reset (single category to defaults), export (return JSON), import (unsupported placeholder).',
-                inputSchema: z.object({
-                    op: z.enum([
-                        'open_settings',
-                        'query_config',
-                        'set_config',
-                        'get_all',
-                        'reset',
-                        'export',
-                        'import',
-                    ]).describe('Action to perform. open_settings shows UI; query_config/set_config read/write one path; get_all dumps common categories; reset restores one category to defaults; export returns JSON; import is unsupported.'),
-                    name: z.string().optional().describe('Preferences category or extension name. Required by query_config (default "general"), set_config, reset (single-category only).'),
-                    path: z.string().optional().describe('Config path within the category. Optional for query_config (omit to read whole category); required for set_config.'),
-                    value: z.any().optional().describe('Value to write. Required for set_config; must match the target preference field shape.'),
-                    type: z.enum(['default', 'global', 'local']).optional().describe('Config source/scope. query_config defaults to "global"; set_config defaults to "global"; reset accepts global/local.'),
-                    tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Used only by op="open_settings" to land on a specific tab.'),
-                    args: z.array(z.any()).optional().describe('Used only by op="open_settings" for extra tab arguments; normally unnecessary.'),
-                    importPath: z.string().optional().describe('Used only by op="import"; current implementation reports unsupported and does not modify settings.'),
-                    exportPath: z.string().optional().describe('Used only by op="export" as label for the returned export path. Does not write a file.'),
-                }),
-                handler: a => this.manage(a as ManageArgs),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async manage(a: ManageArgs): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'manage',
+        title: 'Manage preferences',
+        description: '[specialist] Macro tool for cocos editor preferences. op routes to: open_settings (UI), query_config / set_config (read/write a path), get_all (dump common categories), reset (single category to defaults), export (return JSON), import (unsupported placeholder).',
+        inputSchema: z.object({
+            op: z.enum([
+                'open_settings',
+                'query_config',
+                'set_config',
+                'get_all',
+                'reset',
+                'export',
+                'import',
+            ]).describe('Action to perform. open_settings shows UI; query_config/set_config read/write one path; get_all dumps common categories; reset restores one category to defaults; export returns JSON; import is unsupported.'),
+            name: z.string().optional().describe('Preferences category or extension name. Required by query_config (default "general"), set_config, reset (single-category only).'),
+            path: z.string().optional().describe('Config path within the category. Optional for query_config (omit to read whole category); required for set_config.'),
+            value: z.any().optional().describe('Value to write. Required for set_config; must match the target preference field shape.'),
+            type: z.enum(['default', 'global', 'local']).optional().describe('Config source/scope. query_config defaults to "global"; set_config defaults to "global"; reset accepts global/local.'),
+            tab: z.enum(['general', 'external-tools', 'data-editor', 'laboratory', 'extensions']).optional().describe('Used only by op="open_settings" to land on a specific tab.'),
+            args: z.array(z.any()).optional().describe('Used only by op="open_settings" for extra tab arguments; normally unnecessary.'),
+            importPath: z.string().optional().describe('Used only by op="import"; current implementation reports unsupported and does not modify settings.'),
+            exportPath: z.string().optional().describe('Used only by op="export" as label for the returned export path. Does not write a file.'),
+        }),
+    })
+    async manage(a: ManageArgs): Promise<ToolResponse> {
         switch (a.op) {
             case 'open_settings':
                 return this.openSettings(a.tab, a.args);

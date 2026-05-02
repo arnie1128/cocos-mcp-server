@@ -1,65 +1,25 @@
 import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 export class ServerTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'query_server_ip_list',
-                title: 'Read server IP list',
-                description: '[specialist] Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.',
-                inputSchema: z.object({}),
-                handler: () => this.queryServerIPList(),
-            },
-            {
-                name: 'query_sorted_server_ip_list',
-                title: 'Read sorted server IPs',
-                description: '[specialist] Read the Editor server IP list in preferred order. No project side effects.',
-                inputSchema: z.object({}),
-                handler: () => this.querySortedServerIPList(),
-            },
-            {
-                name: 'query_server_port',
-                title: 'Read server port',
-                description: '[specialist] Read the current Cocos Editor server port. Does not start or stop any server.',
-                inputSchema: z.object({}),
-                handler: () => this.queryServerPort(),
-            },
-            {
-                name: 'get_server_status',
-                title: 'Read server status',
-                description: '[specialist] Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.',
-                inputSchema: z.object({}),
-                handler: () => this.getServerStatus(),
-            },
-            {
-                name: 'check_server_connectivity',
-                title: 'Check server connectivity',
-                description: '[specialist] Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.',
-                inputSchema: z.object({
-                    timeout: z.number().default(5000).describe('Editor server response timeout in milliseconds. Default 5000.'),
-                }),
-                handler: a => this.checkServerConnectivity(a.timeout),
-            },
-            {
-                name: 'get_network_interfaces',
-                title: 'Read network interfaces',
-                description: '[specialist] Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.',
-                inputSchema: z.object({}),
-                handler: () => this.getNetworkInterfaces(),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async queryServerIPList(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'query_server_ip_list',
+        title: 'Read server IP list',
+        description: '[specialist] Read IPs reported by the Cocos Editor server. No project side effects; use to build client connection URLs.',
+        inputSchema: z.object({}),
+    })
+    async queryServerIPList(): Promise<ToolResponse> {
         const ipList: string[] = await Editor.Message.request('server', 'query-ip-list');
         return ok({
                 ipList: ipList,
@@ -68,7 +28,13 @@ export class ServerTools implements ToolExecutor {
             });
     }
 
-    private async querySortedServerIPList(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'query_sorted_server_ip_list',
+        title: 'Read sorted server IPs',
+        description: '[specialist] Read the Editor server IP list in preferred order. No project side effects.',
+        inputSchema: z.object({}),
+    })
+    async querySortedServerIPList(): Promise<ToolResponse> {
         const sortedIPList: string[] = await Editor.Message.request('server', 'query-sort-ip-list');
         return ok({
                 sortedIPList: sortedIPList,
@@ -77,7 +43,13 @@ export class ServerTools implements ToolExecutor {
             });
     }
 
-    private async queryServerPort(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'query_server_port',
+        title: 'Read server port',
+        description: '[specialist] Read the current Cocos Editor server port. Does not start or stop any server.',
+        inputSchema: z.object({}),
+    })
+    async queryServerPort(): Promise<ToolResponse> {
         const port: number = await Editor.Message.request('server', 'query-port');
         return ok({
                 port: port,
@@ -85,7 +57,13 @@ export class ServerTools implements ToolExecutor {
             });
     }
 
-    private async getServerStatus(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'get_server_status',
+        title: 'Read server status',
+        description: '[specialist] Collect Editor server IP/port, MCP port, Cocos version, platform, and Node runtime info. Diagnostics only.',
+        inputSchema: z.object({}),
+    })
+    async getServerStatus(): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
                 // Gather comprehensive server information
@@ -129,7 +107,16 @@ export class ServerTools implements ToolExecutor {
         });
     }
 
-    private async checkServerConnectivity(timeout: number = 5000): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'check_server_connectivity',
+        title: 'Check server connectivity',
+        description: '[specialist] Probe Editor.Message connectivity with server/query-port and a timeout. No project side effects.',
+        inputSchema: z.object({
+            timeout: z.number().default(5000).describe('Editor server response timeout in milliseconds. Default 5000.'),
+        }),
+    })
+    async checkServerConnectivity(args: { timeout?: number }): Promise<ToolResponse> {
+        const timeout = args.timeout ?? 5000;
         return new Promise(async (resolve) => {
             const startTime = Date.now();
             
@@ -167,7 +154,13 @@ export class ServerTools implements ToolExecutor {
         });
     }
 
-    private async getNetworkInterfaces(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'get_network_interfaces',
+        title: 'Read network interfaces',
+        description: '[specialist] Read OS network interfaces and compare with Editor-reported IPs. Diagnostics only.',
+        inputSchema: z.object({}),
+    })
+    async getNetworkInterfaces(): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
                 // Get network interfaces using Node.js os module

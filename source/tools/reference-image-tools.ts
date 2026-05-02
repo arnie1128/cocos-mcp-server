@@ -1,7 +1,7 @@
 import { ok, fail } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 // v2.9.0 T-V29-6 (RomaRogov macro-tool enum routing): collapse 12 flat
 // reference-image tools into a single `reference_image({op, ...})` macro
@@ -29,38 +29,39 @@ export class ReferenceImageTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'manage',
-                title: 'Manage reference images',
-                description: '[specialist] Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).',
-                inputSchema: z.object({
-                    op: z.enum([
-                        'add', 'remove', 'switch', 'set_data', 'query_config',
-                        'query_current', 'refresh', 'set_position', 'set_scale',
-                        'set_opacity', 'list', 'clear_all',
-                    ]).describe(
-                        'Op selector. "add" — register absolute image paths (paths required). "remove" — remove specific paths or current image when omitted. "switch" — switch active image (path required, sceneUUID optional). "set_data" — set raw display property (key + value required). "query_config" — read module config. "query_current" — read current image state. "refresh" — refresh display without changing data. "set_position" — set x/y offsets. "set_scale" — set sx/sy scale 0.1-10. "set_opacity" — set opacity 0-1. "list" — read config + current data. "clear_all" — remove all reference images.'
-                    ),
-                    paths: z.array(z.string()).optional().describe('For op="add" (required) or op="remove" (optional — omit to remove current).'),
-                    path: z.string().optional().describe('For op="switch" (required).'),
-                    sceneUUID: z.string().optional().describe('For op="switch" (optional scene UUID scope).'),
-                    key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).optional().describe('For op="set_data" (required) — property key.'),
-                    value: z.any().optional().describe('For op="set_data" (required) — property value.'),
-                    x: z.number().optional().describe('For op="set_position" (required).'),
-                    y: z.number().optional().describe('For op="set_position" (required).'),
-                    sx: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
-                    sy: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
-                    opacity: z.number().min(0).max(1).optional().describe('For op="set_opacity" (required), 0-1.'),
-                }),
-                handler: a => this.dispatch(a),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    @mcpTool({
+        name: 'manage',
+        title: 'Manage reference images',
+        description: '[specialist] Manage scene reference images through the cocos reference-image module. Op-routing macro: pick `op` and supply the matching args. Replaces the v2.8.x flat surface (referenceImage_add_reference_image / remove_reference_image / switch_reference_image / set_reference_image_data / query_reference_image_config / query_current_reference_image / refresh_reference_image / set_reference_image_position / set_reference_image_scale / set_reference_image_opacity / list_reference_images / clear_all_reference_images — 12 → 1).',
+        inputSchema: z.object({
+            op: z.enum([
+                'add', 'remove', 'switch', 'set_data', 'query_config',
+                'query_current', 'refresh', 'set_position', 'set_scale',
+                'set_opacity', 'list', 'clear_all',
+            ]).describe(
+                'Op selector. "add" — register absolute image paths (paths required). "remove" — remove specific paths or current image when omitted. "switch" — switch active image (path required, sceneUUID optional). "set_data" — set raw display property (key + value required). "query_config" — read module config. "query_current" — read current image state. "refresh" — refresh display without changing data. "set_position" — set x/y offsets. "set_scale" — set sx/sy scale 0.1-10. "set_opacity" — set opacity 0-1. "list" — read config + current data. "clear_all" — remove all reference images.'
+            ),
+            paths: z.array(z.string()).optional().describe('For op="add" (required) or op="remove" (optional — omit to remove current).'),
+            path: z.string().optional().describe('For op="switch" (required).'),
+            sceneUUID: z.string().optional().describe('For op="switch" (optional scene UUID scope).'),
+            key: z.enum(['path', 'x', 'y', 'sx', 'sy', 'opacity']).optional().describe('For op="set_data" (required) — property key.'),
+            value: z.any().optional().describe('For op="set_data" (required) — property value.'),
+            x: z.number().optional().describe('For op="set_position" (required).'),
+            y: z.number().optional().describe('For op="set_position" (required).'),
+            sx: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
+            sy: z.number().min(0.1).max(10).optional().describe('For op="set_scale" (required), 0.1-10.'),
+            opacity: z.number().min(0).max(1).optional().describe('For op="set_opacity" (required), 0-1.'),
+        }),
+    })
+    async manage(args: any): Promise<ToolResponse> {
+        return this.dispatch(args);
+    }
 
     // Per-op required-field validation. Each op's required args are
     // reasserted here because the flat zod schema marks them all

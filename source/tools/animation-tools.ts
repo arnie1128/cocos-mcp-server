@@ -1,4 +1,4 @@
-import { ok, fail } from '../lib/response';
+import { fail } from '../lib/response';
 /**
  * animation-tools — drive `cc.Animation` from MCP.
  *
@@ -16,70 +16,81 @@ import { ok, fail } from '../lib/response';
  *
  * Reference: cocos-mcp-extension (Spaydo)
  * `source/tools/animation-tools.ts`. We rewrite using the v2.4.0
- * declarative `defineTools` pattern + node fallback rather than the
+ * declarative `@mcpTool` pattern + node fallback rather than the
  * upstream three-layer dispatch.
  */
 
-import type { ToolResponse } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridge';
 import { nodeReferenceShape, resolveOrToolError } from '../lib/resolve-node';
 import { logger } from '../lib/log';
 
-const animationListClips: ToolDef = {
-    name: 'list_clips',
-    title: 'List animation clips',
-    description: '[specialist] List animation clips registered on a node\'s cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.',
-    inputSchema: z.object({
-        ...nodeReferenceShape,
-    }),
-    handler: async (args) => {
+export class AnimationTools implements ToolExecutor {
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        this.exec = defineToolsFromDecorators(this);
+    }
+
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    @mcpTool({
+        name: 'list_clips',
+        title: 'List animation clips',
+        description: '[specialist] List animation clips registered on a node\'s cc.Animation component. Returns clip names + which one is the defaultClip + the playOnLoad flag.',
+        inputSchema: z.object({
+            ...nodeReferenceShape,
+        }),
+    })
+    async listClips(args: any): Promise<ToolResponse> {
         const resolved = await resolveOrToolError(args);
         if ('response' in resolved) return resolved.response;
         return runSceneMethodAsToolResponse('getAnimationClips', [resolved.uuid]);
-    },
-};
+    }
 
-const animationPlay: ToolDef = {
-    name: 'play',
-    title: 'Play animation clip',
-    description: '[specialist] Play an animation clip on a node\'s cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).',
-    inputSchema: z.object({
-        ...nodeReferenceShape,
-        clipName: z.string().optional().describe('Clip name registered on the Animation component. Omit to play defaultClip.'),
-    }),
-    handler: async (args) => {
+    @mcpTool({
+        name: 'play',
+        title: 'Play animation clip',
+        description: '[specialist] Play an animation clip on a node\'s cc.Animation component. Omits clipName → plays the configured defaultClip. Returns success even when the clip was already playing (cocos no-op).',
+        inputSchema: z.object({
+            ...nodeReferenceShape,
+            clipName: z.string().optional().describe('Clip name registered on the Animation component. Omit to play defaultClip.'),
+        }),
+    })
+    async play(args: any): Promise<ToolResponse> {
         const resolved = await resolveOrToolError(args);
         if ('response' in resolved) return resolved.response;
         return runSceneMethodAsToolResponse('playAnimation', [resolved.uuid, args.clipName]);
-    },
-};
+    }
 
-const animationStop: ToolDef = {
-    name: 'stop',
-    title: 'Stop animation',
-    description: '[specialist] Stop the currently playing animation on a node\'s cc.Animation component. No-op if nothing is playing.',
-    inputSchema: z.object({
-        ...nodeReferenceShape,
-    }),
-    handler: async (args) => {
+    @mcpTool({
+        name: 'stop',
+        title: 'Stop animation',
+        description: '[specialist] Stop the currently playing animation on a node\'s cc.Animation component. No-op if nothing is playing.',
+        inputSchema: z.object({
+            ...nodeReferenceShape,
+        }),
+    })
+    async stop(args: any): Promise<ToolResponse> {
         const resolved = await resolveOrToolError(args);
         if ('response' in resolved) return resolved.response;
         return runSceneMethodAsToolResponse('stopAnimation', [resolved.uuid]);
-    },
-};
+    }
 
-const animationSetClip: ToolDef = {
-    name: 'set_clip',
-    title: 'Configure animation clip',
-    description: '[specialist] Configure a node\'s cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.',
-    inputSchema: z.object({
-        ...nodeReferenceShape,
-        defaultClip: z.string().optional().describe('Name of the clip to use as defaultClip. Must already be registered in the component\'s clips array.'),
-        playOnLoad: z.boolean().optional().describe('Whether the component starts the defaultClip when the scene loads.'),
-    }),
-    handler: async (args): Promise<ToolResponse> => {
+    @mcpTool({
+        name: 'set_clip',
+        title: 'Configure animation clip',
+        description: '[specialist] Configure a node\'s cc.Animation: defaultClip name and/or playOnLoad. Both fields optional — only the ones you pass get written. Persists via the editor set-property channel (Landmine #11 scalar path) so save_scene picks it up.',
+        inputSchema: z.object({
+            ...nodeReferenceShape,
+            defaultClip: z.string().optional().describe('Name of the clip to use as defaultClip. Must already be registered in the component\'s clips array.'),
+            playOnLoad: z.boolean().optional().describe('Whether the component starts the defaultClip when the scene loads.'),
+        }),
+    })
+    async setClip(args: any): Promise<ToolResponse> {
         if (args.defaultClip === undefined && args.playOnLoad === undefined) {
             return fail('animation_set_clip: provide at least one of defaultClip / playOnLoad');
         }
@@ -134,78 +145,57 @@ const animationSetClip: ToolDef = {
             data: { nodeUuid: uuid, componentIndex, updated },
             updatedProperties: updated,
         };
-    },
-};
-
-const animationListStates: ToolDef = {
-    name: 'list_animation_states',
-    title: 'List animation states',
-    description: '[specialist] List cc.AnimationState entries on a node\'s cc.Animation component.',
-    inputSchema: z.object({
-        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
-    }),
-    handler: async (args) => {
-        return runSceneMethodAsToolResponse('listAnimationStates', [args.nodeUuid]);
-    },
-};
-
-const animationGetStateInfo: ToolDef = {
-    name: 'get_animation_state_info',
-    title: 'Get animation state info',
-    description: '[specialist] Get speed and timing info for a named cc.AnimationState.',
-    inputSchema: z.object({
-        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
-        stateName: z.string().describe('Animation state name.'),
-    }),
-    handler: async (args) => {
-        return runSceneMethodAsToolResponse('getAnimationStateInfo', [args.nodeUuid, args.stateName]);
-    },
-};
-
-const animationSetSpeed: ToolDef = {
-    name: 'set_animation_speed',
-    title: 'Set animation speed',
-    description: '[specialist] Set speed on a named cc.AnimationState.',
-    inputSchema: z.object({
-        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
-        stateName: z.string().describe('Animation state name.'),
-        speed: z.number().describe('New AnimationState.speed value.'),
-    }),
-    handler: async (args) => {
-        return runSceneMethodAsToolResponse('setAnimationSpeed', [args.nodeUuid, args.stateName, args.speed]);
-    },
-};
-
-const animationCheckFinished: ToolDef = {
-    name: 'check_animation_finished',
-    title: 'Check animation finished',
-    description: '[specialist] Check whether a named cc.AnimationState has reached its end time.',
-    inputSchema: z.object({
-        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
-        stateName: z.string().describe('Animation state name.'),
-    }),
-    handler: async (args) => {
-        return runSceneMethodAsToolResponse('checkAnimationFinished', [args.nodeUuid, args.stateName]);
-    },
-};
-
-export class AnimationTools {
-    private impl = defineTools([
-        animationCheckFinished,
-        animationGetStateInfo,
-        animationListClips,
-        animationListStates,
-        animationPlay,
-        animationSetSpeed,
-        animationStop,
-        animationSetClip,
-    ]);
-
-    getTools() {
-        return this.impl.getTools();
     }
 
-    execute(toolName: string, args: any) {
-        return this.impl.execute(toolName, args);
+    @mcpTool({
+        name: 'list_animation_states',
+        title: 'List animation states',
+        description: '[specialist] List cc.AnimationState entries on a node\'s cc.Animation component.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+        }),
+    })
+    async listAnimationStates(args: any): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('listAnimationStates', [args.nodeUuid]);
+    }
+
+    @mcpTool({
+        name: 'get_animation_state_info',
+        title: 'Get animation state info',
+        description: '[specialist] Get speed and timing info for a named cc.AnimationState.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+            stateName: z.string().describe('Animation state name.'),
+        }),
+    })
+    async getAnimationStateInfo(args: any): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('getAnimationStateInfo', [args.nodeUuid, args.stateName]);
+    }
+
+    @mcpTool({
+        name: 'set_animation_speed',
+        title: 'Set animation speed',
+        description: '[specialist] Set speed on a named cc.AnimationState.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+            stateName: z.string().describe('Animation state name.'),
+            speed: z.number().describe('New AnimationState.speed value.'),
+        }),
+    })
+    async setAnimationSpeed(args: any): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('setAnimationSpeed', [args.nodeUuid, args.stateName, args.speed]);
+    }
+
+    @mcpTool({
+        name: 'check_animation_finished',
+        title: 'Check animation finished',
+        description: '[specialist] Check whether a named cc.AnimationState has reached its end time.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+            stateName: z.string().describe('Animation state name.'),
+        }),
+    })
+    async checkAnimationFinished(args: any): Promise<ToolResponse> {
+        return runSceneMethodAsToolResponse('checkAnimationFinished', [args.nodeUuid, args.stateName]);
     }
 }

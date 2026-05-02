@@ -1,8 +1,8 @@
-import { ok, fail } from '../lib/response';
+import { ok } from '../lib/response';
 import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 export class BroadcastTools implements ToolExecutor {
     private listeners: Map<string, Function[]> = new Map();
@@ -11,51 +11,7 @@ export class BroadcastTools implements ToolExecutor {
 
     constructor() {
         this.setupBroadcastListeners();
-        const defs: ToolDef[] = [
-            {
-                name: 'get_broadcast_log',
-                title: 'Read broadcast log',
-                description: '[specialist] Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
-                inputSchema: z.object({
-                    limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
-                    messageType: z.string().optional().describe('Optional broadcast type filter, e.g. scene:ready or asset-db:asset-change.'),
-                }),
-                handler: a => this.getBroadcastLog(a.limit, a.messageType),
-            },
-            {
-                name: 'listen_broadcast',
-                title: 'Listen for broadcast',
-                description: '[specialist] Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
-                inputSchema: z.object({
-                    messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
-                }),
-                handler: a => this.listenBroadcast(a.messageType),
-            },
-            {
-                name: 'stop_listening',
-                title: 'Stop broadcast listener',
-                description: '[specialist] Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
-                inputSchema: z.object({
-                    messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
-                }),
-                handler: a => this.stopListening(a.messageType),
-            },
-            {
-                name: 'clear_broadcast_log',
-                title: 'Clear broadcast log',
-                description: '[specialist] Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
-                inputSchema: z.object({}),
-                handler: () => this.clearBroadcastLog(),
-            },
-            {
-                name: 'get_active_listeners',
-                title: 'Read active listeners',
-                description: '[specialist] List extension-local broadcast listener types and counts for diagnostics.',
-                inputSchema: z.object({}),
-                handler: () => this.getActiveListeners(),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
@@ -119,7 +75,18 @@ export class BroadcastTools implements ToolExecutor {
         }
     }
 
-    private async getBroadcastLog(limit: number = 50, messageType?: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'get_broadcast_log',
+        title: 'Read broadcast log',
+        description: '[specialist] Read the extension-local broadcast log. No project side effects; filter by messageType to inspect scene/asset-db/build-worker events.',
+        inputSchema: z.object({
+            limit: z.number().default(50).describe('Maximum recent log entries to return. Default 50.'),
+            messageType: z.string().optional().describe('Optional broadcast type filter, e.g. scene:ready or asset-db:asset-change.'),
+        }),
+    })
+    async getBroadcastLog(args: { limit?: number; messageType?: string }): Promise<ToolResponse> {
+        const limit = args.limit ?? 50;
+        const messageType = args.messageType;
         return new Promise((resolve) => {
             let filteredLog = this.messageLog;
 
@@ -142,7 +109,16 @@ export class BroadcastTools implements ToolExecutor {
         });
     }
 
-    private async listenBroadcast(messageType: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'listen_broadcast',
+        title: 'Listen for broadcast',
+        description: '[specialist] Add a messageType to the extension-local active listener list. Current path is simulated/logging only, not a guaranteed live Editor broadcast subscription.',
+        inputSchema: z.object({
+            messageType: z.string().describe('Broadcast type to add to the local listener list. Current implementation is simulated/logging only.'),
+        }),
+    })
+    async listenBroadcast(args: { messageType: string }): Promise<ToolResponse> {
+        const messageType = args.messageType;
         if (!this.listeners.has(messageType)) {
             this.addBroadcastListener(messageType);
             return ok({
@@ -156,7 +132,16 @@ export class BroadcastTools implements ToolExecutor {
             });
     }
 
-    private async stopListening(messageType: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'stop_listening',
+        title: 'Stop broadcast listener',
+        description: '[specialist] Remove a messageType from the extension-local listener list. Does not affect Cocos Editor internals.',
+        inputSchema: z.object({
+            messageType: z.string().describe('Broadcast type to remove from the local listener list.'),
+        }),
+    })
+    async stopListening(args: { messageType: string }): Promise<ToolResponse> {
+        const messageType = args.messageType;
         if (this.listeners.has(messageType)) {
             this.removeBroadcastListener(messageType);
             return ok({
@@ -170,7 +155,13 @@ export class BroadcastTools implements ToolExecutor {
             });
     }
 
-    private async clearBroadcastLog(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'clear_broadcast_log',
+        title: 'Clear broadcast log',
+        description: '[specialist] Clear the extension-local broadcast log only. Does not modify scene, assets, or Editor state.',
+        inputSchema: z.object({}),
+    })
+    async clearBroadcastLog(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             const previousCount = this.messageLog.length;
             this.messageLog = [];
@@ -181,7 +172,13 @@ export class BroadcastTools implements ToolExecutor {
         });
     }
 
-    private async getActiveListeners(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'get_active_listeners',
+        title: 'Read active listeners',
+        description: '[specialist] List extension-local broadcast listener types and counts for diagnostics.',
+        inputSchema: z.object({}),
+    })
+    async getActiveListeners(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             const activeListeners = Array.from(this.listeners.keys()).map(messageType => ({
                 messageType: messageType,

@@ -1,7 +1,7 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor, SceneInfo } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
@@ -12,89 +12,111 @@ export class SceneTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'get_current_scene',
-                title: 'Read current scene',
-                description: '[specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
-                inputSchema: z.object({}),
-                handler: () => this.getCurrentScene(),
-            },
-            {
-                name: 'get_scene_list',
-                title: 'List scene assets',
-                description: '[specialist] List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
-                inputSchema: z.object({}),
-                handler: () => this.getSceneList(),
-            },
-            {
-                name: 'open_scene',
-                title: 'Open scene by path',
-                description: '[specialist] Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
-                inputSchema: z.object({
-                    scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
-                }),
-                handler: a => this.openScene(a.scenePath),
-            },
-            {
-                name: 'save_scene',
-                title: 'Save current scene',
-                description: '[specialist] Save the currently open scene back to its scene asset. Mutates the project file on disk.',
-                inputSchema: z.object({}),
-                handler: () => this.saveScene(),
-            },
-            {
-                name: 'create_scene',
-                title: 'Create scene asset',
-                description: '[specialist] Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
-                inputSchema: z.object({
-                    sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
-                    savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
-                    template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
-                        'Built-in scaffolding for the new scene. ' +
-                        '"empty" (default): bare scene root only — current behavior. ' +
-                        '"2d-ui": Camera (cc.Camera, ortho projection) + Canvas (cc.UITransform + cc.Canvas with cameraComponent linked, layer UI_2D) so UI nodes render immediately under the UI camera. ' +
-                        '"3d-basic": Camera (perspective) + DirectionalLight at scene root. ' +
-                        '⚠️ Side effect: when template is not "empty" the editor opens the newly created scene to populate it. Save your current scene first if it has unsaved changes.'
-                    ),
-                }),
-                handler: a => this.createScene(a.sceneName, a.savePath, a.template),
-            },
-            {
-                name: 'save_scene_as',
-                title: 'Copy scene asset',
-                description: '[specialist] Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
-                inputSchema: z.object({
-                    path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
-                    openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
-                    overwrite: z.boolean().default(false).describe('Overwrite the target file if it already exists. Default false; with false, a name collision returns an error.'),
-                }),
-                handler: a => this.saveSceneAs(a),
-            },
-            {
-                name: 'close_scene',
-                title: 'Close current scene',
-                description: '[specialist] Close the current scene. Editor state side effect; save first if unsaved changes matter.',
-                inputSchema: z.object({}),
-                handler: () => this.closeScene(),
-            },
-            {
-                name: 'get_scene_hierarchy',
-                title: 'Read scene hierarchy',
-                description: '[specialist] Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
-                inputSchema: z.object({
-                    includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
-                }),
-                handler: a => this.getSceneHierarchy(a.includeComponents),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async getCurrentScene(): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'get_current_scene',
+        title: 'Read current scene',
+        description: '[specialist] Read the currently open scene root summary (name/uuid/type/active/nodeCount). No scene mutation; use to get the scene root UUID. Also exposed as resource cocos://scene/current; prefer the resource when the client supports MCP resources.',
+        inputSchema: z.object({}),
+    })
+    async getCurrentScene(): Promise<ToolResponse> {
+        return this.getCurrentSceneImpl();
+    }
+
+    @mcpTool({
+        name: 'get_scene_list',
+        title: 'List scene assets',
+        description: '[specialist] List .scene assets under db://assets with name/path/uuid. Does not open scenes or modify assets. Also exposed as resource cocos://scene/list.',
+        inputSchema: z.object({}),
+    })
+    async getSceneList(): Promise<ToolResponse> {
+        return this.getSceneListImpl();
+    }
+
+    @mcpTool({
+        name: 'open_scene',
+        title: 'Open scene by path',
+        description: '[specialist] Open a scene by db:// path. Switches the active Editor scene; save current edits first if needed.',
+        inputSchema: z.object({
+            scenePath: z.string().describe('Scene db:// path to open, e.g. db://assets/scenes/Main.scene. The tool resolves UUID first.'),
+        }),
+    })
+    async openScene(args: { scenePath: string }): Promise<ToolResponse> {
+        return this.openSceneImpl(args.scenePath);
+    }
+
+    @mcpTool({
+        name: 'save_scene',
+        title: 'Save current scene',
+        description: '[specialist] Save the currently open scene back to its scene asset. Mutates the project file on disk.',
+        inputSchema: z.object({}),
+    })
+    async saveScene(): Promise<ToolResponse> {
+        return this.saveSceneImpl();
+    }
+
+    @mcpTool({
+        name: 'create_scene',
+        title: 'Create scene asset',
+        description: '[specialist] Create a new .scene asset. Mutates asset-db; non-empty templates also open the new scene and populate standard Camera/Canvas or Camera/Light nodes.',
+        inputSchema: z.object({
+            sceneName: z.string().describe('New scene name; written into the created cc.SceneAsset / cc.Scene.'),
+            savePath: z.string().describe('Target scene location. Pass a full .scene path or a folder path to append sceneName.scene.'),
+            template: z.enum(['empty', '2d-ui', '3d-basic']).default('empty').describe(
+                'Built-in scaffolding for the new scene. ' +
+                '"empty" (default): bare scene root only — current behavior. ' +
+                '"2d-ui": Camera (cc.Camera, ortho projection) + Canvas (cc.UITransform + cc.Canvas with cameraComponent linked, layer UI_2D) so UI nodes render immediately under the UI camera. ' +
+                '"3d-basic": Camera (perspective) + DirectionalLight at scene root. ' +
+                '⚠️ Side effect: when template is not "empty" the editor opens the newly created scene to populate it. Save your current scene first if it has unsaved changes.'
+            ),
+        }),
+    })
+    async createScene(args: { sceneName: string; savePath: string; template: 'empty' | '2d-ui' | '3d-basic' }): Promise<ToolResponse> {
+        return this.createSceneImpl(args.sceneName, args.savePath, args.template);
+    }
+
+    @mcpTool({
+        name: 'save_scene_as',
+        title: 'Copy scene asset',
+        description: '[specialist] Copy the currently open scene to a new .scene asset. Saves current scene first; optionally opens the copy and can overwrite when requested.',
+        inputSchema: z.object({
+            path: z.string().describe('Target db:// path for the new scene file (e.g. "db://assets/scenes/Copy.scene"). The ".scene" extension is appended if missing.'),
+            openAfter: z.boolean().default(true).describe('Open the newly-saved scene right after the copy. Default true. Pass false to keep the current scene focused.'),
+            overwrite: z.boolean().default(false).describe('Overwrite the target file if it already exists. Default false; with false, a name collision returns an error.'),
+        }),
+    })
+    async saveSceneAs(args: { path: string; openAfter?: boolean; overwrite?: boolean }): Promise<ToolResponse> {
+        return this.saveSceneAsImpl(args);
+    }
+
+    @mcpTool({
+        name: 'close_scene',
+        title: 'Close current scene',
+        description: '[specialist] Close the current scene. Editor state side effect; save first if unsaved changes matter.',
+        inputSchema: z.object({}),
+    })
+    async closeScene(): Promise<ToolResponse> {
+        return this.closeSceneImpl();
+    }
+
+    @mcpTool({
+        name: 'get_scene_hierarchy',
+        title: 'Read scene hierarchy',
+        description: '[specialist] Read the complete current scene node hierarchy. No mutation; use for UUID/path lookup, optionally with component summaries. Also exposed as resource cocos://scene/hierarchy (defaults: includeComponents=false); prefer the resource for full-tree reads.',
+        inputSchema: z.object({
+            includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
+        }),
+    })
+    async getSceneHierarchy(args: { includeComponents?: boolean }): Promise<ToolResponse> {
+        return this.getSceneHierarchyImpl(args.includeComponents);
+    }
+
+    private async getCurrentSceneImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 直接使用 query-node-tree 來獲取場景信息（這個方法已經驗證可用）
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
@@ -120,7 +142,7 @@ export class SceneTools implements ToolExecutor {
         });
     }
 
-    private async getSceneList(): Promise<ToolResponse> {
+    private async getSceneListImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: query-assets API corrected with proper parameters
             Editor.Message.request('asset-db', 'query-assets', {
@@ -138,7 +160,7 @@ export class SceneTools implements ToolExecutor {
         });
     }
 
-    private async openScene(scenePath: string): Promise<ToolResponse> {
+    private async openSceneImpl(scenePath: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 首先獲取場景的UUID
             Editor.Message.request('asset-db', 'query-uuid', scenePath).then((uuid: string | null) => {
@@ -156,7 +178,7 @@ export class SceneTools implements ToolExecutor {
         });
     }
 
-    private async saveScene(): Promise<ToolResponse> {
+    private async saveSceneImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'save-scene').then(() => {
                 resolve(ok(undefined, 'Scene saved successfully'));
@@ -168,7 +190,7 @@ export class SceneTools implements ToolExecutor {
 
     private componentTools = new ComponentTools();
 
-    private async createScene(sceneName: string, savePath: string, template: 'empty' | '2d-ui' | '3d-basic' = 'empty'): Promise<ToolResponse> {
+    private async createSceneImpl(sceneName: string, savePath: string, template: 'empty' | '2d-ui' | '3d-basic' = 'empty'): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 確保路徑以.scene結尾
             const fullPath = savePath.endsWith('.scene') ? savePath : `${savePath}/${sceneName}.scene`;
@@ -333,7 +355,7 @@ export class SceneTools implements ToolExecutor {
                 if (template === 'empty') {
                     // Existing path: verify and return.
                     try {
-                        const sceneList = await this.getSceneList();
+                        const sceneList = await this.getSceneListImpl();
                         const createdScene = sceneList.data?.find((scene: any) => scene.uuid === result.uuid);
                         resolve({
                             success: true,
@@ -477,7 +499,7 @@ export class SceneTools implements ToolExecutor {
         return new Promise((r) => setTimeout(r, ms));
     }
 
-    private async getSceneHierarchy(includeComponents: boolean = false): Promise<ToolResponse> {
+    private async getSceneHierarchyImpl(includeComponents: boolean = false): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 優先嚐試使用 Editor API 查詢場景節點樹
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
@@ -528,7 +550,7 @@ export class SceneTools implements ToolExecutor {
     // cause of the >15s timeout reported in HANDOFF), so we do not use it.
     // Instead: save the current scene to flush edits, resolve its asset url,
     // then asset-db copy-asset to the target path. Optionally open the copy.
-    private async saveSceneAs(args: { path: string; openAfter?: boolean; overwrite?: boolean }): Promise<ToolResponse> {
+    private async saveSceneAsImpl(args: { path: string; openAfter?: boolean; overwrite?: boolean }): Promise<ToolResponse> {
         await Editor.Message.request('scene', 'save-scene');
 
         const tree: any = await Editor.Message.request('scene', 'query-node-tree');
@@ -579,7 +601,7 @@ export class SceneTools implements ToolExecutor {
             }, `Scene saved as ${copyResult.url}`);
     }
 
-    private async closeScene(): Promise<ToolResponse> {
+    private async closeSceneImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'close-scene').then(() => {
                 resolve(ok(undefined, 'Scene closed successfully'));

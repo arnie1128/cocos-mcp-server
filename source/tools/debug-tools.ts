@@ -1,10 +1,10 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
 import { filterByLevel, filterByKeyword, searchWithContext } from '../lib/log-parser';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runScriptDiagnostics, waitForCompile } from '../lib/ts-diagnostics';
 import { queueGameCommand, awaitCommandResult, getClientStatus } from '../lib/game-command-queue';
 import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
@@ -47,15 +47,23 @@ export class DebugTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
+        this.exec = defineToolsFromDecorators(this);
+    }
+
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    @mcpTool({
                 name: 'clear_console',
                 title: 'Clear console',
                 description: '[specialist] Clear the Cocos Editor Console UI. No project side effects.',
                 inputSchema: z.object({}),
-                handler: () => this.clearConsole(),
-            },
-            {
+    })
+    async clearConsole(): Promise<ToolResponse> {
+        return this.clearConsoleImpl();
+    }
+
+    @mcpTool({
                 name: 'execute_javascript',
                 title: 'Execute JavaScript',
                 description: '[primary] Execute JavaScript in scene or editor context. Use this as the default first tool for compound operations (read → mutate → verify) — one call replaces 5-10 narrow specialist tools and avoids per-call token overhead. context="scene" inspects/mutates cc.Node graph; context="editor" runs in host process for Editor.Message + fs (default off, opt-in).',
@@ -63,18 +71,24 @@ export class DebugTools implements ToolExecutor {
                     code: z.string().describe('JavaScript source to execute. Has access to cc.* in scene context, Editor.* in editor context.'),
                     context: z.enum(['scene', 'editor']).default('scene').describe('Execution sandbox. "scene" runs inside the cocos scene script context (cc, director, find). "editor" runs in the editor host process (Editor, asset-db, fs, require). Editor context is OFF by default and must be opt-in via panel setting `enableEditorContextEval` — arbitrary code in the host process is a prompt-injection risk.'),
                 }),
-                handler: a => this.executeJavaScript(a.code, a.context ?? 'scene'),
-            },
-            {
+    })
+    async executeJavascript(args: any): Promise<ToolResponse> {
+        return this.executeJavaScript(args.code, args.context ?? 'scene');
+    }
+
+    @mcpTool({
                 name: 'execute_script',
                 title: 'Run scene JavaScript',
                 description: '[compat] Scene-only JavaScript eval. Prefer execute_javascript with context="scene" — kept as compatibility entrypoint for older clients.',
                 inputSchema: z.object({
                     script: z.string().describe('JavaScript to execute in scene context via console/eval. Can read or mutate the current scene.'),
                 }),
-                handler: a => this.executeScriptCompat(a.script),
-            },
-            {
+    })
+    async executeScript(args: any): Promise<ToolResponse> {
+        return this.executeScriptCompat(args.script);
+    }
+
+    @mcpTool({
                 name: 'get_node_tree',
                 title: 'Read debug node tree',
                 description: '[specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection.',
@@ -82,16 +96,22 @@ export class DebugTools implements ToolExecutor {
                     rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
                     maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
                 }),
-                handler: a => this.getNodeTree(a.rootUuid, a.maxDepth),
-            },
-            {
+    })
+    async getNodeTree(args: any): Promise<ToolResponse> {
+        return this.getNodeTreeImpl(args.rootUuid, args.maxDepth);
+    }
+
+    @mcpTool({
                 name: 'get_performance_stats',
                 title: 'Read performance stats',
                 description: '[specialist] Try to read scene query-performance stats; may return unavailable in edit mode.',
                 inputSchema: z.object({}),
-                handler: () => this.getPerformanceStats(),
-            },
-            {
+    })
+    async getPerformanceStats(): Promise<ToolResponse> {
+        return this.getPerformanceStatsImpl();
+    }
+
+    @mcpTool({
                 name: 'validate_scene',
                 title: 'Validate current scene',
                 description: '[specialist] Run basic current-scene health checks for missing assets and node-count warnings.',
@@ -99,16 +119,22 @@ export class DebugTools implements ToolExecutor {
                     checkMissingAssets: z.boolean().default(true).describe('Check missing asset references when the Cocos scene API supports it.'),
                     checkPerformance: z.boolean().default(true).describe('Run basic performance checks such as high node count warnings.'),
                 }),
-                handler: a => this.validateScene({ checkMissingAssets: a.checkMissingAssets, checkPerformance: a.checkPerformance }),
-            },
-            {
+    })
+    async validateScene(args: any): Promise<ToolResponse> {
+        return this.validateSceneImpl({ checkMissingAssets: args.checkMissingAssets, checkPerformance: args.checkPerformance });
+    }
+
+    @mcpTool({
                 name: 'get_editor_info',
                 title: 'Read editor info',
                 description: '[specialist] Read Editor/Cocos/project/process information and memory summary.',
                 inputSchema: z.object({}),
-                handler: () => this.getEditorInfo(),
-            },
-            {
+    })
+    async getEditorInfo(): Promise<ToolResponse> {
+        return this.getEditorInfoImpl();
+    }
+
+    @mcpTool({
                 name: 'get_project_logs',
                 title: 'Read project logs',
                 description: '[specialist] Read temp/logs/project.log tail with optional level/keyword filters.',
@@ -117,16 +143,22 @@ export class DebugTools implements ToolExecutor {
                     filterKeyword: z.string().optional().describe('Optional case-insensitive keyword filter.'),
                     logLevel: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE', 'ALL']).default('ALL').describe('Optional log level filter. ALL disables level filtering.'),
                 }),
-                handler: a => this.getProjectLogs(a.lines, a.filterKeyword, a.logLevel),
-            },
-            {
+    })
+    async getProjectLogs(args: any): Promise<ToolResponse> {
+        return this.getProjectLogsImpl(args.lines, args.filterKeyword, args.logLevel);
+    }
+
+    @mcpTool({
                 name: 'get_log_file_info',
                 title: 'Read log file info',
                 description: '[specialist] Read temp/logs/project.log path, size, line count, and timestamps.',
                 inputSchema: z.object({}),
-                handler: () => this.getLogFileInfo(),
-            },
-            {
+    })
+    async getLogFileInfo(): Promise<ToolResponse> {
+        return this.getLogFileInfoImpl();
+    }
+
+    @mcpTool({
                 name: 'search_project_logs',
                 title: 'Search project logs',
                 description: '[specialist] Search temp/logs/project.log for string/regex and return line context.',
@@ -135,9 +167,12 @@ export class DebugTools implements ToolExecutor {
                     maxResults: z.number().min(1).max(100).default(20).describe('Maximum matches to return. Default 20.'),
                     contextLines: z.number().min(0).max(10).default(2).describe('Context lines before/after each match. Default 2.'),
                 }),
-                handler: a => this.searchProjectLogs(a.pattern, a.maxResults, a.contextLines),
-            },
-            {
+    })
+    async searchProjectLogs(args: any): Promise<ToolResponse> {
+        return this.searchProjectLogsImpl(args.pattern, args.maxResults, args.contextLines);
+    }
+
+    @mcpTool({
                 name: 'screenshot',
                 title: 'Capture editor screenshot',
                 description: '[specialist] Capture the focused Cocos Editor window (or a window matched by title) to a PNG. Returns saved file path. Use this for AI visual verification after scene/UI changes.',
@@ -146,9 +181,12 @@ export class DebugTools implements ToolExecutor {
                     windowTitle: z.string().optional().describe('Optional substring match on window title to pick a specific Electron window. Default: focused window.'),
                     includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false). When false, only the saved file path is returned.'),
                 }),
-                handler: a => this.screenshot(a.savePath, a.windowTitle, a.includeBase64),
-            },
-            {
+    })
+    async screenshot(args: any): Promise<ToolResponse> {
+        return this.screenshotImpl(args.savePath, args.windowTitle, args.includeBase64);
+    }
+
+    @mcpTool({
                 name: 'capture_preview_screenshot',
                 title: 'Capture preview screenshot',
                 description: '[specialist] Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user\'s preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
@@ -158,16 +196,22 @@ export class DebugTools implements ToolExecutor {
                     windowTitle: z.string().default('Preview').describe('Substring matched against window titles in window/auto modes (default "Preview" for PIE). Ignored in embedded mode.'),
                     includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false).'),
                 }),
-                handler: a => this.capturePreviewScreenshot(a.savePath, a.mode ?? 'auto', a.windowTitle, a.includeBase64),
-            },
-            {
+    })
+    async capturePreviewScreenshot(args: any): Promise<ToolResponse> {
+        return this.capturePreviewScreenshotImpl(args.savePath, args.mode ?? 'auto', args.windowTitle, args.includeBase64);
+    }
+
+    @mcpTool({
                 name: 'get_preview_mode',
                 title: 'Read preview mode',
                 description: '[specialist] Read the cocos preview configuration. Uses Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
                 inputSchema: z.object({}),
-                handler: () => this.getPreviewMode(),
-            },
-            {
+    })
+    async getPreviewMode(): Promise<ToolResponse> {
+        return this.getPreviewModeImpl();
+    }
+
+    @mcpTool({
                 name: 'set_preview_mode',
                 title: 'Set preview mode',
                 description: '❌ NOT SUPPORTED on cocos 3.8.7+ (landmine #17). Programmatic preview-mode switching is impossible from a third-party extension on cocos 3.8.7: `preferences/set-config` against `preview.current.platform` returns truthy but never persists, and **none of 6 surveyed reference projects (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) ship a working alternative** (v2.10 cross-repo refresh, 2026-05-02). The field is effectively read-only — only the cocos preview dropdown writes it. **Use the cocos preview dropdown in the editor toolbar to switch modes**. Default behavior is hard-fail; pass attemptAnyway=true ONLY for diagnostic probing (returns 4-strategy attempt log so you can verify against a future cocos build whether any shape now works).',
@@ -175,9 +219,12 @@ export class DebugTools implements ToolExecutor {
                     mode: z.enum(['browser', 'gameView', 'simulator']).describe('Target preview platform. "browser" opens preview in the user default browser. "gameView" embeds the gameview in the main editor (in-editor preview). "simulator" launches the cocos simulator. Maps directly to the cocos preview.current.platform value.'),
                     attemptAnyway: z.boolean().default(false).describe('Diagnostic opt-in. Default false returns NOT_SUPPORTED with the cocos UI redirect. Set true ONLY to re-probe the 4 set-config shapes against a new cocos build — useful when validating whether a future cocos version exposes a write path. Returns data.attempts with every shape tried and its read-back observation. Does NOT freeze the editor (the call merely no-ops).'),
                 }),
-                handler: a => this.setPreviewMode(a.mode, a.attemptAnyway ?? false),
-            },
-            {
+    })
+    async setPreviewMode(args: any): Promise<ToolResponse> {
+        return this.setPreviewModeImpl(args.mode, args.attemptAnyway ?? false);
+    }
+
+    @mcpTool({
                 name: 'batch_screenshot',
                 title: 'Capture batch screenshots',
                 description: '[specialist] Capture multiple PNGs of the editor window with optional delays between shots. Useful for animating preview verification or capturing transitions.',
@@ -186,43 +233,58 @@ export class DebugTools implements ToolExecutor {
                     delaysMs: z.array(z.number().min(0).max(10000)).max(20).default([0]).describe('Delay (ms) before each capture. Length determines how many shots taken (capped at 20 to prevent disk fill / editor freeze). Default [0] = single shot.'),
                     windowTitle: z.string().optional().describe('Optional substring match on window title.'),
                 }),
-                handler: a => this.batchScreenshot(a.savePathPrefix, a.delaysMs, a.windowTitle),
-            },
-            {
+    })
+    async batchScreenshot(args: any): Promise<ToolResponse> {
+        return this.batchScreenshotImpl(args.savePathPrefix, args.delaysMs, args.windowTitle);
+    }
+
+    @mcpTool({
                 name: 'wait_compile',
                 title: 'Wait for compile',
                 description: '[specialist] Block until cocos finishes its TypeScript compile pass. Tails temp/programming/packer-driver/logs/debug.log for the "Target(editor) ends" marker. Returns immediately with compiled=false if no compile was triggered (clean project / no changes detected). Pair with run_script_diagnostics for an "edit .ts → wait → fetch errors" workflow.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(500).max(120000).default(15000).describe('Max wait time in ms before giving up. Default 15000.'),
                 }),
-                handler: a => this.waitCompile(a.timeoutMs),
-            },
-            {
+    })
+    async waitCompile(args: any): Promise<ToolResponse> {
+        return this.waitCompileImpl(args.timeoutMs);
+    }
+
+    @mcpTool({
                 name: 'run_script_diagnostics',
                 title: 'Run script diagnostics',
                 description: '[specialist] Run `tsc --noEmit` against the project tsconfig and return parsed diagnostics. Used after wait_compile to surface compilation errors as structured {file, line, column, code, message} entries. Resolves tsc binary from project node_modules → editor bundled engine → npx fallback.',
                 inputSchema: z.object({
                     tsconfigPath: z.string().optional().describe('Optional override (absolute or project-relative). Default: tsconfig.json or temp/tsconfig.cocos.json.'),
                 }),
-                handler: a => this.runScriptDiagnostics(a.tsconfigPath),
-            },
-            {
+    })
+    async runScriptDiagnostics(args: any): Promise<ToolResponse> {
+        return this.runScriptDiagnosticsImpl(args.tsconfigPath);
+    }
+
+    @mcpTool({
                 name: 'preview_url',
                 title: 'Resolve preview URL',
                 description: '[specialist] Resolve the cocos browser-preview URL. Uses the documented Editor.Message channel preview/query-preview-url. With action="open", also launches the URL in the user default browser via electron.shell.openExternal — useful as a setup step before debug_game_command, since the GameDebugClient running inside the preview must be reachable. Editor-side Preview-in-Editor play/stop is NOT exposed by the public message API and is intentionally not implemented here; use the cocos editor toolbar manually for PIE.',
                 inputSchema: z.object({
                     action: z.enum(['query', 'open']).default('query').describe('"query" returns the URL; "open" returns the URL AND opens it in the user default browser via electron.shell.openExternal.'),
                 }),
-                handler: a => this.previewUrl(a.action),
-            },
-            {
+    })
+    async previewUrl(args: any): Promise<ToolResponse> {
+        return this.previewUrlImpl(args.action);
+    }
+
+    @mcpTool({
                 name: 'query_devices',
                 title: 'List preview devices',
                 description: '[specialist] List preview devices configured in the cocos project. Backed by Editor.Message channel device/query. Returns an array of {name, width, height, ratio} entries — useful for batch-screenshot pipelines that target multiple resolutions.',
                 inputSchema: z.object({}),
-                handler: () => this.queryDevices(),
-            },
-            {
+    })
+    async queryDevices(): Promise<ToolResponse> {
+        return this.queryDevicesImpl();
+    }
+
+    @mcpTool({
                 name: 'game_command',
                 title: 'Send game command',
                 description: '[specialist] Send a runtime command to a connected GameDebugClient. Works inside a cocos preview/build (browser, Preview-in-Editor, or any device that fetches /game/command). Built-in command types: "screenshot" (capture game canvas to PNG, returns saved file path), "click" (emit Button.CLICK on a node by name), "inspect" (dump runtime node info: position/scale/rotation/active/components by name; when present also returns UITransform.contentSize/anchorPoint, Widget alignment flags/offsets, and Layout type/spacing/padding), "state" (dump global game state from the running game client), and "navigate" (switch scene/page by name through the game client\'s router). Custom command types are forwarded to the client\'s customCommands map. Requires the GameDebugClient template (client/cocos-mcp-client.ts) wired into the running game; without it the call times out. Check GET /game/status to verify client liveness first.',
@@ -231,9 +293,12 @@ export class DebugTools implements ToolExecutor {
                     args: z.any().optional().describe('Command-specific arguments. For "click"/"inspect": {name: string} node name. For "navigate": {pageName: string} or {page: string}. For "state"/"screenshot": {} (no args).'),
                     timeoutMs: z.number().min(500).max(60000).default(10000).describe('Max wait for client response. Default 10000ms.'),
                 }),
-                handler: a => this.gameCommand(a.type, a.args, a.timeoutMs),
-            },
-            {
+    })
+    async gameCommand(args: any): Promise<ToolResponse> {
+        return this.gameCommandImpl(args.type, args.args, args.timeoutMs);
+    }
+
+    @mcpTool({
                 name: 'record_start',
                 title: 'Start game recording',
                 description: '[specialist] Start recording the running game canvas via the GameDebugClient (browser/PIE preview only). Wraps debug_game_command(type="record_start") for AI ergonomics. Returns immediately with { recording: true, mimeType }; the recording continues until debug_record_stop is called. Browser-only — fails on native cocos builds (MediaRecorder API requires a DOM canvas + captureStream). Single-flight per client: a second record_start while a recording is in progress returns success:false. Pair with debug_game_client_status to confirm a client is connected before calling.',
@@ -242,34 +307,46 @@ export class DebugTools implements ToolExecutor {
                     videoBitsPerSecond: z.number().min(100_000).max(20_000_000).optional().describe('Optional MediaRecorder bitrate hint in bits/sec. Lower → smaller files but lower quality. Browser default if omitted.'),
                     timeoutMs: z.number().min(500).max(30000).default(5000).describe('Max wait for the GameDebugClient to acknowledge record_start. Recording itself runs until debug_record_stop. Default 5000ms.'),
                 }),
-                handler: a => this.recordStart(a.mimeType, a.videoBitsPerSecond, a.timeoutMs ?? 5000),
-            },
-            {
+    })
+    async recordStart(args: any): Promise<ToolResponse> {
+        return this.recordStartImpl(args.mimeType, args.videoBitsPerSecond, args.timeoutMs ?? 5000);
+    }
+
+    @mcpTool({
                 name: 'record_stop',
                 title: 'Stop game recording',
                 description: '[specialist] Stop the in-progress game canvas recording and persist it under <project>/temp/mcp-captures. Wraps debug_game_command(type="record_stop"). Returns { filePath, size, mimeType, durationMs }. Calling without a prior record_start returns success:false. The host applies the same realpath containment guard + 64MB byte cap (synced with the request body cap in mcp-server-sdk.ts; v2.9.6 raised both from 32 to 64MB); raise videoBitsPerSecond / reduce recording duration on cap rejection.',
                 inputSchema: z.object({
                     timeoutMs: z.number().min(1000).max(120000).default(30000).describe('Max wait for the client to assemble + return the recording blob. Recordings of several seconds at high bitrate may need longer than the default 30s — raise on long recordings.'),
                 }),
-                handler: a => this.recordStop(a.timeoutMs ?? 30000),
-            },
-            {
+    })
+    async recordStop(args: any): Promise<ToolResponse> {
+        return this.recordStopImpl(args.timeoutMs ?? 30000);
+    }
+
+    @mcpTool({
                 name: 'game_client_status',
                 title: 'Read game client status',
                 description: '[specialist] Read GameDebugClient connection status. Includes connected (polled within 2s), last poll timestamp, and whether a command is queued. Use before debug_game_command to confirm the client is reachable.',
                 inputSchema: z.object({}),
-                handler: () => this.gameClientStatus(),
-            },
-            {
+    })
+    async gameClientStatus(): Promise<ToolResponse> {
+        return this.gameClientStatusImpl();
+    }
+
+    @mcpTool({
                 name: 'check_editor_health',
                 title: 'Check editor health',
                 description: '[specialist] Probe whether the cocos editor scene-script renderer is responsive. Useful after debug_preview_control(start) — landmine #16 documents that cocos 3.8.7 sometimes freezes the scene-script renderer (spinning indicator, Ctrl+R required). Strategy (v2.9.6): three probes — (1) host: device/query (main process, always responsive even when scene-script is wedged); (2) scene/query-is-ready typed channel — direct IPC into the scene module, hangs when scene renderer is frozen; (3) scene/query-node-tree typed channel — returns the full scene tree, forces an actual scene-graph walk through the wedged code path. Each probe has its own timeout race (default 1500ms each). Scene declared alive only when BOTH (2) returns true AND (3) returns a non-null tree within the timeout. Returns { hostAlive, sceneAlive, sceneLatencyMs, hostError, sceneError, totalProbeMs }. AI workflow: call after preview_control(start); if sceneAlive=false, surface "cocos editor likely frozen — press Ctrl+R" instead of issuing more scene-bound calls.',
                 inputSchema: z.object({
                     sceneTimeoutMs: z.number().min(200).max(10000).default(1500).describe('Timeout for the scene-script probe in ms. Below this scene is considered frozen. Default 1500ms.'),
                 }),
-                handler: a => this.checkEditorHealth(a.sceneTimeoutMs ?? 1500),
-            },
-            {
+    })
+    async checkEditorHealth(args: any): Promise<ToolResponse> {
+        return this.checkEditorHealthImpl(args.sceneTimeoutMs ?? 1500);
+    }
+
+    @mcpTool({
                 name: 'preview_control',
                 title: 'Control preview playback',
                 description: '⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16). Programmatically start or stop Preview-in-Editor (PIE) play mode. Wraps the typed cce.SceneFacadeManager.changePreviewPlayState method. **start hits a cocos 3.8.7 softReloadScene race** that returns success but freezes the editor (spinning indicator, Ctrl+R required to recover). Verified in both embedded and browser preview modes. v2.10 cross-repo refresh confirmed: none of 6 surveyed peers (harady / Spaydo / RomaRogov / cocos-code-mode / FunplayAI / cocos-cli) ship a safer call path — harady and cocos-code-mode use the `Editor.Message scene/editor-preview-set-play` channel and hit the same race. **stop is safe** and reliable. To prevent accidental triggering, start requires explicit `acknowledgeFreezeRisk: true`. **Strongly preferred alternatives instead of start**: (a) debug_capture_preview_screenshot(mode="embedded") in EDIT mode — no PIE needed; (b) debug_game_command(type="screenshot") via GameDebugClient on browser preview launched via debug_preview_url(action="open").',
@@ -277,9 +354,12 @@ export class DebugTools implements ToolExecutor {
                     op: z.enum(['start', 'stop']).describe('"start" enters PIE play mode (equivalent to clicking the toolbar play button) — REQUIRES acknowledgeFreezeRisk=true on cocos 3.8.7 due to landmine #16. "stop" exits PIE play and returns to scene mode (always safe).'),
                     acknowledgeFreezeRisk: z.boolean().default(false).describe('Required to be true for op="start" on cocos 3.8.7 due to landmine #16 (softReloadScene race that freezes the editor). Set true ONLY when the human user has explicitly accepted the risk and is prepared to press Ctrl+R if the editor freezes. Ignored for op="stop" which is reliable.'),
                 }),
-                handler: a => this.previewControl(a.op, a.acknowledgeFreezeRisk ?? false),
-            },
-            {
+    })
+    async previewControl(args: any): Promise<ToolResponse> {
+        return this.previewControlImpl(args.op, args.acknowledgeFreezeRisk ?? false);
+    }
+
+    @mcpTool({
                 name: 'get_script_diagnostic_context',
                 title: 'Read diagnostic context',
                 description: '[specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. Pair with run_script_diagnostics: pass file/line from each diagnostic to fetch context.',
@@ -288,14 +368,10 @@ export class DebugTools implements ToolExecutor {
                     line: z.number().min(1).describe('1-based line number that the diagnostic points at.'),
                     contextLines: z.number().min(0).max(50).default(5).describe('Number of lines to include before and after the target line. Default 5 (±5 → 11-line window).'),
                 }),
-                handler: a => this.getScriptDiagnosticContext(a.file, a.line, a.contextLines),
-            },
-        ];
-        this.exec = defineTools(defs);
+    })
+    async getScriptDiagnosticContext(args: any): Promise<ToolResponse> {
+        return this.getScriptDiagnosticContextImpl(args.file, args.line, args.contextLines);
     }
-
-    getTools(): ToolDefinition[] { return this.exec.getTools(); }
-    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     // Compat path: preserve the pre-v2.3.0 response shape
     // {success, data: {result, message: 'Script executed successfully'}}
@@ -311,7 +387,7 @@ export class DebugTools implements ToolExecutor {
         return out;
     }
 
-    private async clearConsole(): Promise<ToolResponse> {
+    private async clearConsoleImpl(): Promise<ToolResponse> {
         // Note: Editor.Message.send may not return a promise in all versions
         Editor.Message.send('console', 'clear');
         return ok(undefined, 'Console cleared successfully');
@@ -364,7 +440,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async getNodeTree(rootUuid?: string, maxDepth: number = 10): Promise<ToolResponse> {
+    private async getNodeTreeImpl(rootUuid?: string, maxDepth: number = 10): Promise<ToolResponse> {
         return new Promise((resolve) => {
             const buildTree = async (nodeUuid: string, depth: number = 0): Promise<any> => {
                 if (depth >= maxDepth) {
@@ -415,7 +491,7 @@ export class DebugTools implements ToolExecutor {
         });
     }
 
-    private async getPerformanceStats(): Promise<ToolResponse> {
+    private async getPerformanceStatsImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-performance').then((stats: any) => {
                 const perfStats: PerformanceStats = {
@@ -435,7 +511,7 @@ export class DebugTools implements ToolExecutor {
         });
     }
 
-    private async validateScene(options: any): Promise<ToolResponse> {
+    private async validateSceneImpl(options: any): Promise<ToolResponse> {
         const issues: ValidationIssue[] = [];
 
         // Check for missing assets
@@ -485,7 +561,7 @@ export class DebugTools implements ToolExecutor {
         return count;
     }
 
-    private async getEditorInfo(): Promise<ToolResponse> {
+    private async getEditorInfoImpl(): Promise<ToolResponse> {
         const info = {
             editor: {
                 version: (Editor as any).versions?.editor || 'Unknown',
@@ -517,7 +593,7 @@ export class DebugTools implements ToolExecutor {
         return { path: logPath };
     }
 
-    private async getProjectLogs(lines: number = 100, filterKeyword?: string, logLevel: string = 'ALL'): Promise<ToolResponse> {
+    private async getProjectLogsImpl(lines: number = 100, filterKeyword?: string, logLevel: string = 'ALL'): Promise<ToolResponse> {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
@@ -559,7 +635,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async getLogFileInfo(): Promise<ToolResponse> {
+    private async getLogFileInfoImpl(): Promise<ToolResponse> {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
@@ -585,7 +661,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async searchProjectLogs(pattern: string, maxResults: number = 20, contextLines: number = 2): Promise<ToolResponse> {
+    private async searchProjectLogsImpl(pattern: string, maxResults: number = 20, contextLines: number = 2): Promise<ToolResponse> {
         try {
             const resolved = this.resolveProjectLogPath();
             if ('error' in resolved) {
@@ -820,7 +896,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async screenshot(savePath?: string, windowTitle?: string, includeBase64: boolean = false): Promise<ToolResponse> {
+    private async screenshotImpl(savePath?: string, windowTitle?: string, includeBase64: boolean = false): Promise<ToolResponse> {
         let filePath = savePath;
         if (!filePath) {
             const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
@@ -871,7 +947,7 @@ export class DebugTools implements ToolExecutor {
     // shell.openExternal) is NOT capturable here — the page lives in
     // a non-Electron browser process. AI can detect this via
     // debug_get_preview_mode and skip the call.
-    private async capturePreviewScreenshot(
+    private async capturePreviewScreenshotImpl(
         savePath?: string,
         mode: 'auto' | 'window' | 'embedded' = 'auto',
         windowTitle: string = 'Preview',
@@ -1027,7 +1103,7 @@ export class DebugTools implements ToolExecutor {
     // common keys ('open_preview_with', 'preview_with', 'simulator',
     // 'browser') into a normalized mode label. If interpretation fails,
     // we still return the raw config so the AI can read it directly.
-    private async getPreviewMode(): Promise<ToolResponse> {
+    private async getPreviewModeImpl(): Promise<ToolResponse> {
         try {
             // Probe at module level (no key) to get the whole category.
             const raw: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
@@ -1131,7 +1207,7 @@ export class DebugTools implements ToolExecutor {
     //   2. ('preview', 'current.platform', value, 'global') — explicit protocol
     //   3. ('preview', 'current.platform', value, 'local')  — explicit protocol
     //   4. ('preview', 'current.platform', value)          — no protocol
-    private async setPreviewMode(mode: 'browser' | 'gameView' | 'simulator', attemptAnyway: boolean): Promise<ToolResponse> {
+    private async setPreviewModeImpl(mode: 'browser' | 'gameView' | 'simulator', attemptAnyway: boolean): Promise<ToolResponse> {
         try {
             const queryCurrent = async (): Promise<string | null> => {
                 const cfg: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
@@ -1206,7 +1282,7 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async batchScreenshot(savePathPrefix?: string, delaysMs: number[] = [0], windowTitle?: string): Promise<ToolResponse> {
+    private async batchScreenshotImpl(savePathPrefix?: string, delaysMs: number[] = [0], windowTitle?: string): Promise<ToolResponse> {
         let prefix = savePathPrefix;
         if (!prefix) {
             // basename is the prefix stem; per-iteration files extend it
@@ -1247,7 +1323,7 @@ export class DebugTools implements ToolExecutor {
 
     // v2.7.0 #3: preview-url / query-devices handlers ---------------------
 
-    private async previewUrl(action: 'query' | 'open' = 'query'): Promise<ToolResponse> {
+    private async previewUrlImpl(action: 'query' | 'open' = 'query'): Promise<ToolResponse> {
         const url: string = await Editor.Message.request('preview', 'query-preview-url' as any) as any;
         if (!url || typeof url !== 'string') {
             return fail('preview/query-preview-url returned empty result; check that cocos preview server is running');
@@ -1307,7 +1383,7 @@ export class DebugTools implements ToolExecutor {
     // landmine #16: AI calls preview_control(start), then
     // check_editor_health, and if sceneAlive=false stops issuing more
     // scene calls and surfaces the recovery hint instead of hanging.
-    private async checkEditorHealth(sceneTimeoutMs: number = 1500): Promise<ToolResponse> {
+    private async checkEditorHealthImpl(sceneTimeoutMs: number = 1500): Promise<ToolResponse> {
         const t0 = Date.now();
         // Host probe — should always resolve fast.
         let hostAlive = false;
@@ -1413,7 +1489,7 @@ export class DebugTools implements ToolExecutor {
     // a partially-initialised PreviewSceneFacade. Reject overlap.
     private static previewControlInFlight = false;
 
-    private async previewControl(op: 'start' | 'stop', acknowledgeFreezeRisk: boolean = false): Promise<ToolResponse> {
+    private async previewControlImpl(op: 'start' | 'stop', acknowledgeFreezeRisk: boolean = false): Promise<ToolResponse> {
         // v2.9.x park gate: op="start" is known to freeze cocos 3.8.7
         // (landmine #16). Refuse unless the caller has explicitly
         // acknowledged the risk. op="stop" is always safe — bypass the
@@ -1470,14 +1546,14 @@ export class DebugTools implements ToolExecutor {
         };
     }
 
-    private async queryDevices(): Promise<ToolResponse> {
+    private async queryDevicesImpl(): Promise<ToolResponse> {
         const devices: any[] = await Editor.Message.request('device', 'query') as any;
         return ok({ devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 });
     }
 
     // v2.6.0 T-V26-1: GameDebugClient bridge handlers ---------------------
 
-    private async gameCommand(type: string, args: any, timeoutMs: number = 10000): Promise<ToolResponse> {
+    private async gameCommandImpl(type: string, args: any, timeoutMs: number = 10000): Promise<ToolResponse> {
         const queued = queueGameCommand(type, args);
         if (!queued.ok) {
             return fail(queued.error);
@@ -1529,7 +1605,7 @@ export class DebugTools implements ToolExecutor {
     // Keep the dispatch path identical to game_command(type='record_*') so
     // there's only one persistence pipeline and one queue. AI still picks
     // these tools first because their schemas are explicit.
-    private async recordStart(mimeType?: string, videoBitsPerSecond?: number, timeoutMs: number = 5000, quality?: string, videoCodec?: string): Promise<ToolResponse> {
+    private async recordStartImpl(mimeType?: string, videoBitsPerSecond?: number, timeoutMs: number = 5000, quality?: string, videoCodec?: string): Promise<ToolResponse> {
         if (quality && videoBitsPerSecond !== undefined) {
             return fail('quality and videoBitsPerSecond are mutually exclusive');
         }
@@ -1538,14 +1614,14 @@ export class DebugTools implements ToolExecutor {
         if (typeof videoBitsPerSecond === 'number') args.videoBitsPerSecond = videoBitsPerSecond;
         if (quality) args.quality = quality;
         if (videoCodec) args.videoCodec = videoCodec;
-        return this.gameCommand('record_start', args, timeoutMs);
+        return this.gameCommandImpl('record_start', args, timeoutMs);
     }
 
-    private async recordStop(timeoutMs: number = 30000): Promise<ToolResponse> {
-        return this.gameCommand('record_stop', {}, timeoutMs);
+    private async recordStopImpl(timeoutMs: number = 30000): Promise<ToolResponse> {
+        return this.gameCommandImpl('record_stop', {}, timeoutMs);
     }
 
-    private async gameClientStatus(): Promise<ToolResponse> {
+    private async gameClientStatusImpl(): Promise<ToolResponse> {
         return ok(getClientStatus());
     }
 
@@ -1636,7 +1712,7 @@ export class DebugTools implements ToolExecutor {
 
     // v2.4.8 A1: TS diagnostics handlers ----------------------------------
 
-    private async waitCompile(timeoutMs: number = 15000): Promise<ToolResponse> {
+    private async waitCompileImpl(timeoutMs: number = 15000): Promise<ToolResponse> {
         const projectPath = Editor?.Project?.path;
         if (!projectPath) {
             return fail('wait_compile: editor context unavailable (no Editor.Project.path)');
@@ -1650,7 +1726,7 @@ export class DebugTools implements ToolExecutor {
                 : (result.note ?? 'No compile triggered or timed out'));
     }
 
-    private async runScriptDiagnostics(tsconfigPath?: string): Promise<ToolResponse> {
+    private async runScriptDiagnosticsImpl(tsconfigPath?: string): Promise<ToolResponse> {
         const projectPath = Editor?.Project?.path;
         if (!projectPath) {
             return fail('run_script_diagnostics: editor context unavailable (no Editor.Project.path)');
@@ -1680,7 +1756,7 @@ export class DebugTools implements ToolExecutor {
         };
     }
 
-    private async getScriptDiagnosticContext(
+    private async getScriptDiagnosticContextImpl(
         file: string,
         line: number,
         contextLines: number = 5,

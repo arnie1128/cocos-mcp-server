@@ -28,9 +28,9 @@ import { ok, fail } from '../lib/response';
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ToolResponse } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { logger } from '../lib/log';
 
 const REDUNDANT_TAG = '[claude-code-redundant] Use Edit/Write tool from your IDE if available. ';
@@ -156,16 +156,32 @@ async function refreshAssetDb(absPath: string): Promise<void> {
     }
 }
 
-const insertText: ToolDef = {
-    name: 'insert_text',
-    title: 'Insert text at line',
-    description: REDUNDANT_TAG + 'Insert a new line at the given 1-based line number. If line exceeds total, text is appended at end of file. Triggers cocos asset-db refresh on cocos-recognised extensions (.ts/.json/.scene/.prefab/etc.) so the editor reimports.',
-    inputSchema: z.object({
-        filePath: z.string().describe('Path to the file (absolute or project-relative).'),
-        line: z.number().int().min(1).describe('1-based line number to insert at; existing lines shift down.'),
-        text: z.string().describe('Text to insert as a new line (no trailing newline expected).'),
-    }),
-    handler: async (args): Promise<ToolResponse> => {
+export class FileEditorTools implements ToolExecutor {
+    private readonly exec: ToolExecutor;
+
+    constructor() {
+        this.exec = defineToolsFromDecorators(this);
+    }
+
+    getTools(): ToolDefinition[] {
+        return this.exec.getTools();
+    }
+
+    execute(toolName: string, args: any): Promise<ToolResponse> {
+        return this.exec.execute(toolName, args);
+    }
+
+    @mcpTool({
+        name: 'insert_text',
+        title: 'Insert text at line',
+        description: REDUNDANT_TAG + 'Insert a new line at the given 1-based line number. If line exceeds total, text is appended at end of file. Triggers cocos asset-db refresh on cocos-recognised extensions (.ts/.json/.scene/.prefab/etc.) so the editor reimports.',
+        inputSchema: z.object({
+            filePath: z.string().describe('Path to the file (absolute or project-relative).'),
+            line: z.number().int().min(1).describe('1-based line number to insert at; existing lines shift down.'),
+            text: z.string().describe('Text to insert as a new line (no trailing newline expected).'),
+        }),
+    })
+    async insertText(args: { filePath: string; line: number; text: string }): Promise<ToolResponse> {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
         const stat = fs.statSync(r.abs);
@@ -183,19 +199,19 @@ const insertText: ToolDef = {
         fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Inserted text at line ${Math.min(args.line, lines.length)} of ${r.relProject}`);
-    },
-};
+    }
 
-const deleteLines: ToolDef = {
-    name: 'delete_lines',
-    title: 'Delete line range',
-    description: REDUNDANT_TAG + 'Delete a range of lines (1-based, inclusive). Triggers cocos asset-db refresh.',
-    inputSchema: z.object({
-        filePath: z.string().describe('Path to the file (absolute or project-relative).'),
-        startLine: z.number().int().min(1).describe('First line to delete (1-based, inclusive).'),
-        endLine: z.number().int().min(1).describe('Last line to delete (1-based, inclusive). Must be >= startLine.'),
-    }),
-    handler: async (args): Promise<ToolResponse> => {
+    @mcpTool({
+        name: 'delete_lines',
+        title: 'Delete line range',
+        description: REDUNDANT_TAG + 'Delete a range of lines (1-based, inclusive). Triggers cocos asset-db refresh.',
+        inputSchema: z.object({
+            filePath: z.string().describe('Path to the file (absolute or project-relative).'),
+            startLine: z.number().int().min(1).describe('First line to delete (1-based, inclusive).'),
+            endLine: z.number().int().min(1).describe('Last line to delete (1-based, inclusive). Must be >= startLine.'),
+        }),
+    })
+    async deleteLines(args: { filePath: string; startLine: number; endLine: number }): Promise<ToolResponse> {
         if (args.startLine > args.endLine) {
             return fail('file-editor: startLine must be <= endLine');
         }
@@ -217,24 +233,24 @@ const deleteLines: ToolDef = {
         fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, deletedCount, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Deleted ${deletedCount} line(s) from line ${args.startLine} to ${args.startLine + deletedCount - 1} of ${r.relProject}`);
-    },
-};
+    }
 
-const replaceText: ToolDef = {
-    name: 'replace_text',
-    title: 'Replace text in file',
-    description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Regex backreferences ($1, $&, $`, $\') work when useRegex:true. Triggers cocos asset-db refresh.',
-    inputSchema: z.object({
-        filePath: z.string().describe('Path to the file (absolute or project-relative).'),
-        // v2.5.1 round-1 review fix (codex + claude 🟡): empty search would
-        // either insert between every char (replaceAll) or insert at byte 0
-        // (first-only) — both surprising. Reject early.
-        search: z.string().min(1, 'search must be non-empty').describe('Search text or regex pattern (depends on useRegex). Must be non-empty.'),
-        replace: z.string().describe('Replacement text. Regex backreferences ($1, $&, $`, $\') expand when useRegex:true.'),
-        useRegex: z.boolean().default(false).describe('Treat `search` as a JS RegExp source string. Default false.'),
-        replaceAll: z.boolean().default(false).describe('Replace every occurrence. Default false (first only).'),
-    }),
-    handler: async (args): Promise<ToolResponse> => {
+    @mcpTool({
+        name: 'replace_text',
+        title: 'Replace text in file',
+        description: REDUNDANT_TAG + 'Find/replace text in a file. Plain string by default; pass useRegex:true to interpret search as a regex. Replaces first occurrence only unless replaceAll:true. Regex backreferences ($1, $&, $`, $\') work when useRegex:true. Triggers cocos asset-db refresh.',
+        inputSchema: z.object({
+            filePath: z.string().describe('Path to the file (absolute or project-relative).'),
+            // v2.5.1 round-1 review fix (codex + claude 🟡): empty search would
+            // either insert between every char (replaceAll) or insert at byte 0
+            // (first-only) — both surprising. Reject early.
+            search: z.string().min(1, 'search must be non-empty').describe('Search text or regex pattern (depends on useRegex). Must be non-empty.'),
+            replace: z.string().describe('Replacement text. Regex backreferences ($1, $&, $`, $\') expand when useRegex:true.'),
+            useRegex: z.boolean().default(false).describe('Treat `search` as a JS RegExp source string. Default false.'),
+            replaceAll: z.boolean().default(false).describe('Replace every occurrence. Default false (first only).'),
+        }),
+    })
+    async replaceText(args: { filePath: string; search: string; replace: string; useRegex: boolean; replaceAll: boolean }): Promise<ToolResponse> {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
         const stat = fs.statSync(r.abs);
@@ -288,19 +304,19 @@ const replaceText: ToolDef = {
         fs.writeFileSync(r.abs, newContent, 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, replacements }, `Replaced ${replacements} occurrence(s) in ${r.relProject}`);
-    },
-};
+    }
 
-const queryText: ToolDef = {
-    name: 'query_text',
-    title: 'Read line range',
-    description: REDUNDANT_TAG + 'Read a range of lines (1-based, inclusive). Returns lines with line numbers; total line count of file in data.totalLines. Read-only; no asset-db refresh.',
-    inputSchema: z.object({
-        filePath: z.string().describe('Path to the file (absolute or project-relative).'),
-        startLine: z.number().int().min(1).optional().describe('First line to read (1-based). Default 1.'),
-        endLine: z.number().int().min(1).optional().describe('Last line to read (1-based, inclusive). Default end of file.'),
-    }),
-    handler: async (args): Promise<ToolResponse> => {
+    @mcpTool({
+        name: 'query_text',
+        title: 'Read line range',
+        description: REDUNDANT_TAG + 'Read a range of lines (1-based, inclusive). Returns lines with line numbers; total line count of file in data.totalLines. Read-only; no asset-db refresh.',
+        inputSchema: z.object({
+            filePath: z.string().describe('Path to the file (absolute or project-relative).'),
+            startLine: z.number().int().min(1).optional().describe('First line to read (1-based). Default 1.'),
+            endLine: z.number().int().min(1).optional().describe('Last line to read (1-based, inclusive). Default end of file.'),
+        }),
+    })
+    async queryText(args: { filePath: string; startLine?: number; endLine?: number }): Promise<ToolResponse> {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
         const stat = fs.statSync(r.abs);
@@ -321,22 +337,5 @@ const queryText: ToolDef = {
         const sliced = lines.slice(from, to);
         const result = sliced.map((text, i) => ({ line: from + i + 1, text }));
         return ok({ file: r.relProject, totalLines, startLine: from + 1, endLine: from + result.length, eol: eol === '\r\n' ? 'CRLF' : 'LF', lines: result }, `Read ${result.length} line(s) from ${r.relProject}`);
-    },
-};
-
-export class FileEditorTools {
-    private impl = defineTools([
-        insertText,
-        deleteLines,
-        replaceText,
-        queryText,
-    ]);
-
-    getTools() {
-        return this.impl.getTools();
-    }
-
-    execute(toolName: string, args: any) {
-        return this.impl.execute(toolName, args);
     }
 }

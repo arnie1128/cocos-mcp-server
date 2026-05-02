@@ -1,7 +1,7 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor, ProjectInfo, AssetInfo } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor, ProjectInfo, AssetInfo } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -9,116 +9,21 @@ export class ProjectTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            { name: 'run_project', title: 'Open preview fallback', description: '[specialist] Open Build panel as preview fallback; does not launch preview automatically.',
-                inputSchema: z.object({
-                    platform: z.enum(['browser', 'simulator', 'preview']).default('browser').describe('Requested preview platform. Current implementation opens the build panel instead of launching preview.'),
-                }), handler: a => this.runProject(a.platform) },
-            { name: 'build_project', title: 'Open build fallback', description: '[specialist] Open Build panel for the requested platform; does not start the build.',
-                inputSchema: z.object({
-                    platform: z.enum(['web-mobile', 'web-desktop', 'ios', 'android', 'windows', 'mac']).describe('Build platform to pre-contextualize the response. Actual build still requires Editor UI.'),
-                    debug: z.boolean().default(true).describe('Requested debug build flag. Returned as context only; build is not started programmatically.'),
-                }), handler: a => this.buildProject(a) },
-            { name: 'get_project_info', title: 'Read project info', description: '[specialist] Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.',
-                inputSchema: z.object({}), handler: () => this.getProjectInfo() },
-            { name: 'get_project_settings', title: 'Read project settings', description: '[specialist] Read one project settings category via project/query-config.',
-                inputSchema: z.object({
-                    category: z.enum(['general', 'physics', 'render', 'assets']).default('general').describe('Project settings category to query via project/query-config.'),
-                }), handler: a => this.getProjectSettings(a.category) },
-            { name: 'refresh_assets', title: 'Refresh asset folder', description: '[specialist] Refresh asset-db for a folder; affects Editor asset state, not file content.',
-                inputSchema: z.object({
-                    folder: z.string().optional().describe('Asset db:// folder to refresh. Omit to refresh db://assets.'),
-                }), handler: a => this.refreshAssets(a.folder) },
-            { name: 'import_asset', title: 'Import asset file', description: '[specialist] Import one disk file into asset-db; mutates project assets.',
-                inputSchema: z.object({
-                    sourcePath: z.string().describe('Absolute source file path on disk. Must exist.'),
-                    targetFolder: z.string().describe('Target asset folder, either db://... or relative under db://assets.'),
-                }), handler: a => this.importAsset(a.sourcePath, a.targetFolder) },
-            { name: 'get_asset_info', title: 'Read asset info', description: '[specialist] Read basic metadata for one db:// asset path.',
-                inputSchema: z.object({
-                    assetPath: z.string().describe('Asset db:// path to query.'),
-                }), handler: a => this.getAssetInfo(a.assetPath) },
-            { name: 'get_assets', title: 'List project assets', description: '[specialist] List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.',
-                inputSchema: z.object({
-                    type: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation']).default('all').describe('Asset type filter translated into filename patterns.'),
-                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
-                }), handler: a => this.getAssets(a.type, a.folder) },
-            { name: 'get_build_settings', title: 'Read build settings', description: '[specialist] Report builder readiness and MCP build limitations.',
-                inputSchema: z.object({}), handler: () => this.getBuildSettings() },
-            { name: 'open_build_panel', title: 'Open build panel', description: '[specialist] Open the Cocos Build panel; does not start a build.',
-                inputSchema: z.object({}), handler: () => this.openBuildPanel() },
-            { name: 'check_builder_status', title: 'Check builder status', description: '[specialist] Check whether the builder worker is ready.',
-                inputSchema: z.object({}), handler: () => this.checkBuilderStatus() },
-            { name: 'start_preview_server', title: 'Start preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
-                inputSchema: z.object({
-                    port: z.number().default(7456).describe('Requested preview server port. Current implementation reports unsupported.'),
-                }), handler: a => this.startPreviewServer(a.port) },
-            { name: 'stop_preview_server', title: 'Stop preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
-                inputSchema: z.object({}), handler: () => this.stopPreviewServer() },
-            { name: 'create_asset', title: 'Create asset', description: '[specialist] Create an asset file or folder through asset-db; null content creates folder.',
-                inputSchema: z.object({
-                    url: z.string().describe('Target asset db:// URL, e.g. db://assets/newfile.json.'),
-                    content: z.string().nullable().optional().describe('File content. Pass null/omit for folder creation.'),
-                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-                }), handler: a => this.createAsset(a.url, a.content, a.overwrite) },
-            { name: 'copy_asset', title: 'Copy asset', description: '[specialist] Copy an asset through asset-db; mutates project assets.',
-                inputSchema: z.object({
-                    source: z.string().describe('Source asset db:// URL.'),
-                    target: z.string().describe('Target asset db:// URL or folder path.'),
-                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-                }), handler: a => this.copyAsset(a.source, a.target, a.overwrite) },
-            { name: 'move_asset', title: 'Move asset', description: '[specialist] Move or rename an asset through asset-db; mutates project assets.',
-                inputSchema: z.object({
-                    source: z.string().describe('Source asset db:// URL.'),
-                    target: z.string().describe('Target asset db:// URL or folder path.'),
-                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
-                }), handler: a => this.moveAsset(a.source, a.target, a.overwrite) },
-            { name: 'delete_asset', title: 'Delete asset', description: '[specialist] Delete one asset-db URL; mutates project assets.',
-                inputSchema: z.object({
-                    url: z.string().describe('Asset db:// URL to delete.'),
-                }), handler: a => this.deleteAsset(a.url) },
-            { name: 'save_asset', title: 'Save asset', description: '[specialist] Write serialized content to an asset URL; use only for known-good formats.',
-                inputSchema: z.object({
-                    url: z.string().describe('Asset db:// URL whose content should be saved.'),
-                    content: z.string().describe('Serialized asset content to write.'),
-                }), handler: a => this.saveAsset(a.url, a.content) },
-            { name: 'reimport_asset', title: 'Reimport asset', description: '[specialist] Ask asset-db to reimport an asset; updates imported asset state/cache.',
-                inputSchema: z.object({
-                    url: z.string().describe('Asset db:// URL to reimport.'),
-                }), handler: a => this.reimportAsset(a.url) },
-            { name: 'query_asset_path', title: 'Resolve asset path', description: '[specialist] Resolve an asset db:// URL to disk path.',
-                inputSchema: z.object({
-                    url: z.string().describe('Asset db:// URL to resolve to a disk path.'),
-                }), handler: a => this.queryAssetPath(a.url) },
-            { name: 'query_asset_uuid', title: 'Resolve asset UUID', description: '[specialist] Resolve an asset db:// URL to UUID.',
-                inputSchema: z.object({
-                    url: z.string().describe('Asset db:// URL to resolve to UUID.'),
-                }), handler: a => this.queryAssetUuid(a.url) },
-            { name: 'query_asset_url', title: 'Resolve asset URL', description: '[specialist] Resolve an asset UUID to db:// URL.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Asset UUID to resolve to db:// URL.'),
-                }), handler: a => this.queryAssetUrl(a.uuid) },
-            { name: 'find_asset_by_name', title: 'Find asset by name', description: '[specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.',
-                inputSchema: z.object({
-                    name: z.string().describe('Asset name search term. Partial match unless exactMatch=true.'),
-                    exactMatch: z.boolean().default(false).describe('Require exact asset name match. Default false.'),
-                    assetType: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation', 'spriteFrame']).default('all').describe('Asset type filter for the search.'),
-                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
-                    maxResults: z.number().min(1).max(100).default(20).describe('Maximum matched assets to return. Default 20.'),
-                }), handler: a => this.findAssetByName(a) },
-            { name: 'get_asset_details', title: 'Read asset details', description: '[specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.',
-                inputSchema: z.object({
-                    assetPath: z.string().describe('Asset db:// path to inspect.'),
-                    includeSubAssets: z.boolean().default(true).describe('Try to include known image sub-assets such as spriteFrame and texture UUIDs.'),
-                }), handler: a => this.getAssetDetails(a.assetPath, a.includeSubAssets) },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async runProject(platform: string = 'browser'): Promise<ToolResponse> {
+    @mcpTool({ name: 'run_project', title: 'Open preview fallback', description: '[specialist] Open Build panel as preview fallback; does not launch preview automatically.',
+                inputSchema: z.object({
+                    platform: z.enum(['browser', 'simulator', 'preview']).default('browser').describe('Requested preview platform. Current implementation opens the build panel instead of launching preview.'),
+                })
+    })
+    async runProject(platform: any = 'browser'): Promise<ToolResponse> {
+        if (platform && typeof platform === 'object') {
+            platform = platform.platform ?? 'browser';
+        }
         return new Promise((resolve) => {
             const previewConfig = {
                 platform: platform,
@@ -135,7 +40,13 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async buildProject(args: any): Promise<ToolResponse> {
+    @mcpTool({ name: 'build_project', title: 'Open build fallback', description: '[specialist] Open Build panel for the requested platform; does not start the build.',
+                inputSchema: z.object({
+                    platform: z.enum(['web-mobile', 'web-desktop', 'ios', 'android', 'windows', 'mac']).describe('Build platform to pre-contextualize the response. Actual build still requires Editor UI.'),
+                    debug: z.boolean().default(true).describe('Requested debug build flag. Returned as context only; build is not started programmatically.'),
+                })
+    })
+    async buildProject(args: any): Promise<ToolResponse> {
         return new Promise((resolve) => {
             const buildOptions = {
                 platform: args.platform,
@@ -157,7 +68,10 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async getProjectInfo(): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_project_info', title: 'Read project info', description: '[specialist] Read project name/path/uuid/version/Cocos version and config. Also exposed as resource cocos://project/info; prefer the resource when the client supports MCP resources.',
+                inputSchema: z.object({})
+    })
+    async getProjectInfo(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             const info: ProjectInfo = {
                 name: Editor.Project.name,
@@ -180,7 +94,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async getProjectSettings(category: string = 'general'): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_project_settings', title: 'Read project settings', description: '[specialist] Read one project settings category via project/query-config.',
+                inputSchema: z.object({
+                    category: z.enum(['general', 'physics', 'render', 'assets']).default('general').describe('Project settings category to query via project/query-config.'),
+                })
+    })
+    async getProjectSettings(category: any = 'general'): Promise<ToolResponse> {
+        if (category && typeof category === 'object') {
+            category = category.category ?? 'general';
+        }
         return new Promise((resolve) => {
             // 使用正確的 project API 查詢項目配置
             const configMap: Record<string, string> = {
@@ -204,7 +126,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async refreshAssets(folder?: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'refresh_assets', title: 'Refresh asset folder', description: '[specialist] Refresh asset-db for a folder; affects Editor asset state, not file content.',
+                inputSchema: z.object({
+                    folder: z.string().optional().describe('Asset db:// folder to refresh. Omit to refresh db://assets.'),
+                })
+    })
+    async refreshAssets(folder?: any): Promise<ToolResponse> {
+        if (folder && typeof folder === 'object') {
+            folder = folder.folder;
+        }
         return new Promise((resolve) => {
             // 使用正確的 asset-db API 刷新資源
             const targetPath = folder || 'db://assets';
@@ -217,7 +147,17 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async importAsset(sourcePath: string, targetFolder: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'import_asset', title: 'Import asset file', description: '[specialist] Import one disk file into asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    sourcePath: z.string().describe('Absolute source file path on disk. Must exist.'),
+                    targetFolder: z.string().describe('Target asset folder, either db://... or relative under db://assets.'),
+                })
+    })
+    async importAsset(sourcePath: any, targetFolder?: string): Promise<ToolResponse> {
+        if (sourcePath && typeof sourcePath === 'object') {
+            targetFolder = sourcePath.targetFolder;
+            sourcePath = sourcePath.sourcePath;
+        }
         return new Promise((resolve) => {
             if (!fs.existsSync(sourcePath)) {
                 resolve(fail('Source file not found'));
@@ -225,8 +165,8 @@ export class ProjectTools implements ToolExecutor {
             }
 
             const fileName = path.basename(sourcePath);
-            const targetPath = targetFolder.startsWith('db://') ?
-                targetFolder : `db://assets/${targetFolder}`;
+            const targetPath = targetFolder!.startsWith('db://') ?
+                targetFolder! : `db://assets/${targetFolder}`;
 
             Editor.Message.request('asset-db', 'import-asset', sourcePath, `${targetPath}/${fileName}`).then((result: any) => {
                 resolve(ok({
@@ -240,7 +180,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async getAssetInfo(assetPath: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_asset_info', title: 'Read asset info', description: '[specialist] Read basic metadata for one db:// asset path.',
+                inputSchema: z.object({
+                    assetPath: z.string().describe('Asset db:// path to query.'),
+                })
+    })
+    async getAssetInfo(assetPath: any): Promise<ToolResponse> {
+        if (assetPath && typeof assetPath === 'object') {
+            assetPath = assetPath.assetPath;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-asset-info', assetPath).then((assetInfo: any) => {
                 if (!assetInfo) {
@@ -270,7 +218,17 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async getAssets(type: string = 'all', folder: string = 'db://assets'): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_assets', title: 'List project assets', description: '[specialist] List assets under a folder using type-specific filename patterns. Also exposed as resource cocos://assets (defaults type=all, folder=db://assets) and cocos://assets{?type,folder} template.',
+                inputSchema: z.object({
+                    type: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation']).default('all').describe('Asset type filter translated into filename patterns.'),
+                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
+                })
+    })
+    async getAssets(type: any = 'all', folder: string = 'db://assets'): Promise<ToolResponse> {
+        if (type && typeof type === 'object') {
+            folder = type.folder ?? 'db://assets';
+            type = type.type ?? 'all';
+        }
         return new Promise((resolve) => {
             let pattern = `${folder}/**/*`;
             
@@ -316,7 +274,10 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async getBuildSettings(): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_build_settings', title: 'Read build settings', description: '[specialist] Report builder readiness and MCP build limitations.',
+                inputSchema: z.object({})
+    })
+    async getBuildSettings(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 檢查構建器是否準備就緒
             Editor.Message.request('builder', 'query-worker-ready').then((ready: boolean) => {
@@ -337,7 +298,10 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async openBuildPanel(): Promise<ToolResponse> {
+    @mcpTool({ name: 'open_build_panel', title: 'Open build panel', description: '[specialist] Open the Cocos Build panel; does not start a build.',
+                inputSchema: z.object({})
+    })
+    async openBuildPanel(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('builder', 'open').then(() => {
                 resolve(ok(undefined, 'Build panel opened successfully'));
@@ -347,7 +311,10 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async checkBuilderStatus(): Promise<ToolResponse> {
+    @mcpTool({ name: 'check_builder_status', title: 'Check builder status', description: '[specialist] Check whether the builder worker is ready.',
+                inputSchema: z.object({})
+    })
+    async checkBuilderStatus(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('builder', 'query-worker-ready').then((ready: boolean) => {
                 resolve(ok({
@@ -361,7 +328,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async startPreviewServer(port: number = 7456): Promise<ToolResponse> {
+    @mcpTool({ name: 'start_preview_server', title: 'Start preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
+                inputSchema: z.object({
+                    port: z.number().default(7456).describe('Requested preview server port. Current implementation reports unsupported.'),
+                })
+    })
+    async startPreviewServer(port: any = 7456): Promise<ToolResponse> {
+        if (port && typeof port === 'object') {
+            port = port.port ?? 7456;
+        }
         return new Promise((resolve) => {
             resolve({
                 success: false,
@@ -371,7 +346,10 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async stopPreviewServer(): Promise<ToolResponse> {
+    @mcpTool({ name: 'stop_preview_server', title: 'Stop preview server', description: '[specialist] Unsupported preview-server placeholder; use Editor UI.',
+                inputSchema: z.object({})
+    })
+    async stopPreviewServer(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             resolve({
                 success: false,
@@ -381,7 +359,19 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async createAsset(url: string, content: string | null = null, overwrite: boolean = false): Promise<ToolResponse> {
+    @mcpTool({ name: 'create_asset', title: 'Create asset', description: '[specialist] Create an asset file or folder through asset-db; null content creates folder.',
+                inputSchema: z.object({
+                    url: z.string().describe('Target asset db:// URL, e.g. db://assets/newfile.json.'),
+                    content: z.string().nullable().optional().describe('File content. Pass null/omit for folder creation.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                })
+    })
+    async createAsset(url: any, content: string | null = null, overwrite: boolean = false): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            content = url.content;
+            overwrite = url.overwrite;
+            url = url.url;
+        }
         return new Promise((resolve) => {
             const options = {
                 overwrite: overwrite,
@@ -407,14 +397,26 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async copyAsset(source: string, target: string, overwrite: boolean = false): Promise<ToolResponse> {
+    @mcpTool({ name: 'copy_asset', title: 'Copy asset', description: '[specialist] Copy an asset through asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    source: z.string().describe('Source asset db:// URL.'),
+                    target: z.string().describe('Target asset db:// URL or folder path.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                })
+    })
+    async copyAsset(source: any, target?: string, overwrite: boolean = false): Promise<ToolResponse> {
+        if (source && typeof source === 'object') {
+            target = source.target;
+            overwrite = source.overwrite;
+            source = source.source;
+        }
         return new Promise((resolve) => {
             const options = {
                 overwrite: overwrite,
                 rename: !overwrite
             };
 
-            Editor.Message.request('asset-db', 'copy-asset', source, target, options).then((result: any) => {
+            Editor.Message.request('asset-db', 'copy-asset', source, target!, options).then((result: any) => {
                 if (result && result.uuid) {
                     resolve(ok({
                             uuid: result.uuid,
@@ -434,14 +436,26 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async moveAsset(source: string, target: string, overwrite: boolean = false): Promise<ToolResponse> {
+    @mcpTool({ name: 'move_asset', title: 'Move asset', description: '[specialist] Move or rename an asset through asset-db; mutates project assets.',
+                inputSchema: z.object({
+                    source: z.string().describe('Source asset db:// URL.'),
+                    target: z.string().describe('Target asset db:// URL or folder path.'),
+                    overwrite: z.boolean().default(false).describe('Overwrite existing target instead of auto-renaming.'),
+                })
+    })
+    async moveAsset(source: any, target?: string, overwrite: boolean = false): Promise<ToolResponse> {
+        if (source && typeof source === 'object') {
+            target = source.target;
+            overwrite = source.overwrite;
+            source = source.source;
+        }
         return new Promise((resolve) => {
             const options = {
                 overwrite: overwrite,
                 rename: !overwrite
             };
 
-            Editor.Message.request('asset-db', 'move-asset', source, target, options).then((result: any) => {
+            Editor.Message.request('asset-db', 'move-asset', source, target!, options).then((result: any) => {
                 if (result && result.uuid) {
                     resolve(ok({
                             uuid: result.uuid,
@@ -461,7 +475,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async deleteAsset(url: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'delete_asset', title: 'Delete asset', description: '[specialist] Delete one asset-db URL; mutates project assets.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to delete.'),
+                })
+    })
+    async deleteAsset(url: any): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            url = url.url;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'delete-asset', url).then((result: any) => {
                 resolve(ok({
@@ -474,9 +496,19 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async saveAsset(url: string, content: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'save_asset', title: 'Save asset', description: '[specialist] Write serialized content to an asset URL; use only for known-good formats.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL whose content should be saved.'),
+                    content: z.string().describe('Serialized asset content to write.'),
+                })
+    })
+    async saveAsset(url: any, content?: string): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            content = url.content;
+            url = url.url;
+        }
         return new Promise((resolve) => {
-            Editor.Message.request('asset-db', 'save-asset', url, content).then((result: any) => {
+            Editor.Message.request('asset-db', 'save-asset', url, content!).then((result: any) => {
                 if (result && result.uuid) {
                     resolve(ok({
                             uuid: result.uuid,
@@ -495,7 +527,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async reimportAsset(url: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'reimport_asset', title: 'Reimport asset', description: '[specialist] Ask asset-db to reimport an asset; updates imported asset state/cache.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to reimport.'),
+                })
+    })
+    async reimportAsset(url: any): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            url = url.url;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'reimport-asset', url).then(() => {
                 resolve(ok({
@@ -508,7 +548,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async queryAssetPath(url: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'query_asset_path', title: 'Resolve asset path', description: '[specialist] Resolve an asset db:// URL to disk path.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to resolve to a disk path.'),
+                })
+    })
+    async queryAssetPath(url: any): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            url = url.url;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-path', url).then((path: string | null) => {
                 if (path) {
@@ -526,7 +574,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async queryAssetUuid(url: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'query_asset_uuid', title: 'Resolve asset UUID', description: '[specialist] Resolve an asset db:// URL to UUID.',
+                inputSchema: z.object({
+                    url: z.string().describe('Asset db:// URL to resolve to UUID.'),
+                })
+    })
+    async queryAssetUuid(url: any): Promise<ToolResponse> {
+        if (url && typeof url === 'object') {
+            url = url.url;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-uuid', url).then((uuid: string | null) => {
                 if (uuid) {
@@ -544,7 +600,15 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async queryAssetUrl(uuid: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'query_asset_url', title: 'Resolve asset URL', description: '[specialist] Resolve an asset UUID to db:// URL.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Asset UUID to resolve to db:// URL.'),
+                })
+    })
+    async queryAssetUrl(uuid: any): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            uuid = uuid.uuid;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-url', uuid).then((url: string | null) => {
                 if (url) {
@@ -562,7 +626,16 @@ export class ProjectTools implements ToolExecutor {
         });
     }
 
-    private async findAssetByName(args: any): Promise<ToolResponse> {
+    @mcpTool({ name: 'find_asset_by_name', title: 'Find asset by name', description: '[specialist] Search assets by name with exact/type/folder filters; use to discover UUIDs/paths.',
+                inputSchema: z.object({
+                    name: z.string().describe('Asset name search term. Partial match unless exactMatch=true.'),
+                    exactMatch: z.boolean().default(false).describe('Require exact asset name match. Default false.'),
+                    assetType: z.enum(['all', 'scene', 'prefab', 'script', 'texture', 'material', 'mesh', 'audio', 'animation', 'spriteFrame']).default('all').describe('Asset type filter for the search.'),
+                    folder: z.string().default('db://assets').describe('Asset-db folder to search. Default db://assets.'),
+                    maxResults: z.number().min(1).max(100).default(20).describe('Maximum matched assets to return. Default 20.'),
+                })
+    })
+    async findAssetByName(args: any): Promise<ToolResponse> {
         const { name, exactMatch = false, assetType = 'all', folder = 'db://assets', maxResults = 20 } = args;
         
         return new Promise(async (resolve) => {
@@ -627,7 +700,17 @@ export class ProjectTools implements ToolExecutor {
         });
     }
     
-    private async getAssetDetails(assetPath: string, includeSubAssets: boolean = true): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_asset_details', title: 'Read asset details', description: '[specialist] Read asset info plus known image sub-assets such as spriteFrame/texture UUIDs.',
+                inputSchema: z.object({
+                    assetPath: z.string().describe('Asset db:// path to inspect.'),
+                    includeSubAssets: z.boolean().default(true).describe('Try to include known image sub-assets such as spriteFrame and texture UUIDs.'),
+                })
+    })
+    async getAssetDetails(assetPath: any, includeSubAssets: boolean = true): Promise<ToolResponse> {
+        if (assetPath && typeof assetPath === 'object') {
+            includeSubAssets = assetPath.includeSubAssets;
+            assetPath = assetPath.assetPath;
+        }
         return new Promise(async (resolve) => {
             try {
                 // Get basic asset info

@@ -1,9 +1,9 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor, NodeInfo } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor, NodeInfo } from '../types';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethod } from '../lib/scene-bridge';
 import { resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
@@ -52,8 +52,13 @@ export class NodeTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            { name: 'create_node', title: 'Create scene node', description: '[specialist] Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.',
+        this.exec = defineToolsFromDecorators(this);
+    }
+
+    getTools(): ToolDefinition[] { return this.exec.getTools(); }
+    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    @mcpTool({ name: 'create_node', title: 'Create scene node', description: '[specialist] Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.',
                 inputSchema: z.object({
                     name: z.string().describe('New node name. The response returns the created UUID.'),
                     parentUuid: z.string().optional().describe('Parent node UUID. Strongly recommended; omit only when creating at scene root.'),
@@ -73,91 +78,9 @@ export class NodeTools implements ToolExecutor {
                         rotation: vec3Schema.optional(),
                         scale: vec3Schema.optional(),
                     }).optional().describe('Initial transform applied after create-node via set_node_transform.'),
-                }), handler: a => this.createNode(a) },
-            { name: 'get_node_info', title: 'Read node info', description: '[specialist] Read one node by UUID, including transform, children, and component summary. No mutation.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID to inspect.'),
-                }), handler: a => this.getNodeInfo(a.uuid) },
-            { name: 'find_nodes', title: 'Find nodes by pattern', description: '[specialist] Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
-                inputSchema: z.object({
-                    pattern: z.string().describe('Node name search pattern. Partial match unless exactMatch=true.'),
-                    exactMatch: z.boolean().default(false).describe('Require exact node name match. Default false.'),
-                }), handler: a => this.findNodes(a.pattern, a.exactMatch) },
-            { name: 'find_node_by_name', title: 'Find node by name', description: '[specialist] Find the first node with an exact name. No mutation; only safe when the name is unique enough.',
-                inputSchema: z.object({
-                    name: z.string().describe('Exact node name to find. Returns the first match only.'),
-                }), handler: a => this.findNodeByName(a.name) },
-            { name: 'get_all_nodes', title: 'List all nodes', description: '[specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
-                inputSchema: z.object({}), handler: () => this.getAllNodes() },
-            { name: 'set_node_property', title: 'Set node property', description: '[specialist] Set a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
-                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
-                    property: z.string().describe('Node property path, e.g. active, name, layer. Prefer set_node_transform for position/rotation/scale.'),
-                    value: z.any().describe('Value to write; must match the Cocos dump shape for the property path.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    return this.setNodeProperty(r.uuid, a.property, a.value);
-                } },
-            { name: 'set_node_transform', title: 'Set node transform', description: '[specialist] Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
-                    uuid: z.string().optional().describe('Node UUID whose transform should be changed. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
-                    position: transformPositionSchema.optional().describe('Local position. 2D nodes mainly use x/y; 3D nodes use x/y/z.'),
-                    rotation: transformRotationSchema.optional().describe('Local euler rotation. 2D nodes mainly use z; 3D nodes use x/y/z.'),
-                    scale: transformScaleSchema.optional().describe('Local scale. 2D nodes mainly use x/y and usually keep z=1.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    return this.setNodeTransform({ ...a, uuid: r.uuid });
-                } },
-            { name: 'delete_node', title: 'Delete scene node', description: '[specialist] Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID to delete. Children are removed with the node.'),
-                }), handler: a => this.deleteNode(a.uuid) },
-            { name: 'move_node', title: 'Reparent scene node', description: '[specialist] Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.',
-                inputSchema: z.object({
-                    nodeUuid: z.string().describe('Node UUID to reparent.'),
-                    newParentUuid: z.string().describe('New parent node UUID.'),
-                    siblingIndex: z.number().default(-1).describe('Sibling index under the new parent. Currently advisory; move uses set-parent.'),
-                }), handler: a => this.moveNode(a.nodeUuid, a.newParentUuid, a.siblingIndex) },
-            { name: 'duplicate_node', title: 'Duplicate scene node', description: '[specialist] Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID to duplicate.'),
-                    includeChildren: z.boolean().default(true).describe('Whether children should be included; actual behavior follows Cocos duplicate-node.'),
-                }), handler: a => this.duplicateNode(a.uuid, a.includeChildren) },
-            { name: 'detect_node_type', title: 'Detect node type', description: '[specialist] Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
-                }), handler: a => this.detectNodeType(a.uuid) },
-            { name: 'set_node_properties', title: 'Set node properties', description: '[specialist] Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
-                inputSchema: z.object({
-                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form.'),
-                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
-                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
-                    properties: z.array(z.object({
-                        path: z.string().describe('Property path passed to scene/set-property (e.g. active, name, layer, position).'),
-                        value: z.any().describe('Property value matching the Cocos dump shape for the path.'),
-                    })).min(1).max(50).describe('Properties to write. Capped at 50 entries per call.'),
-                }),
-                handler: async a => {
-                    const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
-                    if ('response' in r) return r.response;
-                    return batchSetProperties(r.uuid, a.properties);
-                } },
-        ];
-        this.exec = defineTools(defs);
-    }
-
-    getTools(): ToolDefinition[] { return this.exec.getTools(); }
-    execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
-
-    private async createNode(args: any): Promise<ToolResponse> {
+                })
+    })
+    async createNode(args: any): Promise<ToolResponse> {
         return new Promise(async (resolve) => {
             try {
                 let targetParentUuid = args.parentUuid;
@@ -409,7 +332,15 @@ export class NodeTools implements ToolExecutor {
         return false;
     }
 
-    private async getNodeInfo(uuid: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_node_info', title: 'Read node info', description: '[specialist] Read one node by UUID, including transform, children, and component summary. No mutation.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID to inspect.'),
+                })
+    })
+    async getNodeInfo(uuid: any): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            uuid = uuid.uuid;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'query-node', uuid).then((nodeData: any) => {
                 if (!nodeData) {
@@ -441,7 +372,17 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async findNodes(pattern: string, exactMatch: boolean = false): Promise<ToolResponse> {
+    @mcpTool({ name: 'find_nodes', title: 'Find nodes by pattern', description: '[specialist] Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
+                inputSchema: z.object({
+                    pattern: z.string().describe('Node name search pattern. Partial match unless exactMatch=true.'),
+                    exactMatch: z.boolean().default(false).describe('Require exact node name match. Default false.'),
+                })
+    })
+    async findNodes(pattern: any, exactMatch: boolean = false): Promise<ToolResponse> {
+        if (pattern && typeof pattern === 'object') {
+            exactMatch = pattern.exactMatch;
+            pattern = pattern.pattern;
+        }
         return new Promise((resolve) => {
             // Note: 'query-nodes-by-name' API doesn't exist in official documentation
             // Using tree traversal as primary approach
@@ -486,7 +427,15 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async findNodeByName(name: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'find_node_by_name', title: 'Find node by name', description: '[specialist] Find the first node with an exact name. No mutation; only safe when the name is unique enough.',
+                inputSchema: z.object({
+                    name: z.string().describe('Exact node name to find. Returns the first match only.'),
+                })
+    })
+    async findNodeByName(name: any): Promise<ToolResponse> {
+        if (name && typeof name === 'object') {
+            name = name.name;
+        }
         return new Promise((resolve) => {
             // 優先嚐試使用 Editor API 查詢節點樹並搜索
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
@@ -528,7 +477,10 @@ export class NodeTools implements ToolExecutor {
         return null;
     }
 
-    private async getAllNodes(): Promise<ToolResponse> {
+    @mcpTool({ name: 'get_all_nodes', title: 'List all nodes', description: '[specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid.',
+                inputSchema: z.object({})
+    })
+    async getAllNodes(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 嘗試查詢場景節點樹
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
@@ -579,12 +531,27 @@ export class NodeTools implements ToolExecutor {
         return path.join('/');
     }
 
-    private async setNodeProperty(uuid: string, property: string, value: any): Promise<ToolResponse> {
+    @mcpTool({ name: 'set_node_property', title: 'Set node property', description: '[specialist] Set a node property path. Mutates scene; use for active/name/layer. Prefer set_node_transform for position/rotation/scale. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+                inputSchema: z.object({
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
+                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
+                    property: z.string().describe('Node property path, e.g. active, name, layer. Prefer set_node_transform for position/rotation/scale.'),
+                    value: z.any().describe('Value to write; must match the Cocos dump shape for the property path.'),
+                })
+    })
+    async setNodeProperty(uuid: any, property?: string, value?: any): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            const a = uuid;
+            const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
+            if ('response' in r) return r.response;
+            return this.setNodeProperty(r.uuid, a.property, a.value);
+        }
         return new Promise((resolve) => {
             // 嘗試直接使用 Editor API 設置節點屬性
             Editor.Message.request('scene', 'set-property', {
                 uuid: uuid,
-                path: property,
+                path: property!,
                 dump: {
                     value: value
                 }
@@ -622,7 +589,22 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async setNodeTransform(args: any): Promise<ToolResponse> {
+    @mcpTool({ name: 'set_node_transform', title: 'Set node transform', description: '[specialist] Set node position, rotation, or scale with 2D/3D normalization. Mutates scene. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+                inputSchema: z.object({
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form — type travels with the id so AI does not lose semantic context.'),
+                    uuid: z.string().optional().describe('Node UUID whose transform should be changed. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
+                    position: transformPositionSchema.optional().describe('Local position. 2D nodes mainly use x/y; 3D nodes use x/y/z.'),
+                    rotation: transformRotationSchema.optional().describe('Local euler rotation. 2D nodes mainly use z; 3D nodes use x/y/z.'),
+                    scale: transformScaleSchema.optional().describe('Local scale. 2D nodes mainly use x/y and usually keep z=1.'),
+                })
+    })
+    async setNodeTransform(args: any): Promise<ToolResponse> {
+        if (args && typeof args === 'object' && ('reference' in args || 'uuid' in args || 'nodeName' in args)) {
+            const r = await resolveReference({ reference: args.reference, nodeUuid: args.uuid, nodeName: args.nodeName });
+            if ('response' in r) return r.response;
+            args = { ...args, uuid: r.uuid };
+        }
         return new Promise(async (resolve) => {
             const { uuid, position, rotation, scale } = args;
             const updatePromises: Promise<any>[] = [];
@@ -813,7 +795,15 @@ export class NodeTools implements ToolExecutor {
         return { value: result, warning };
     }
 
-    private async deleteNode(uuid: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'delete_node', title: 'Delete scene node', description: '[specialist] Delete a node from the current scene. Mutates scene and removes children; verify UUID first.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID to delete. Children are removed with the node.'),
+                })
+    })
+    async deleteNode(uuid: any): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            uuid = uuid.uuid;
+        }
         return new Promise((resolve) => {
             Editor.Message.request('scene', 'remove-node', { uuid: uuid }).then(() => {
                 resolve(ok(undefined, 'Node deleted successfully'));
@@ -823,11 +813,23 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async moveNode(nodeUuid: string, newParentUuid: string, siblingIndex: number = -1): Promise<ToolResponse> {
+    @mcpTool({ name: 'move_node', title: 'Reparent scene node', description: '[specialist] Reparent a node under a new parent. Mutates scene; current implementation does not preserve world transform.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID to reparent.'),
+                    newParentUuid: z.string().describe('New parent node UUID.'),
+                    siblingIndex: z.number().default(-1).describe('Sibling index under the new parent. Currently advisory; move uses set-parent.'),
+                })
+    })
+    async moveNode(nodeUuid: any, newParentUuid?: string, siblingIndex: number = -1): Promise<ToolResponse> {
+        if (nodeUuid && typeof nodeUuid === 'object') {
+            newParentUuid = nodeUuid.newParentUuid;
+            siblingIndex = nodeUuid.siblingIndex;
+            nodeUuid = nodeUuid.nodeUuid;
+        }
         return new Promise((resolve) => {
             // Use correct set-parent API instead of move-node
             Editor.Message.request('scene', 'set-parent', {
-                parent: newParentUuid,
+                parent: newParentUuid!,
                 uuids: [nodeUuid],
                 keepWorldTransform: false
             }).then(() => {
@@ -838,7 +840,17 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async duplicateNode(uuid: string, includeChildren: boolean = true): Promise<ToolResponse> {
+    @mcpTool({ name: 'duplicate_node', title: 'Duplicate scene node', description: '[specialist] Duplicate a node and return the new UUID. Mutates scene; child inclusion follows Cocos duplicate-node behavior.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID to duplicate.'),
+                    includeChildren: z.boolean().default(true).describe('Whether children should be included; actual behavior follows Cocos duplicate-node.'),
+                })
+    })
+    async duplicateNode(uuid: any, includeChildren: boolean = true): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            includeChildren = uuid.includeChildren;
+            uuid = uuid.uuid;
+        }
         return new Promise((resolve) => {
             // Note: includeChildren parameter is accepted for future use but not currently implemented
             Editor.Message.request('scene', 'duplicate-node', uuid).then((result: any) => {
@@ -852,7 +864,15 @@ export class NodeTools implements ToolExecutor {
         });
     }
 
-    private async detectNodeType(uuid: string): Promise<ToolResponse> {
+    @mcpTool({ name: 'detect_node_type', title: 'Detect node type', description: '[specialist] Heuristically classify a node as 2D or 3D from components/transform. No mutation; helps choose transform semantics.',
+                inputSchema: z.object({
+                    uuid: z.string().describe('Node UUID to classify as 2D or 3D by heuristic.'),
+                })
+    })
+    async detectNodeType(uuid: any): Promise<ToolResponse> {
+        if (uuid && typeof uuid === 'object') {
+            uuid = uuid.uuid;
+        }
         return new Promise(async (resolve) => {
             try {
                 const nodeInfoResponse = await this.getNodeInfo(uuid);
@@ -919,6 +939,23 @@ export class NodeTools implements ToolExecutor {
                 resolve(fail(`Failed to detect node type: ${err.message}`));
             }
         });
+    }
+
+    @mcpTool({ name: 'set_node_properties', title: 'Set node properties', description: '[specialist] Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',
+                inputSchema: z.object({
+                    reference: instanceReferenceSchema.optional().describe('InstanceReference {id,type}. Preferred form.'),
+                    uuid: z.string().optional().describe('Node UUID to modify. Used when reference is omitted.'),
+                    nodeName: z.string().optional().describe('Node name (depth-first first match). Used when reference and uuid are omitted.'),
+                    properties: z.array(z.object({
+                        path: z.string().describe('Property path passed to scene/set-property (e.g. active, name, layer, position).'),
+                        value: z.any().describe('Property value matching the Cocos dump shape for the path.'),
+                    })).min(1).max(50).describe('Properties to write. Capped at 50 entries per call.'),
+                })
+    })
+    async setNodeProperties(a: any): Promise<ToolResponse> {
+        const r = await resolveReference({ reference: a.reference, nodeUuid: a.uuid, nodeName: a.nodeName });
+        if ('response' in r) return r.response;
+        return batchSetProperties(r.uuid, a.properties);
     }
 
     private getComponentCategory(componentType: string): string {

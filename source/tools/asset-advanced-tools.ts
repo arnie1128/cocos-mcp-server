@@ -1,138 +1,172 @@
 import { ok, fail } from '../lib/response';
-import { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
+import type { ToolDefinition, ToolResponse, ToolExecutor } from '../types';
 import { z } from '../lib/schema';
-import { defineTools, ToolDef } from '../lib/define-tools';
+import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 
 export class AssetAdvancedTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
     constructor() {
-        const defs: ToolDef[] = [
-            {
-                name: 'save_asset_meta',
-                title: 'Save asset meta',
-                description: '[specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
-                inputSchema: z.object({
-                    urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
-                    content: z.string().describe('Serialized asset meta content string to write.'),
-                }),
-                handler: a => this.saveAssetMeta(a.urlOrUUID, a.content),
-            },
-            {
-                name: 'generate_available_url',
-                title: 'Generate asset URL',
-                description: '[specialist] Return a collision-free asset URL derived from the requested URL.',
-                inputSchema: z.object({
-                    url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
-                }),
-                handler: a => this.generateAvailableUrl(a.url),
-            },
-            {
-                name: 'query_asset_db_ready',
-                title: 'Check asset-db readiness',
-                description: '[specialist] Check whether asset-db reports ready before batch operations.',
-                inputSchema: z.object({}),
-                handler: () => this.queryAssetDbReady(),
-            },
-            {
-                name: 'open_asset_external',
-                title: 'Open asset externally',
-                description: '[specialist] Open an asset through the editor/OS external handler; does not edit content.',
-                inputSchema: z.object({
-                    urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
-                }),
-                handler: a => this.openAssetExternal(a.urlOrUUID),
-            },
-            {
-                name: 'batch_import_assets',
-                title: 'Import assets in batch',
-                description: '[specialist] Import files from a disk directory into asset-db; mutates project assets.',
-                inputSchema: z.object({
-                    sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
-                    targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
-                    fileFilter: z.array(z.string()).default([]).describe('Allowed file extensions, e.g. [".png",".jpg"]. Empty means all files.'),
-                    recursive: z.boolean().default(false).describe('Include files from subdirectories.'),
-                    overwrite: z.boolean().default(false).describe('Overwrite existing target assets instead of auto-renaming.'),
-                }),
-                handler: a => this.batchImportAssets(a),
-            },
-            {
-                name: 'batch_delete_assets',
-                title: 'Delete assets in batch',
-                description: '[specialist] Delete multiple asset-db URLs; mutates project assets.',
-                inputSchema: z.object({
-                    urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
-                }),
-                handler: a => this.batchDeleteAssets(a.urls),
-            },
-            {
-                name: 'validate_asset_references',
-                title: 'Validate asset references',
-                description: '[specialist] Lightly scan assets under a directory for broken asset-info references.',
-                inputSchema: z.object({
-                    directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
-                }),
-                handler: a => this.validateAssetReferences(a.directory),
-            },
-            {
-                name: 'get_asset_dependencies',
-                title: 'Read asset dependencies',
-                description: '[specialist] Unsupported dependency-analysis placeholder; always reports unsupported.',
-                inputSchema: z.object({
-                    urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
-                    direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
-                }),
-                handler: a => this.getAssetDependencies(a.urlOrUUID, a.direction),
-            },
-            {
-                name: 'get_unused_assets',
-                title: 'Find unused assets',
-                description: '[specialist] Unsupported unused-asset placeholder; always reports unsupported.',
-                inputSchema: z.object({
-                    directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
-                    excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
-                }),
-                handler: a => this.getUnusedAssets(a.directory, a.excludeDirectories),
-            },
-            {
-                name: 'compress_textures',
-                title: 'Compress textures',
-                description: '[specialist] Unsupported texture-compression placeholder; always reports unsupported.',
-                inputSchema: z.object({
-                    directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
-                    format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
-                    quality: z.number().min(0.1).max(1.0).default(0.8).describe('Requested compression quality from 0.1 to 1.0. Current implementation reports unsupported.'),
-                }),
-                handler: a => this.compressTextures(a.directory, a.format, a.quality),
-            },
-            {
-                name: 'export_asset_manifest',
-                title: 'Export asset manifest',
-                description: '[specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file.',
-                inputSchema: z.object({
-                    directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
-                    format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
-                    includeMetadata: z.boolean().default(true).describe('Try to include asset metadata when available.'),
-                }),
-                handler: a => this.exportAssetManifest(a.directory, a.format, a.includeMetadata),
-            },
-            {
-                name: 'get_users',
-                title: 'Find asset users',
-                description: '[specialist] Find scenes/prefabs/scripts that reference an asset by UUID.',
-                inputSchema: z.object({
-                    uuid: z.string().describe('Asset UUID to find references to.'),
-                }),
-                handler: a => this.getUsers(a.uuid),
-            },
-        ];
-        this.exec = defineTools(defs);
+        this.exec = defineToolsFromDecorators(this);
     }
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
-    private async saveAssetMeta(urlOrUUID: string, content: string): Promise<ToolResponse> {
+    @mcpTool({
+        name: 'save_asset_meta',
+        title: 'Save asset meta',
+        description: '[specialist] Write serialized meta content for an asset URL/UUID; mutates asset metadata.',
+        inputSchema: z.object({
+            urlOrUUID: z.string().describe('Asset db:// URL or UUID whose .meta content should be saved.'),
+            content: z.string().describe('Serialized asset meta content string to write.'),
+        }),
+    })
+    async saveAssetMeta(args: { urlOrUUID: string; content: string }): Promise<ToolResponse> {
+        return this.saveAssetMetaImpl(args.urlOrUUID, args.content);
+    }
+
+    @mcpTool({
+        name: 'generate_available_url',
+        title: 'Generate asset URL',
+        description: '[specialist] Return a collision-free asset URL derived from the requested URL.',
+        inputSchema: z.object({
+            url: z.string().describe('Desired asset db:// URL to test for collision and adjust if needed.'),
+        }),
+    })
+    async generateAvailableUrl(args: { url: string }): Promise<ToolResponse> {
+        return this.generateAvailableUrlImpl(args.url);
+    }
+
+    @mcpTool({
+        name: 'query_asset_db_ready',
+        title: 'Check asset-db readiness',
+        description: '[specialist] Check whether asset-db reports ready before batch operations.',
+        inputSchema: z.object({}),
+    })
+    async queryAssetDbReady(): Promise<ToolResponse> {
+        return this.queryAssetDbReadyImpl();
+    }
+
+    @mcpTool({
+        name: 'open_asset_external',
+        title: 'Open asset externally',
+        description: '[specialist] Open an asset through the editor/OS external handler; does not edit content.',
+        inputSchema: z.object({
+            urlOrUUID: z.string().describe('Asset db:// URL or UUID to open with the OS/editor associated external program.'),
+        }),
+    })
+    async openAssetExternal(args: { urlOrUUID: string }): Promise<ToolResponse> {
+        return this.openAssetExternalImpl(args.urlOrUUID);
+    }
+
+    @mcpTool({
+        name: 'batch_import_assets',
+        title: 'Import assets in batch',
+        description: '[specialist] Import files from a disk directory into asset-db; mutates project assets.',
+        inputSchema: z.object({
+            sourceDirectory: z.string().describe('Absolute source directory on disk to scan for import files.'),
+            targetDirectory: z.string().describe('Target asset-db directory URL, e.g. db://assets/textures.'),
+            fileFilter: z.array(z.string()).default([]).describe('Allowed file extensions, e.g. [".png",".jpg"]. Empty means all files.'),
+            recursive: z.boolean().default(false).describe('Include files from subdirectories.'),
+            overwrite: z.boolean().default(false).describe('Overwrite existing target assets instead of auto-renaming.'),
+        }),
+    })
+    async batchImportAssets(args: any): Promise<ToolResponse> {
+        return this.batchImportAssetsImpl(args);
+    }
+
+    @mcpTool({
+        name: 'batch_delete_assets',
+        title: 'Delete assets in batch',
+        description: '[specialist] Delete multiple asset-db URLs; mutates project assets.',
+        inputSchema: z.object({
+            urls: z.array(z.string()).describe('Asset db:// URLs to delete. Each URL is attempted independently.'),
+        }),
+    })
+    async batchDeleteAssets(args: { urls: string[] }): Promise<ToolResponse> {
+        return this.batchDeleteAssetsImpl(args.urls);
+    }
+
+    @mcpTool({
+        name: 'validate_asset_references',
+        title: 'Validate asset references',
+        description: '[specialist] Lightly scan assets under a directory for broken asset-info references.',
+        inputSchema: z.object({
+            directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
+        }),
+    })
+    async validateAssetReferences(args: { directory?: string }): Promise<ToolResponse> {
+        return this.validateAssetReferencesImpl(args.directory);
+    }
+
+    @mcpTool({
+        name: 'get_asset_dependencies',
+        title: 'Read asset dependencies',
+        description: '[specialist] Unsupported dependency-analysis placeholder; always reports unsupported.',
+        inputSchema: z.object({
+            urlOrUUID: z.string().describe('Asset URL or UUID for dependency analysis. Current implementation reports unsupported.'),
+            direction: z.enum(['dependents', 'dependencies', 'both']).default('dependencies').describe('Dependency direction requested. Current implementation reports unsupported.'),
+        }),
+    })
+    async getAssetDependencies(args: { urlOrUUID: string; direction?: string }): Promise<ToolResponse> {
+        return this.getAssetDependenciesImpl(args.urlOrUUID, args.direction);
+    }
+
+    @mcpTool({
+        name: 'get_unused_assets',
+        title: 'Find unused assets',
+        description: '[specialist] Unsupported unused-asset placeholder; always reports unsupported.',
+        inputSchema: z.object({
+            directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
+            excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
+        }),
+    })
+    async getUnusedAssets(args: { directory?: string; excludeDirectories?: string[] }): Promise<ToolResponse> {
+        return this.getUnusedAssetsImpl(args.directory, args.excludeDirectories);
+    }
+
+    @mcpTool({
+        name: 'compress_textures',
+        title: 'Compress textures',
+        description: '[specialist] Unsupported texture-compression placeholder; always reports unsupported.',
+        inputSchema: z.object({
+            directory: z.string().default('db://assets').describe('Texture directory requested for compression. Current implementation reports unsupported.'),
+            format: z.enum(['auto', 'jpg', 'png', 'webp']).default('auto').describe('Requested output format. Current implementation reports unsupported.'),
+            quality: z.number().min(0.1).max(1.0).default(0.8).describe('Requested compression quality from 0.1 to 1.0. Current implementation reports unsupported.'),
+        }),
+    })
+    async compressTextures(args: { directory?: string; format?: string; quality?: number }): Promise<ToolResponse> {
+        return this.compressTexturesImpl(args.directory, args.format, args.quality);
+    }
+
+    @mcpTool({
+        name: 'export_asset_manifest',
+        title: 'Export asset manifest',
+        description: '[specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file.',
+        inputSchema: z.object({
+            directory: z.string().default('db://assets').describe('Asset-db directory to include in the manifest. Default db://assets.'),
+            format: z.enum(['json', 'csv', 'xml']).default('json').describe('Returned manifest serialization format.'),
+            includeMetadata: z.boolean().default(true).describe('Try to include asset metadata when available.'),
+        }),
+    })
+    async exportAssetManifest(args: { directory?: string; format?: string; includeMetadata?: boolean }): Promise<ToolResponse> {
+        return this.exportAssetManifestImpl(args.directory, args.format, args.includeMetadata);
+    }
+
+    @mcpTool({
+        name: 'get_users',
+        title: 'Find asset users',
+        description: '[specialist] Find scenes/prefabs/scripts that reference an asset by UUID.',
+        inputSchema: z.object({
+            uuid: z.string().describe('Asset UUID to find references to.'),
+        }),
+    })
+    async getUsers(args: { uuid: string }): Promise<ToolResponse> {
+        return this.getUsersImpl(args.uuid);
+    }
+
+    private async saveAssetMetaImpl(urlOrUUID: string, content: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'save-asset-meta', urlOrUUID, content).then((result: any) => {
                 resolve(ok({
@@ -146,7 +180,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         });
     }
 
-    private async generateAvailableUrl(url: string): Promise<ToolResponse> {
+    private async generateAvailableUrlImpl(url: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'generate-available-url', url).then((availableUrl: string) => {
                 resolve(ok({
@@ -162,7 +196,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         });
     }
 
-    private async queryAssetDbReady(): Promise<ToolResponse> {
+    private async queryAssetDbReadyImpl(): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'query-ready').then((ready: boolean) => {
                 resolve(ok({
@@ -175,7 +209,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         });
     }
 
-    private async openAssetExternal(urlOrUUID: string): Promise<ToolResponse> {
+    private async openAssetExternalImpl(urlOrUUID: string): Promise<ToolResponse> {
         return new Promise((resolve) => {
             Editor.Message.request('asset-db', 'open-asset', urlOrUUID).then(() => {
                 resolve(ok(undefined, 'Asset opened with external program'));
@@ -185,7 +219,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         });
     }
 
-    private async batchImportAssets(args: any): Promise<ToolResponse> {
+    private async batchImportAssetsImpl(args: any): Promise<ToolResponse> {
         const fs = require('fs');
         const path = require('path');
         
@@ -263,7 +297,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         return files;
     }
 
-    private async batchDeleteAssets(urls: string[]): Promise<ToolResponse> {
+    private async batchDeleteAssetsImpl(urls: string[]): Promise<ToolResponse> {
         const deleteResults: any[] = [];
         let successCount = 0;
         let errorCount = 0;
@@ -295,7 +329,7 @@ export class AssetAdvancedTools implements ToolExecutor {
             });
     }
 
-    private async validateAssetReferences(directory: string = 'db://assets'): Promise<ToolResponse> {
+    private async validateAssetReferencesImpl(directory: string = 'db://assets'): Promise<ToolResponse> {
         // Get all assets in directory
         const assets = await Editor.Message.request('asset-db', 'query-assets', { pattern: `${directory}/**/*` });
         
@@ -332,28 +366,28 @@ export class AssetAdvancedTools implements ToolExecutor {
             });
     }
 
-    private async getAssetDependencies(urlOrUUID: string, direction: string = 'dependencies'): Promise<ToolResponse> {
+    private async getAssetDependenciesImpl(urlOrUUID: string, direction: string = 'dependencies'): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: This would require scene analysis or additional APIs not available in current documentation
             resolve(fail('Asset dependency analysis requires additional APIs not available in current Cocos Creator MCP implementation. Consider using the Editor UI for dependency analysis.'));
         });
     }
 
-    private async getUnusedAssets(directory: string = 'db://assets', excludeDirectories: string[] = []): Promise<ToolResponse> {
+    private async getUnusedAssetsImpl(directory: string = 'db://assets', excludeDirectories: string[] = []): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: This would require comprehensive project analysis
             resolve(fail('Unused asset detection requires comprehensive project analysis not available in current Cocos Creator MCP implementation. Consider using the Editor UI or third-party tools for unused asset detection.'));
         });
     }
 
-    private async compressTextures(directory: string = 'db://assets', format: string = 'auto', quality: number = 0.8): Promise<ToolResponse> {
+    private async compressTexturesImpl(directory: string = 'db://assets', format: string = 'auto', quality: number = 0.8): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: Texture compression would require image processing APIs
             resolve(fail('Texture compression requires image processing capabilities not available in current Cocos Creator MCP implementation. Use the Editor\'s built-in texture compression settings or external tools.'));
         });
     }
 
-    private async exportAssetManifest(directory: string = 'db://assets', format: string = 'json', includeMetadata: boolean = true): Promise<ToolResponse> {
+    private async exportAssetManifestImpl(directory: string = 'db://assets', format: string = 'json', includeMetadata: boolean = true): Promise<ToolResponse> {
         const assets = await Editor.Message.request('asset-db', 'query-assets', { pattern: `${directory}/**/*` });
         
         const manifest: any[] = [];
@@ -442,7 +476,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         return xml;
     }
 
-    private async getUsers(targetUuid: string): Promise<ToolResponse> {
+    private async getUsersImpl(targetUuid: string): Promise<ToolResponse> {
         const scenes = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.SceneAsset' });
         const prefabs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.Prefab' });
         const scriptsTs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**/*.ts' });
