@@ -60,44 +60,29 @@ export class ServerTools implements ToolExecutor {
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async queryServerIPList(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('server', 'query-ip-list').then((ipList: string[]) => {
-                resolve(ok({
-                        ipList: ipList,
-                        count: ipList.length,
-                        message: 'IP list retrieved successfully'
-                    }));
-            }).catch((err: Error) => {
-                resolve(fail(err.message));
+        const ipList: string[] = await Editor.Message.request('server', 'query-ip-list');
+        return ok({
+                ipList: ipList,
+                count: ipList.length,
+                message: 'IP list retrieved successfully'
             });
-        });
     }
 
     private async querySortedServerIPList(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('server', 'query-sort-ip-list').then((sortedIPList: string[]) => {
-                resolve(ok({
-                        sortedIPList: sortedIPList,
-                        count: sortedIPList.length,
-                        message: 'Sorted IP list retrieved successfully'
-                    }));
-            }).catch((err: Error) => {
-                resolve(fail(err.message));
+        const sortedIPList: string[] = await Editor.Message.request('server', 'query-sort-ip-list');
+        return ok({
+                sortedIPList: sortedIPList,
+                count: sortedIPList.length,
+                message: 'Sorted IP list retrieved successfully'
             });
-        });
     }
 
     private async queryServerPort(): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            Editor.Message.request('server', 'query-port').then((port: number) => {
-                resolve(ok({
-                        port: port,
-                        message: `Editor server is running on port ${port}`
-                    }));
-            }).catch((err: Error) => {
-                resolve(fail(err.message));
+        const port: number = await Editor.Message.request('server', 'query-port');
+        return ok({
+                port: port,
+                message: `Editor server is running on port ${port}`
             });
-        });
     }
 
     private async getServerStatus(): Promise<ToolResponse> {

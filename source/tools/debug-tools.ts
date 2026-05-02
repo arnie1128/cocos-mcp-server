@@ -312,13 +312,9 @@ export class DebugTools implements ToolExecutor {
     }
 
     private async clearConsole(): Promise<ToolResponse> {
-        try {
-            // Note: Editor.Message.send may not return a promise in all versions
-            Editor.Message.send('console', 'clear');
-            return ok(undefined, 'Console cleared successfully');
-        } catch (err: any) {
-            return fail(err.message);
-        }
+        // Note: Editor.Message.send may not return a promise in all versions
+        Editor.Message.send('console', 'clear');
+        return ok(undefined, 'Console cleared successfully');
     }
 
     private async executeJavaScript(code: string, context: 'scene' | 'editor'): Promise<ToolResponse> {
@@ -442,45 +438,41 @@ export class DebugTools implements ToolExecutor {
     private async validateScene(options: any): Promise<ToolResponse> {
         const issues: ValidationIssue[] = [];
 
-        try {
-            // Check for missing assets
-            if (options.checkMissingAssets) {
-                const assetCheck = await Editor.Message.request('scene', 'check-missing-assets');
-                if (assetCheck && assetCheck.missing) {
-                    issues.push({
-                        type: 'error',
-                        category: 'assets',
-                        message: `Found ${assetCheck.missing.length} missing asset references`,
-                        details: assetCheck.missing
-                    });
-                }
+        // Check for missing assets
+        if (options.checkMissingAssets) {
+            const assetCheck = await Editor.Message.request('scene', 'check-missing-assets');
+            if (assetCheck && assetCheck.missing) {
+                issues.push({
+                    type: 'error',
+                    category: 'assets',
+                    message: `Found ${assetCheck.missing.length} missing asset references`,
+                    details: assetCheck.missing
+                });
             }
-
-            // Check for performance issues
-            if (options.checkPerformance) {
-                const hierarchy = await Editor.Message.request('scene', 'query-hierarchy');
-                const nodeCount = this.countNodes(hierarchy.children);
-                
-                if (nodeCount > 1000) {
-                    issues.push({
-                        type: 'warning',
-                        category: 'performance',
-                        message: `High node count: ${nodeCount} nodes (recommended < 1000)`,
-                        suggestion: 'Consider using object pooling or scene optimization'
-                    });
-                }
-            }
-
-            const result: ValidationResult = {
-                valid: issues.length === 0,
-                issueCount: issues.length,
-                issues: issues
-            };
-
-            return ok(result);
-        } catch (err: any) {
-            return fail(err.message);
         }
+
+        // Check for performance issues
+        if (options.checkPerformance) {
+            const hierarchy = await Editor.Message.request('scene', 'query-hierarchy');
+            const nodeCount = this.countNodes(hierarchy.children);
+            
+            if (nodeCount > 1000) {
+                issues.push({
+                    type: 'warning',
+                    category: 'performance',
+                    message: `High node count: ${nodeCount} nodes (recommended < 1000)`,
+                    suggestion: 'Consider using object pooling or scene optimization'
+                });
+            }
+        }
+
+        const result: ValidationResult = {
+            valid: issues.length === 0,
+            issueCount: issues.length,
+            issues: issues
+        };
+
+        return ok(result);
     }
 
     private countNodes(nodes: any[]): number {
@@ -829,38 +821,34 @@ export class DebugTools implements ToolExecutor {
     }
 
     private async screenshot(savePath?: string, windowTitle?: string, includeBase64: boolean = false): Promise<ToolResponse> {
-        try {
-            let filePath = savePath;
-            if (!filePath) {
-                const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
-                if (!resolved.ok) return fail(resolved.error);
-                filePath = resolved.filePath;
-            } else {
-                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
-                // also gets containment-checked. AI-generated paths could
-                // otherwise write outside the project root.
-                // v2.8.2 retest fix: use the helper's resolvedPath so a
-                // relative savePath actually lands inside the project root.
-                const guard = this.assertSavePathWithinProject(filePath);
-                if (!guard.ok) return fail(guard.error);
-                filePath = guard.resolvedPath;
-            }
-            const win = this.pickWindow(windowTitle);
-            const image = await win.webContents.capturePage();
-            const png: Buffer = image.toPNG();
-            fs.writeFileSync(filePath, png);
-            const data: any = {
-                filePath,
-                size: png.length,
-                windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
-            };
-            if (includeBase64) {
-                data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
-            }
-            return ok(data, `Screenshot saved to ${filePath}`);
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        let filePath = savePath;
+        if (!filePath) {
+            const resolved = this.resolveAutoCaptureFile(`screenshot-${Date.now()}.png`);
+            if (!resolved.ok) return fail(resolved.error);
+            filePath = resolved.filePath;
+        } else {
+            // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
+            // also gets containment-checked. AI-generated paths could
+            // otherwise write outside the project root.
+            // v2.8.2 retest fix: use the helper's resolvedPath so a
+            // relative savePath actually lands inside the project root.
+            const guard = this.assertSavePathWithinProject(filePath);
+            if (!guard.ok) return fail(guard.error);
+            filePath = guard.resolvedPath;
         }
+        const win = this.pickWindow(windowTitle);
+        const image = await win.webContents.capturePage();
+        const png: Buffer = image.toPNG();
+        fs.writeFileSync(filePath, png);
+        const data: any = {
+            filePath,
+            size: png.length,
+            windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
+        };
+        if (includeBase64) {
+            data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
+        }
+        return ok(data, `Screenshot saved to ${filePath}`);
     }
 
     // v2.7.0 #4: Preview-window screenshot.
@@ -889,85 +877,84 @@ export class DebugTools implements ToolExecutor {
         windowTitle: string = 'Preview',
         includeBase64: boolean = false,
     ): Promise<ToolResponse> {
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const electron = require('electron');
-            const BW = electron.BrowserWindow;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const electron = require('electron');
+        const BW = electron.BrowserWindow;
 
             // Resolve the target window per mode.
-            const probeWindowMode = (): { ok: true; win: any } | { ok: false; error: string; visibleTitles: string[] } => {
-                // v2.7.1 review fix (claude 🟡 + codex 🟡): with the default
-                // windowTitle='Preview' a Chinese / localized cocos editor
-                // whose main window title contains "Preview" (e.g. "Cocos
-                // Creator Preview - <ProjectName>") would falsely match.
-                // Disambiguate by excluding any title that ALSO contains
-                // "Cocos Creator" when the caller stuck with the default.
-                const usingDefault = windowTitle === 'Preview';
-                const allTitles: string[] = BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean) ?? [];
-                const matches = BW?.getAllWindows?.()?.filter((w: any) => {
-                    if (!w || w.isDestroyed()) return false;
-                    const title = w.getTitle?.() || '';
-                    if (!title.includes(windowTitle)) return false;
-                    if (usingDefault && /Cocos\s*Creator/i.test(title)) return false;
-                    return true;
-                }) ?? [];
-                if (matches.length === 0) {
-                    return { ok: false, error: `No Electron window title contains "${windowTitle}"${usingDefault ? ' (and is not the main editor)' : ''}.`, visibleTitles: allTitles };
-                }
-                return { ok: true, win: matches[0] };
-            };
+        const probeWindowMode = (): { ok: true; win: any } | { ok: false; error: string; visibleTitles: string[] } => {
+            // v2.7.1 review fix (claude 🟡 + codex 🟡): with the default
+            // windowTitle='Preview' a Chinese / localized cocos editor
+            // whose main window title contains "Preview" (e.g. "Cocos
+            // Creator Preview - <ProjectName>") would falsely match.
+            // Disambiguate by excluding any title that ALSO contains
+            // "Cocos Creator" when the caller stuck with the default.
+            const usingDefault = windowTitle === 'Preview';
+            const allTitles: string[] = BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean) ?? [];
+            const matches = BW?.getAllWindows?.()?.filter((w: any) => {
+                if (!w || w.isDestroyed()) return false;
+                const title = w.getTitle?.() || '';
+                if (!title.includes(windowTitle)) return false;
+                if (usingDefault && /Cocos\s*Creator/i.test(title)) return false;
+                return true;
+            }) ?? [];
+            if (matches.length === 0) {
+                return { ok: false, error: `No Electron window title contains "${windowTitle}"${usingDefault ? ' (and is not the main editor)' : ''}.`, visibleTitles: allTitles };
+            }
+            return { ok: true, win: matches[0] };
+        };
 
-            const probeEmbeddedMode = (): { ok: true; win: any } | { ok: false; error: string } => {
-                // Embedded PIE renders inside the main editor BrowserWindow.
-                // Pick the same heuristic as pickWindow(): prefer a non-
-                // Preview window. Cocos main editor's title typically
-                // contains "Cocos Creator" — match that to identify it.
-                const all: any[] = BW?.getAllWindows?.()?.filter((w: any) => w && !w.isDestroyed()) ?? [];
-                if (all.length === 0) {
-                    return { ok: false, error: 'No live Electron windows available; cannot capture embedded preview.' };
-                }
-                // Prefer the editor main window (title contains "Cocos
-                // Creator") — that's where embedded PIE renders.
-                const editor = all.find((w: any) => /Cocos\s*Creator/i.test(w.getTitle?.() || ''));
-                if (editor) return { ok: true, win: editor };
-                // Fallback: any non-DevTools / non-Worker / non-Blank window.
-                const candidate = all.find((w: any) => {
-                    const t = w.getTitle?.() || '';
-                    return t && !/DevTools|Worker -|^Blank$/.test(t);
-                });
-                if (candidate) return { ok: true, win: candidate };
-                return { ok: false, error: 'No suitable editor window found for embedded preview capture.' };
-            };
+        const probeEmbeddedMode = (): { ok: true; win: any } | { ok: false; error: string } => {
+            // Embedded PIE renders inside the main editor BrowserWindow.
+            // Pick the same heuristic as pickWindow(): prefer a non-
+            // Preview window. Cocos main editor's title typically
+            // contains "Cocos Creator" — match that to identify it.
+            const all: any[] = BW?.getAllWindows?.()?.filter((w: any) => w && !w.isDestroyed()) ?? [];
+            if (all.length === 0) {
+                return { ok: false, error: 'No live Electron windows available; cannot capture embedded preview.' };
+            }
+            // Prefer the editor main window (title contains "Cocos
+            // Creator") — that's where embedded PIE renders.
+            const editor = all.find((w: any) => /Cocos\s*Creator/i.test(w.getTitle?.() || ''));
+            if (editor) return { ok: true, win: editor };
+            // Fallback: any non-DevTools / non-Worker / non-Blank window.
+            const candidate = all.find((w: any) => {
+                const t = w.getTitle?.() || '';
+                return t && !/DevTools|Worker -|^Blank$/.test(t);
+            });
+            if (candidate) return { ok: true, win: candidate };
+            return { ok: false, error: 'No suitable editor window found for embedded preview capture.' };
+        };
 
-            let win: any = null;
-            let captureNote: string | null = null;
-            let resolvedMode: 'window' | 'embedded' = 'window';
+        let win: any = null;
+        let captureNote: string | null = null;
+        let resolvedMode: 'window' | 'embedded' = 'window';
 
-            if (mode === 'window') {
-                const r = probeWindowMode();
-                if (!r.ok) {
-                    return fail(`${r.error} Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). If your cocos preview is set to "embedded", call this tool with mode="embedded" or mode="auto". Visible window titles: ${r.visibleTitles.join(', ') || '(none)'}`);
-                }
-                win = r.win;
+        if (mode === 'window') {
+            const r = probeWindowMode();
+            if (!r.ok) {
+                return fail(`${r.error} Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). If your cocos preview is set to "embedded", call this tool with mode="embedded" or mode="auto". Visible window titles: ${r.visibleTitles.join(', ') || '(none)'}`);
+            }
+            win = r.win;
+            resolvedMode = 'window';
+        } else if (mode === 'embedded') {
+            const r = probeEmbeddedMode();
+            if (!r.ok) return fail(r.error);
+            win = r.win;
+            resolvedMode = 'embedded';
+        } else {
+            // auto
+            const wr = probeWindowMode();
+            if (wr.ok) {
+                win = wr.win;
                 resolvedMode = 'window';
-            } else if (mode === 'embedded') {
-                const r = probeEmbeddedMode();
-                if (!r.ok) return fail(r.error);
-                win = r.win;
-                resolvedMode = 'embedded';
             } else {
-                // auto
-                const wr = probeWindowMode();
-                if (wr.ok) {
-                    win = wr.win;
-                    resolvedMode = 'window';
-                } else {
-                    const er = probeEmbeddedMode();
-                    if (!er.ok) {
-                        return fail(`${wr.error} ${er.error} Launch cocos preview first or check debug_get_preview_mode to see how cocos is configured. Visible window titles: ${wr.visibleTitles.join(', ') || '(none)'}`);
-                    }
-                    win = er.win;
-                    resolvedMode = 'embedded';
+                const er = probeEmbeddedMode();
+                if (!er.ok) {
+                    return fail(`${wr.error} ${er.error} Launch cocos preview first or check debug_get_preview_mode to see how cocos is configured. Visible window titles: ${wr.visibleTitles.join(', ') || '(none)'}`);
+                }
+                win = er.win;
+                resolvedMode = 'embedded';
                     // v2.8.4 retest finding: when cocos preview is set
                     // to "browser", auto-fallback ALSO grabs the main
                     // editor window (because no Preview-titled window
@@ -977,61 +964,58 @@ export class DebugTools implements ToolExecutor {
                     // preview mode" — that's a guess, and wrong when
                     // user is on browser config. Probe the real config
                     // and tailor the hint per mode.
-                    let actualMode: string | null = null;
-                    try {
-                        const cfg: any = await Editor.Message.request(
-                            'preferences', 'query-config' as any, 'preview' as any,
-                        );
-                        const platform = cfg?.preview?.current?.platform;
-                        if (typeof platform === 'string') actualMode = platform;
-                    } catch {
-                        // best-effort; fall through with neutral hint
-                    }
-                    if (actualMode === 'browser') {
-                        captureNote = 'No Preview-titled window found; captured the main editor window. NOTE: cocos preview is set to "browser" — the actual preview content is rendered in your external browser (NOT in this image). For runtime canvas capture in browser mode use debug_game_command(type="screenshot") via a GameDebugClient running on the browser preview page.';
-                    } else if (actualMode === 'gameView') {
-                        captureNote = 'No Preview-titled window found; captured the main editor window (cocos preview is set to "gameView" embedded — the editor gameview IS where preview renders, so this image is correct).';
-                    } else if (actualMode) {
-                        captureNote = `No Preview-titled window found; captured the main editor window. cocos preview is set to "${actualMode}" — verify this image actually contains the gameview you wanted; for runtime canvas capture prefer debug_game_command via GameDebugClient.`;
-                    } else {
-                        captureNote = 'No Preview-titled window found; captured the main editor window. Could not determine cocos preview mode (debug_get_preview_mode might give more info). If your cocos preview is set to "browser", the actual preview content is in your external browser and is NOT in this image.';
-                    }
+                let actualMode: string | null = null;
+                try {
+                    const cfg: any = await Editor.Message.request(
+                        'preferences', 'query-config' as any, 'preview' as any,
+                    );
+                    const platform = cfg?.preview?.current?.platform;
+                    if (typeof platform === 'string') actualMode = platform;
+                } catch {
+                    // best-effort; fall through with neutral hint
+                }
+                if (actualMode === 'browser') {
+                    captureNote = 'No Preview-titled window found; captured the main editor window. NOTE: cocos preview is set to "browser" — the actual preview content is rendered in your external browser (NOT in this image). For runtime canvas capture in browser mode use debug_game_command(type="screenshot") via a GameDebugClient running on the browser preview page.';
+                } else if (actualMode === 'gameView') {
+                    captureNote = 'No Preview-titled window found; captured the main editor window (cocos preview is set to "gameView" embedded — the editor gameview IS where preview renders, so this image is correct).';
+                } else if (actualMode) {
+                    captureNote = `No Preview-titled window found; captured the main editor window. cocos preview is set to "${actualMode}" — verify this image actually contains the gameview you wanted; for runtime canvas capture prefer debug_game_command via GameDebugClient.`;
+                } else {
+                    captureNote = 'No Preview-titled window found; captured the main editor window. Could not determine cocos preview mode (debug_get_preview_mode might give more info). If your cocos preview is set to "browser", the actual preview content is in your external browser and is NOT in this image.';
                 }
             }
-
-            let filePath = savePath;
-            if (!filePath) {
-                const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
-                if (!resolved.ok) return fail(resolved.error);
-                filePath = resolved.filePath;
-            } else {
-                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
-                // also gets containment-checked.
-                // v2.8.2 retest fix: use resolvedPath for relative-path support.
-                const guard = this.assertSavePathWithinProject(filePath);
-                if (!guard.ok) return fail(guard.error);
-                filePath = guard.resolvedPath;
-            }
-            const image = await win.webContents.capturePage();
-            const png: Buffer = image.toPNG();
-            fs.writeFileSync(filePath, png);
-            const data: any = {
-                filePath,
-                size: png.length,
-                windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
-                mode: resolvedMode,
-            };
-            if (captureNote) data.note = captureNote;
-            if (includeBase64) {
-                data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
-            }
-            const message = captureNote
-                ? `Preview screenshot saved to ${filePath} (${captureNote})`
-                : `Preview screenshot saved to ${filePath} (mode=${resolvedMode})`;
-            return ok(data, message);
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
         }
+
+        let filePath = savePath;
+        if (!filePath) {
+            const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
+            if (!resolved.ok) return fail(resolved.error);
+            filePath = resolved.filePath;
+        } else {
+            // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit savePath
+            // also gets containment-checked.
+            // v2.8.2 retest fix: use resolvedPath for relative-path support.
+            const guard = this.assertSavePathWithinProject(filePath);
+            if (!guard.ok) return fail(guard.error);
+            filePath = guard.resolvedPath;
+        }
+        const image = await win.webContents.capturePage();
+        const png: Buffer = image.toPNG();
+        fs.writeFileSync(filePath, png);
+        const data: any = {
+            filePath,
+            size: png.length,
+            windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
+            mode: resolvedMode,
+        };
+        if (captureNote) data.note = captureNote;
+        if (includeBase64) {
+            data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
+        }
+        const message = captureNote
+            ? `Preview screenshot saved to ${filePath} (${captureNote})`
+            : `Preview screenshot saved to ${filePath} (mode=${resolvedMode})`;
+        return ok(data, message);
     }
 
     // v2.8.3 T-V283-2: read cocos preview config so AI can route
@@ -1223,86 +1207,78 @@ export class DebugTools implements ToolExecutor {
     }
 
     private async batchScreenshot(savePathPrefix?: string, delaysMs: number[] = [0], windowTitle?: string): Promise<ToolResponse> {
-        try {
-            let prefix = savePathPrefix;
-            if (!prefix) {
-                // basename is the prefix stem; per-iteration files extend it
-                // with `-${i}.png`. Containment check on the prefix path is
-                // sufficient because path.join preserves dirname for any
-                // suffix the loop appends.
-                const resolved = this.resolveAutoCaptureFile(`batch-${Date.now()}`);
-                if (!resolved.ok) return fail(resolved.error);
-                prefix = resolved.filePath;
-            } else {
-                // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit prefix
-                // also gets containment-checked. We check the prefix path
-                // itself — every emitted file lives in the same dirname.
-                // v2.8.2 retest fix: use resolvedPath for relative-prefix support.
-                const guard = this.assertSavePathWithinProject(prefix);
-                if (!guard.ok) return fail(guard.error);
-                prefix = guard.resolvedPath;
-            }
-            const win = this.pickWindow(windowTitle);
-            const captures: any[] = [];
-            for (let i = 0; i < delaysMs.length; i++) {
-                const delay = delaysMs[i];
-                if (delay > 0) {
-                    await new Promise(r => setTimeout(r, delay));
-                }
-                const filePath = `${prefix}-${i}.png`;
-                const image = await win.webContents.capturePage();
-                const png: Buffer = image.toPNG();
-                fs.writeFileSync(filePath, png);
-                captures.push({ index: i, delayMs: delay, filePath, size: png.length });
-            }
-            return ok({
-                    count: captures.length,
-                    windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
-                    captures,
-                }, `Captured ${captures.length} screenshots`);
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        let prefix = savePathPrefix;
+        if (!prefix) {
+            // basename is the prefix stem; per-iteration files extend it
+            // with `-${i}.png`. Containment check on the prefix path is
+            // sufficient because path.join preserves dirname for any
+            // suffix the loop appends.
+            const resolved = this.resolveAutoCaptureFile(`batch-${Date.now()}`);
+            if (!resolved.ok) return fail(resolved.error);
+            prefix = resolved.filePath;
+        } else {
+            // v2.8.1 round-1 fix (Gemini 🔴 + Codex 🟡): explicit prefix
+            // also gets containment-checked. We check the prefix path
+            // itself — every emitted file lives in the same dirname.
+            // v2.8.2 retest fix: use resolvedPath for relative-prefix support.
+            const guard = this.assertSavePathWithinProject(prefix);
+            if (!guard.ok) return fail(guard.error);
+            prefix = guard.resolvedPath;
         }
+        const win = this.pickWindow(windowTitle);
+        const captures: any[] = [];
+        for (let i = 0; i < delaysMs.length; i++) {
+            const delay = delaysMs[i];
+            if (delay > 0) {
+                await new Promise(r => setTimeout(r, delay));
+            }
+            const filePath = `${prefix}-${i}.png`;
+            const image = await win.webContents.capturePage();
+            const png: Buffer = image.toPNG();
+            fs.writeFileSync(filePath, png);
+            captures.push({ index: i, delayMs: delay, filePath, size: png.length });
+        }
+        return ok({
+                count: captures.length,
+                windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
+                captures,
+            }, `Captured ${captures.length} screenshots`);
     }
 
     // v2.7.0 #3: preview-url / query-devices handlers ---------------------
 
     private async previewUrl(action: 'query' | 'open' = 'query'): Promise<ToolResponse> {
-        try {
-            const url: string = await Editor.Message.request('preview', 'query-preview-url' as any) as any;
-            if (!url || typeof url !== 'string') {
-                return fail('preview/query-preview-url returned empty result; check that cocos preview server is running');
-            }
-            const data: any = { url };
-            if (action === 'open') {
-                try {
-                    // Lazy require so smoke / non-Electron contexts don't fault
-                    // on missing electron.
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const electron = require('electron');
-                    // v2.7.1 review fix (codex 🟡 + gemini 🟡): openExternal
-                    // resolves when the OS launcher is invoked, not when the
-                    // page renders. Use "launch" wording to avoid the AI
-                    // misreading "opened" as a confirmed page-load.
-                    await electron.shell.openExternal(url);
-                    data.launched = true;
-                } catch (err: any) {
-                    data.launched = false;
-                    data.launchError = err?.message ?? String(err);
-                }
-            }
-            // Reflect actual launch outcome in the top-level message so AI
-            // sees "launch failed" instead of misleading "Opened ..." when
-            // openExternal threw (gemini 🟡).
-            const message = action === 'open'
-                ? (data.launched
-                    ? `Launched ${url} in default browser (page render not awaited)`
-                    : `Returned URL ${url} but launch failed: ${data.launchError}`)
-                : url;
-            return ok(data, message);
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const url: string = await Editor.Message.request('preview', 'query-preview-url' as any) as any;
+        if (!url || typeof url !== 'string') {
+            return fail('preview/query-preview-url returned empty result; check that cocos preview server is running');
         }
+        const data: any = { url };
+        if (action === 'open') {
+            try {
+                // Lazy require so smoke / non-Electron contexts don't fault
+                // on missing electron.
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const electron = require('electron');
+                // v2.7.1 review fix (codex 🟡 + gemini 🟡): openExternal
+                // resolves when the OS launcher is invoked, not when the
+                // page renders. Use "launch" wording to avoid the AI
+                // misreading "opened" as a confirmed page-load.
+                await electron.shell.openExternal(url);
+                data.launched = true;
+            } catch (err: any) {
+                data.launched = false;
+                data.launchError = err?.message ?? String(err);
+            }
+        }
+        // Reflect actual launch outcome in the top-level message so AI
+        // sees "launch failed" instead of misleading "Opened ..." when
+        // openExternal threw (gemini 🟡).
+        const message = action === 'open'
+            ? (data.launched
+                ? `Launched ${url} in default browser (page render not awaited)`
+                : `Returned URL ${url} but launch failed: ${data.launchError}`)
+            : url;
+        return ok(data, message);
     }
 
     // v2.8.0 T-V28-3: PIE play / stop. Routes through scene-script so the
@@ -1495,12 +1471,8 @@ export class DebugTools implements ToolExecutor {
     }
 
     private async queryDevices(): Promise<ToolResponse> {
-        try {
-            const devices: any[] = await Editor.Message.request('device', 'query') as any;
-            return ok({ devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 });
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
-        }
+        const devices: any[] = await Editor.Message.request('device', 'query') as any;
+        return ok({ devices: Array.isArray(devices) ? devices : [], count: Array.isArray(devices) ? devices.length : 0 });
     }
 
     // v2.6.0 T-V26-1: GameDebugClient bridge handlers ---------------------
@@ -1665,55 +1637,47 @@ export class DebugTools implements ToolExecutor {
     // v2.4.8 A1: TS diagnostics handlers ----------------------------------
 
     private async waitCompile(timeoutMs: number = 15000): Promise<ToolResponse> {
-        try {
-            const projectPath = Editor?.Project?.path;
-            if (!projectPath) {
-                return fail('wait_compile: editor context unavailable (no Editor.Project.path)');
-            }
-            const result = await waitForCompile(projectPath, timeoutMs);
-            if (!result.success) {
-                return fail(result.error ?? 'wait_compile failed', result);
-            }
-            return ok(result, result.compiled
-                    ? `Compile finished in ${result.waitedMs}ms`
-                    : (result.note ?? 'No compile triggered or timed out'));
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const projectPath = Editor?.Project?.path;
+        if (!projectPath) {
+            return fail('wait_compile: editor context unavailable (no Editor.Project.path)');
         }
+        const result = await waitForCompile(projectPath, timeoutMs);
+        if (!result.success) {
+            return fail(result.error ?? 'wait_compile failed', result);
+        }
+        return ok(result, result.compiled
+                ? `Compile finished in ${result.waitedMs}ms`
+                : (result.note ?? 'No compile triggered or timed out'));
     }
 
     private async runScriptDiagnostics(tsconfigPath?: string): Promise<ToolResponse> {
-        try {
-            const projectPath = Editor?.Project?.path;
-            if (!projectPath) {
-                return fail('run_script_diagnostics: editor context unavailable (no Editor.Project.path)');
-            }
-            const result = await runScriptDiagnostics(projectPath, { tsconfigPath });
-            return {
-                success: result.ok,
-                message: result.summary,
-                data: {
-                    tool: result.tool,
-                    binary: result.binary,
-                    tsconfigPath: result.tsconfigPath,
-                    exitCode: result.exitCode,
-                    diagnostics: result.diagnostics,
-                    diagnosticCount: result.diagnostics.length,
-                    // v2.4.9 review fix: spawn failures (binary missing /
-                    // permission denied) surfaced explicitly so AI can
-                    // distinguish "tsc never ran" from "tsc found errors".
-                    spawnFailed: result.spawnFailed === true,
-                    systemError: result.systemError,
-                    // Truncate raw streams to keep tool result reasonable;
-                    // full content rarely useful when the parser already
-                    // structured the errors.
-                    stdoutTail: result.stdout.slice(-2000),
-                    stderrTail: result.stderr.slice(-2000),
-                },
-            };
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const projectPath = Editor?.Project?.path;
+        if (!projectPath) {
+            return fail('run_script_diagnostics: editor context unavailable (no Editor.Project.path)');
         }
+        const result = await runScriptDiagnostics(projectPath, { tsconfigPath });
+        return {
+            success: result.ok,
+            message: result.summary,
+            data: {
+                tool: result.tool,
+                binary: result.binary,
+                tsconfigPath: result.tsconfigPath,
+                exitCode: result.exitCode,
+                diagnostics: result.diagnostics,
+                diagnosticCount: result.diagnostics.length,
+                // v2.4.9 review fix: spawn failures (binary missing /
+                // permission denied) surfaced explicitly so AI can
+                // distinguish "tsc never ran" from "tsc found errors".
+                spawnFailed: result.spawnFailed === true,
+                systemError: result.systemError,
+                // Truncate raw streams to keep tool result reasonable;
+                // full content rarely useful when the parser already
+                // structured the errors.
+                stdoutTail: result.stdout.slice(-2000),
+                stderrTail: result.stderr.slice(-2000),
+            },
+        };
     }
 
     private async getScriptDiagnosticContext(
@@ -1721,49 +1685,45 @@ export class DebugTools implements ToolExecutor {
         line: number,
         contextLines: number = 5,
     ): Promise<ToolResponse> {
-        try {
-            const projectPath = Editor?.Project?.path;
-            if (!projectPath) {
-                return fail('get_script_diagnostic_context: editor context unavailable');
-            }
-            // v2.9.x polish (Gemini r2 single-🟡 from v2.8.1 review): converge
-            // on assertSavePathWithinProject. The previous bespoke realpath
-            // + toLowerCase + path.sep check is functionally subsumed by the
-            // shared helper (which itself moved to the path.relative-based
-            // isPathWithinRoot in v2.9.x polish #1, handling drive-root and
-            // prefix-collision edges uniformly).
-            const guard = this.assertSavePathWithinProject(file);
-            if (!guard.ok) {
-                return fail(`get_script_diagnostic_context: ${guard.error}`);
-            }
-            const resolved = guard.resolvedPath;
-            if (!fs.existsSync(resolved)) {
-                return fail(`get_script_diagnostic_context: file not found: ${resolved}`);
-            }
-            const stat = fs.statSync(resolved);
-            if (stat.size > 5 * 1024 * 1024) {
-                return fail(`get_script_diagnostic_context: file too large (${stat.size} bytes); refusing to read.`);
-            }
-            const content = fs.readFileSync(resolved, 'utf8');
-            const allLines = content.split(/\r?\n/);
-            if (line < 1 || line > allLines.length) {
-                return fail(`get_script_diagnostic_context: line ${line} out of range 1..${allLines.length}`);
-            }
-            const start = Math.max(1, line - contextLines);
-            const end = Math.min(allLines.length, line + contextLines);
-            const window = allLines.slice(start - 1, end);
-            const projectResolvedNorm = path.resolve(projectPath);
-            return ok({
-                    file: path.relative(projectResolvedNorm, resolved),
-                    absolutePath: resolved,
-                    targetLine: line,
-                    startLine: start,
-                    endLine: end,
-                    totalLines: allLines.length,
-                    lines: window.map((text, i) => ({ line: start + i, text })),
-                }, `Read ${window.length} lines of context around ${path.relative(projectResolvedNorm, resolved)}:${line}`);
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const projectPath = Editor?.Project?.path;
+        if (!projectPath) {
+            return fail('get_script_diagnostic_context: editor context unavailable');
         }
+        // v2.9.x polish (Gemini r2 single-🟡 from v2.8.1 review): converge
+        // on assertSavePathWithinProject. The previous bespoke realpath
+        // + toLowerCase + path.sep check is functionally subsumed by the
+        // shared helper (which itself moved to the path.relative-based
+        // isPathWithinRoot in v2.9.x polish #1, handling drive-root and
+        // prefix-collision edges uniformly).
+        const guard = this.assertSavePathWithinProject(file);
+        if (!guard.ok) {
+            return fail(`get_script_diagnostic_context: ${guard.error}`);
+        }
+        const resolved = guard.resolvedPath;
+        if (!fs.existsSync(resolved)) {
+            return fail(`get_script_diagnostic_context: file not found: ${resolved}`);
+        }
+        const stat = fs.statSync(resolved);
+        if (stat.size > 5 * 1024 * 1024) {
+            return fail(`get_script_diagnostic_context: file too large (${stat.size} bytes); refusing to read.`);
+        }
+        const content = fs.readFileSync(resolved, 'utf8');
+        const allLines = content.split(/\r?\n/);
+        if (line < 1 || line > allLines.length) {
+            return fail(`get_script_diagnostic_context: line ${line} out of range 1..${allLines.length}`);
+        }
+        const start = Math.max(1, line - contextLines);
+        const end = Math.min(allLines.length, line + contextLines);
+        const window = allLines.slice(start - 1, end);
+        const projectResolvedNorm = path.resolve(projectPath);
+        return ok({
+                file: path.relative(projectResolvedNorm, resolved),
+                absolutePath: resolved,
+                targetLine: line,
+                startLine: start,
+                endLine: end,
+                totalLines: allLines.length,
+                lines: window.map((text, i) => ({ line: start + i, text })),
+            }, `Read ${window.length} lines of context around ${path.relative(projectResolvedNorm, resolved)}:${line}`);
     }
 }

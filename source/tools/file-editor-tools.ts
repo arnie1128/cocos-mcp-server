@@ -168,16 +168,11 @@ const insertText: ToolDef = {
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
-        let content: string;
-        try {
-            const stat = fs.statSync(r.abs);
-            if (stat.size > FILE_READ_BYTE_CAP) {
-                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
-            }
-            content = fs.readFileSync(r.abs, 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const stat = fs.statSync(r.abs);
+        if (stat.size > FILE_READ_BYTE_CAP) {
+            return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
         }
+        const content = fs.readFileSync(r.abs, 'utf-8');
         const { lines, eol } = splitLinesNormalized(content);
         const insertIndex = args.line - 1;
         if (insertIndex >= lines.length) {
@@ -185,11 +180,7 @@ const insertText: ToolDef = {
         } else {
             lines.splice(insertIndex, 0, args.text);
         }
-        try {
-            fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
-        }
+        fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Inserted text at line ${Math.min(args.line, lines.length)} of ${r.relProject}`);
     },
@@ -210,16 +201,11 @@ const deleteLines: ToolDef = {
         }
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
-        let content: string;
-        try {
-            const stat = fs.statSync(r.abs);
-            if (stat.size > FILE_READ_BYTE_CAP) {
-                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
-            }
-            content = fs.readFileSync(r.abs, 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const stat = fs.statSync(r.abs);
+        if (stat.size > FILE_READ_BYTE_CAP) {
+            return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
         }
+        const content = fs.readFileSync(r.abs, 'utf-8');
         const { lines, eol } = splitLinesNormalized(content);
         const deleteStart = args.startLine - 1;
         const requestedCount = args.endLine - args.startLine + 1;
@@ -228,11 +214,7 @@ const deleteLines: ToolDef = {
             return fail(`file-editor: range ${args.startLine}-${args.endLine} is past EOF (file has ${lines.length} lines)`);
         }
         lines.splice(deleteStart, deletedCount);
-        try {
-            fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
-        }
+        fs.writeFileSync(r.abs, lines.join(eol), 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, deletedCount, totalLines: lines.length, eol: eol === '\r\n' ? 'CRLF' : 'LF' }, `Deleted ${deletedCount} line(s) from line ${args.startLine} to ${args.startLine + deletedCount - 1} of ${r.relProject}`);
     },
@@ -255,26 +237,21 @@ const replaceText: ToolDef = {
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
-        let content: string;
-        try {
-            const stat = fs.statSync(r.abs);
-            if (stat.size > FILE_READ_BYTE_CAP) {
-                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
-            }
-            // v2.5.1 round-1 review fix (codex + claude + gemini 🟡): regex
-            // mode runs user-controlled patterns against the file content
-            // with no timeout. Cap to a smaller window in regex mode so
-            // catastrophic backtracking on a large file can't hang the
-            // editor's host process. Plain-string mode keeps the larger
-            // FILE_READ_BYTE_CAP because String.split/indexOf/slice are
-            // bounded by V8 internals (no regex engine path).
-            if (args.useRegex && stat.size > REGEX_MODE_BYTE_CAP) {
-                return fail(`file-editor: regex mode refuses files > ${REGEX_MODE_BYTE_CAP} bytes (${stat.size} bytes here). Switch to useRegex:false or split the file first.`);
-            }
-            content = fs.readFileSync(r.abs, 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const stat = fs.statSync(r.abs);
+        if (stat.size > FILE_READ_BYTE_CAP) {
+            return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
         }
+        // v2.5.1 round-1 review fix (codex + claude + gemini 🟡): regex
+        // mode runs user-controlled patterns against the file content
+        // with no timeout. Cap to a smaller window in regex mode so
+        // catastrophic backtracking on a large file can't hang the
+        // editor's host process. Plain-string mode keeps the larger
+        // FILE_READ_BYTE_CAP because String.split/indexOf/slice are
+        // bounded by V8 internals (no regex engine path).
+        if (args.useRegex && stat.size > REGEX_MODE_BYTE_CAP) {
+            return fail(`file-editor: regex mode refuses files > ${REGEX_MODE_BYTE_CAP} bytes (${stat.size} bytes here). Switch to useRegex:false or split the file first.`);
+        }
+        const content = fs.readFileSync(r.abs, 'utf-8');
         let replacements = 0;
         let newContent: string;
         try {
@@ -308,11 +285,7 @@ const replaceText: ToolDef = {
         if (replacements === 0) {
             return ok({ file: r.relProject, replacements: 0 }, 'No occurrences found; file unchanged.');
         }
-        try {
-            fs.writeFileSync(r.abs, newContent, 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
-        }
+        fs.writeFileSync(r.abs, newContent, 'utf-8');
         await refreshAssetDb(r.abs);
         return ok({ file: r.relProject, replacements }, `Replaced ${replacements} occurrence(s) in ${r.relProject}`);
     },
@@ -330,16 +303,11 @@ const queryText: ToolDef = {
     handler: async (args): Promise<ToolResponse> => {
         const r = resolvePathForRead(args.filePath);
         if ('error' in r) return fail(r.error);
-        let content: string;
-        try {
-            const stat = fs.statSync(r.abs);
-            if (stat.size > FILE_READ_BYTE_CAP) {
-                return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
-            }
-            content = fs.readFileSync(r.abs, 'utf-8');
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+        const stat = fs.statSync(r.abs);
+        if (stat.size > FILE_READ_BYTE_CAP) {
+            return fail(`file-editor: file too large (${stat.size} bytes); refusing to read.`);
         }
+        const content = fs.readFileSync(r.abs, 'utf-8');
         const { lines, eol } = splitLinesNormalized(content);
         const totalLines = lines.length;
         const from = (args.startLine ?? 1) - 1;

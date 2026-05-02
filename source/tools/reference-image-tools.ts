@@ -77,88 +77,84 @@ export class ReferenceImageTools implements ToolExecutor {
 
     private async dispatch(args: any): Promise<ToolResponse> {
         const op = args.op as string;
-        try {
-            switch (op) {
-                case 'add': {
-                    const err = this.requireFields(op, args, 'paths');
-                    if (err) return fail(err);
-                    // v2.9.5 review fix (Claude 🟡): the schema marks
-                    // `paths` as `array(string)` but the dispatcher
-                    // requireFields helper only checks present-and-non-null.
-                    // A misshapen call (string / number) would otherwise
-                    // pass through to Editor.Message and the response
-                    // message would say "Added undefined reference image(s)".
-                    if (!Array.isArray(args.paths) || args.paths.length === 0) {
-                        return fail(`reference_image(op="add") requires paths to be a non-empty array of strings; got ${JSON.stringify(args.paths)}.`);
-                    }
-                    await Editor.Message.request('reference-image', 'add-image', args.paths);
-                    return ok({ op, addedPaths: args.paths, count: args.paths.length }, `Added ${args.paths.length} reference image(s)`);
+        switch (op) {
+            case 'add': {
+                const err = this.requireFields(op, args, 'paths');
+                if (err) return fail(err);
+                // v2.9.5 review fix (Claude 🟡): the schema marks
+                // `paths` as `array(string)` but the dispatcher
+                // requireFields helper only checks present-and-non-null.
+                // A misshapen call (string / number) would otherwise
+                // pass through to Editor.Message and the response
+                // message would say "Added undefined reference image(s)".
+                if (!Array.isArray(args.paths) || args.paths.length === 0) {
+                    return fail(`reference_image(op="add") requires paths to be a non-empty array of strings; got ${JSON.stringify(args.paths)}.`);
                 }
-                case 'remove': {
-                    await Editor.Message.request('reference-image', 'remove-image', args.paths);
-                    return ok({ op, removedPaths: args.paths ?? null }, args.paths && args.paths.length > 0
-                            ? `Removed ${args.paths.length} reference image(s)`
-                            : 'Removed current reference image');
-                }
-                case 'switch': {
-                    const err = this.requireFields(op, args, 'path');
-                    if (err) return fail(err);
-                    const callArgs = args.sceneUUID ? [args.path, args.sceneUUID] : [args.path];
-                    await Editor.Message.request('reference-image', 'switch-image', ...callArgs);
-                    return ok({ op, path: args.path, sceneUUID: args.sceneUUID ?? null }, `Switched to reference image: ${args.path}`);
-                }
-                case 'set_data': {
-                    const err = this.requireFields(op, args, 'key', 'value');
-                    if (err) return fail(err);
-                    await Editor.Message.request('reference-image', 'set-image-data', args.key, args.value);
-                    return ok({ op, key: args.key, value: args.value }, `Reference image ${args.key} set to ${args.value}`);
-                }
-                case 'query_config': {
-                    const config: any = await Editor.Message.request('reference-image', 'query-config');
-                    return ok({ op, config });
-                }
-                case 'query_current': {
-                    const current: any = await Editor.Message.request('reference-image', 'query-current');
-                    return ok({ op, current });
-                }
-                case 'refresh': {
-                    await Editor.Message.request('reference-image', 'refresh');
-                    return ok({ op }, 'Reference image refreshed');
-                }
-                case 'set_position': {
-                    const err = this.requireFields(op, args, 'x', 'y');
-                    if (err) return fail(err);
-                    await Editor.Message.request('reference-image', 'set-image-data', 'x', args.x);
-                    await Editor.Message.request('reference-image', 'set-image-data', 'y', args.y);
-                    return ok({ op, x: args.x, y: args.y }, `Reference image position set to (${args.x}, ${args.y})`);
-                }
-                case 'set_scale': {
-                    const err = this.requireFields(op, args, 'sx', 'sy');
-                    if (err) return fail(err);
-                    await Editor.Message.request('reference-image', 'set-image-data', 'sx', args.sx);
-                    await Editor.Message.request('reference-image', 'set-image-data', 'sy', args.sy);
-                    return ok({ op, sx: args.sx, sy: args.sy }, `Reference image scale set to (${args.sx}, ${args.sy})`);
-                }
-                case 'set_opacity': {
-                    const err = this.requireFields(op, args, 'opacity');
-                    if (err) return fail(err);
-                    await Editor.Message.request('reference-image', 'set-image-data', 'opacity', args.opacity);
-                    return ok({ op, opacity: args.opacity }, `Reference image opacity set to ${args.opacity}`);
-                }
-                case 'list': {
-                    const config: any = await Editor.Message.request('reference-image', 'query-config');
-                    const current: any = await Editor.Message.request('reference-image', 'query-current');
-                    return ok({ op, config, current });
-                }
-                case 'clear_all': {
-                    await Editor.Message.request('reference-image', 'remove-image');
-                    return ok({ op }, 'All reference images cleared');
-                }
-                default:
-                    return fail(`Unknown reference_image op: ${op}`);
+                await Editor.Message.request('reference-image', 'add-image', args.paths);
+                return ok({ op, addedPaths: args.paths, count: args.paths.length }, `Added ${args.paths.length} reference image(s)`);
             }
-        } catch (err: any) {
-            return fail(err?.message ?? String(err));
+            case 'remove': {
+                await Editor.Message.request('reference-image', 'remove-image', args.paths);
+                return ok({ op, removedPaths: args.paths ?? null }, args.paths && args.paths.length > 0
+                        ? `Removed ${args.paths.length} reference image(s)`
+                        : 'Removed current reference image');
+            }
+            case 'switch': {
+                const err = this.requireFields(op, args, 'path');
+                if (err) return fail(err);
+                const callArgs = args.sceneUUID ? [args.path, args.sceneUUID] : [args.path];
+                await Editor.Message.request('reference-image', 'switch-image', ...callArgs);
+                return ok({ op, path: args.path, sceneUUID: args.sceneUUID ?? null }, `Switched to reference image: ${args.path}`);
+            }
+            case 'set_data': {
+                const err = this.requireFields(op, args, 'key', 'value');
+                if (err) return fail(err);
+                await Editor.Message.request('reference-image', 'set-image-data', args.key, args.value);
+                return ok({ op, key: args.key, value: args.value }, `Reference image ${args.key} set to ${args.value}`);
+            }
+            case 'query_config': {
+                const config: any = await Editor.Message.request('reference-image', 'query-config');
+                return ok({ op, config });
+            }
+            case 'query_current': {
+                const current: any = await Editor.Message.request('reference-image', 'query-current');
+                return ok({ op, current });
+            }
+            case 'refresh': {
+                await Editor.Message.request('reference-image', 'refresh');
+                return ok({ op }, 'Reference image refreshed');
+            }
+            case 'set_position': {
+                const err = this.requireFields(op, args, 'x', 'y');
+                if (err) return fail(err);
+                await Editor.Message.request('reference-image', 'set-image-data', 'x', args.x);
+                await Editor.Message.request('reference-image', 'set-image-data', 'y', args.y);
+                return ok({ op, x: args.x, y: args.y }, `Reference image position set to (${args.x}, ${args.y})`);
+            }
+            case 'set_scale': {
+                const err = this.requireFields(op, args, 'sx', 'sy');
+                if (err) return fail(err);
+                await Editor.Message.request('reference-image', 'set-image-data', 'sx', args.sx);
+                await Editor.Message.request('reference-image', 'set-image-data', 'sy', args.sy);
+                return ok({ op, sx: args.sx, sy: args.sy }, `Reference image scale set to (${args.sx}, ${args.sy})`);
+            }
+            case 'set_opacity': {
+                const err = this.requireFields(op, args, 'opacity');
+                if (err) return fail(err);
+                await Editor.Message.request('reference-image', 'set-image-data', 'opacity', args.opacity);
+                return ok({ op, opacity: args.opacity }, `Reference image opacity set to ${args.opacity}`);
+            }
+            case 'list': {
+                const config: any = await Editor.Message.request('reference-image', 'query-config');
+                const current: any = await Editor.Message.request('reference-image', 'query-current');
+                return ok({ op, config, current });
+            }
+            case 'clear_all': {
+                await Editor.Message.request('reference-image', 'remove-image');
+                return ok({ op }, 'All reference images cleared');
+            }
+            default:
+                return fail(`Unknown reference_image op: ${op}`);
         }
     }
 }

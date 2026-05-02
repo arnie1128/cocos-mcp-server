@@ -143,45 +143,31 @@ export class BroadcastTools implements ToolExecutor {
     }
 
     private async listenBroadcast(messageType: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            try {
-                if (!this.listeners.has(messageType)) {
-                    this.addBroadcastListener(messageType);
-                    resolve(ok({
-                            messageType: messageType,
-                            message: `Started listening for broadcast: ${messageType}`
-                        }));
-                } else {
-                    resolve(ok({
-                            messageType: messageType,
-                            message: `Already listening for broadcast: ${messageType}`
-                        }));
-                }
-            } catch (err: any) {
-                resolve(fail(err.message));
-            }
-        });
+        if (!this.listeners.has(messageType)) {
+            this.addBroadcastListener(messageType);
+            return ok({
+                    messageType: messageType,
+                    message: `Started listening for broadcast: ${messageType}`
+                });
+        }
+        return ok({
+                messageType: messageType,
+                message: `Already listening for broadcast: ${messageType}`
+            });
     }
 
     private async stopListening(messageType: string): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            try {
-                if (this.listeners.has(messageType)) {
-                    this.removeBroadcastListener(messageType);
-                    resolve(ok({
-                            messageType: messageType,
-                            message: `Stopped listening for broadcast: ${messageType}`
-                        }));
-                } else {
-                    resolve(ok({
-                            messageType: messageType,
-                            message: `Was not listening for broadcast: ${messageType}`
-                        }));
-                }
-            } catch (err: any) {
-                resolve(fail(err.message));
-            }
-        });
+        if (this.listeners.has(messageType)) {
+            this.removeBroadcastListener(messageType);
+            return ok({
+                    messageType: messageType,
+                    message: `Stopped listening for broadcast: ${messageType}`
+                });
+        }
+        return ok({
+                messageType: messageType,
+                message: `Was not listening for broadcast: ${messageType}`
+            });
     }
 
     private async clearBroadcastLog(): Promise<ToolResponse> {

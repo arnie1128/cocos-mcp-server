@@ -45,45 +45,41 @@ export class ValidationTools implements ToolExecutor {
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
 
     private async validateJsonParams(jsonString: string, expectedSchema?: any): Promise<ToolResponse> {
+        // First try to parse as-is
+        let parsed;
         try {
-            // First try to parse as-is
-            let parsed;
-            try {
-                parsed = JSON.parse(jsonString);
-            } catch (error: any) {
-                // Try to fix common issues
-                const fixed = this.fixJsonString(jsonString);
-                try {
-                    parsed = JSON.parse(fixed);
-                } catch (secondError) {
-                    return fail(`Cannot fix JSON: ${error.message}`, {
-                            originalJson: jsonString,
-                            fixedAttempt: fixed,
-                            suggestions: this.getJsonFixSuggestions(jsonString)
-                        });
-                }
-            }
-
-            // Validate against schema if provided
-            if (expectedSchema) {
-                const validation = this.validateAgainstSchema(parsed, expectedSchema);
-                if (!validation.valid) {
-                    return fail('Schema validation failed', {
-                            parsedJson: parsed,
-                            validationErrors: validation.errors,
-                            suggestions: validation.suggestions
-                        });
-                }
-            }
-
-            return ok({
-                    parsedJson: parsed,
-                    fixedJson: JSON.stringify(parsed, null, 2),
-                    isValid: true
-                });
+            parsed = JSON.parse(jsonString);
         } catch (error: any) {
-            return fail(error.message);
+            // Try to fix common issues
+            const fixed = this.fixJsonString(jsonString);
+            try {
+                parsed = JSON.parse(fixed);
+            } catch (secondError) {
+                return fail(`Cannot fix JSON: ${error.message}`, {
+                        originalJson: jsonString,
+                        fixedAttempt: fixed,
+                        suggestions: this.getJsonFixSuggestions(jsonString)
+                    });
+            }
         }
+
+        // Validate against schema if provided
+        if (expectedSchema) {
+            const validation = this.validateAgainstSchema(parsed, expectedSchema);
+            if (!validation.valid) {
+                return fail('Schema validation failed', {
+                        parsedJson: parsed,
+                        validationErrors: validation.errors,
+                        suggestions: validation.suggestions
+                    });
+            }
+        }
+
+        return ok({
+                parsedJson: parsed,
+                fixedJson: JSON.stringify(parsed, null, 2),
+                isValid: true
+            });
     }
 
     private async createSafeStringValue(value: string): Promise<ToolResponse> {
