@@ -5,7 +5,7 @@
 > 重新生成。手寫的章節介紹（category 描述、總覽段）放在 generator 內。
 
 Cocos MCP Server 透過 [Model Context Protocol](https://modelcontextprotocol.io/) 對外暴露
-**186 tools across 18 categories**（186 個工具，分 18 個 category）。
+**180 tools across 18 categories**（180 個工具，分 18 個 category）。
 每個工具的 input schema 由 zod 在 `source/tools/&lt;category&gt;-tools.ts` 內定義，
 經過 `lib/schema.ts:toInputSchema` 轉成 JSON Schema 後送出 `tools/list`。
 Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.title`，缺少時由工具名稱自動轉成人類可讀文字。
@@ -33,7 +33,7 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | [`prefab`](#prefab) | 11 | Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data、restore。除了 `restore_prefab… |
 | [`project`](#project) | 24 | 資源管理 + 專案建構：asset CRUD、build / preview server、設定查詢。覆蓋大多數 asset-db 高頻操作。 |
 | [`debug`](#debug) | 26 | console log、截圖、preview 與系統資訊：取得 / 清空 console、讀 project log 檔、編輯器資訊。 |
-| [`preferences`](#preferences) | 7 | 編輯器偏好設定的讀寫。 |
+| [`preferences`](#preferences) | 1 | 編輯器偏好設定的讀寫。 |
 | [`server`](#server) | 6 | MCP server 自身的狀態與環境資訊。 |
 | [`broadcast`](#broadcast) | 5 | `Editor.Message` 廣播訊息監聽 / 發送。 |
 | [`sceneAdvanced`](#sceneadvanced) | 23 | 場景進階查詢與 scene-script 入口：依 asset uuid 反查節點、執行任意 scene-script 方法、批次節點查詢等。 |
@@ -142,13 +142,7 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `debug` | [`debug_check_editor_health`](#debug_check_editor_health) | Check editor health | [specialist] Probe whether the cocos editor scene-script renderer is responsive. |
 | `debug` | [`debug_preview_control`](#debug_preview_control) | Control preview playback | ⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16). |
 | `debug` | [`debug_get_script_diagnostic_context`](#debug_get_script_diagnostic_context) | Read diagnostic context | [specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. |
-| `preferences` | [`preferences_open_preferences_settings`](#preferences_open_preferences_settings) | Open preferences settings | [specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only. |
-| `preferences` | [`preferences_query_preferences_config`](#preferences_query_preferences_config) | Read preferences config | [specialist] Read a Preferences config category/path/type; query before setting values. |
-| `preferences` | [`preferences_set_preferences_config`](#preferences_set_preferences_config) | Set preferences config | [specialist] Write a Preferences config value; mutates Cocos global/local settings. |
-| `preferences` | [`preferences_get_all_preferences`](#preferences_get_all_preferences) | Read all preferences | [specialist] Read common Preferences categories; may not include every extension category. |
-| `preferences` | [`preferences_reset_preferences`](#preferences_reset_preferences) | Reset preferences | [specialist] Reset one Preferences category to defaults; all-category reset is unsupported. |
-| `preferences` | [`preferences_export_preferences`](#preferences_export_preferences) | Export preferences | [specialist] Return readable Preferences as JSON data; does not write a file. |
-| `preferences` | [`preferences_import_preferences`](#preferences_import_preferences) | Import preferences | [specialist] Unsupported Preferences import placeholder; never modifies settings. |
+| `preferences` | [`preferences_manage`](#preferences_manage) | Manage preferences | [specialist] Macro tool for cocos editor preferences. |
 | `server` | [`server_query_server_ip_list`](#server_query_server_ip_list) | Read server IP list | [specialist] Read IPs reported by the Cocos Editor server. |
 | `server` | [`server_query_sorted_server_ip_list`](#server_query_sorted_server_ip_list) | Read sorted server IPs | [specialist] Read the Editor server IP list in preferred order. |
 | `server` | [`server_query_server_port`](#server_query_server_port) | Read server port | [specialist] Read the current Cocos Editor server port. |
@@ -1757,115 +1751,28 @@ _[specialist] Read a window of source lines around a diagnostic location so AI c
 
 編輯器偏好設定的讀寫。
 
-本 category 共 **7** 個工具。
+本 category 共 **1** 個工具。
 
-<a id="preferences_open_preferences_settings"></a>
+<a id="preferences_manage"></a>
 
 <details>
-<summary><code>preferences_open_preferences_settings</code> — Open preferences settings</summary>
+<summary><code>preferences_manage</code> — Manage preferences</summary>
 
-_[specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only._
+_[specialist] Macro tool for cocos editor preferences._
 
-[specialist] Open Cocos Preferences UI, optionally on a tab; UI side effect only.
+[specialist] Macro tool for cocos editor preferences. op routes to: open_settings (UI), query_config / set_config (read/write a path), get_all (dump common categories), reset (single category to defaults), export (return JSON), import (unsupported placeholder).
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
-| `tab` | enum: `general` \| `external-tools` \| `data-editor` \| `laboratory` \| `extensions` |  |  | Preferences tab to open. Omit for the default settings panel. |
-| `args` | array&lt;any&gt; |  |  | Extra tab arguments; normally unnecessary. |
-
-</details>
-
-<a id="preferences_query_preferences_config"></a>
-
-<details>
-<summary><code>preferences_query_preferences_config</code> — Read preferences config</summary>
-
-_[specialist] Read a Preferences config category/path/type; query before setting values._
-
-[specialist] Read a Preferences config category/path/type; query before setting values.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `name` | string |  | `"general"` | Preferences category or extension/plugin name. Default general. |
-| `path` | string |  |  | Optional config path. Omit to read the whole category. |
-| `type` | enum: `default` \| `global` \| `local` |  | `"global"` | Config source: default, global, or project-local. |
-
-</details>
-
-<a id="preferences_set_preferences_config"></a>
-
-<details>
-<summary><code>preferences_set_preferences_config</code> — Set preferences config</summary>
-
-_[specialist] Write a Preferences config value; mutates Cocos global/local settings._
-
-[specialist] Write a Preferences config value; mutates Cocos global/local settings.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `name` | string | ✓ |  | Preferences category or extension/plugin name to modify. |
-| `path` | string | ✓ |  | Exact config path to modify. Query first if unsure. |
-| `value` | any | ✓ |  | Value to write; must match the target preference field shape. |
-| `type` | enum: `default` \| `global` \| `local` |  | `"global"` | Write target. Prefer global or local; avoid default unless intentional. |
-
-</details>
-
-<a id="preferences_get_all_preferences"></a>
-
-<details>
-<summary><code>preferences_get_all_preferences</code> — Read all preferences</summary>
-
-_[specialist] Read common Preferences categories; may not include every extension category._
-
-[specialist] Read common Preferences categories; may not include every extension category.
-
-**參數**：無
-
-</details>
-
-<a id="preferences_reset_preferences"></a>
-
-<details>
-<summary><code>preferences_reset_preferences</code> — Reset preferences</summary>
-
-_[specialist] Reset one Preferences category to defaults; all-category reset is unsupported._
-
-[specialist] Reset one Preferences category to defaults; all-category reset is unsupported.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `name` | string |  |  | Single preference category to reset. Resetting all categories is not supported. |
-| `type` | enum: `global` \| `local` |  | `"global"` | Config scope to reset. Default global. |
-
-</details>
-
-<a id="preferences_export_preferences"></a>
-
-<details>
-<summary><code>preferences_export_preferences</code> — Export preferences</summary>
-
-_[specialist] Return readable Preferences as JSON data; does not write a file._
-
-[specialist] Return readable Preferences as JSON data; does not write a file.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `exportPath` | string |  |  | Label for the returned export path. Current implementation returns JSON data only; it does not write a file. |
-
-</details>
-
-<a id="preferences_import_preferences"></a>
-
-<details>
-<summary><code>preferences_import_preferences</code> — Import preferences</summary>
-
-_[specialist] Unsupported Preferences import placeholder; never modifies settings._
-
-[specialist] Unsupported Preferences import placeholder; never modifies settings.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `importPath` | string | ✓ |  | Preferences file path to import. Current implementation reports unsupported and does not modify settings. |
+| `op` | enum: `open_settings` \| `query_config` \| `set_config` \| `get_all` \| `reset` \| `export` \| `import` | ✓ |  | Action to perform. open_settings shows UI; query_config/set_config read/write one path; get_all dumps common categories; reset restores one category to defaults; export returns JSON; import is unsupported. |
+| `name` | string |  |  | Preferences category or extension name. Required by query_config (default "general"), set_config, reset (single-category only). |
+| `path` | string |  |  | Config path within the category. Optional for query_config (omit to read whole category); required for set_config. |
+| `value` | any |  |  | Value to write. Required for set_config; must match the target preference field shape. |
+| `type` | enum: `default` \| `global` \| `local` |  |  | Config source/scope. query_config defaults to "global"; set_config defaults to "global"; reset accepts global/local. |
+| `tab` | enum: `general` \| `external-tools` \| `data-editor` \| `laboratory` \| `extensions` |  |  | Used only by op="open_settings" to land on a specific tab. |
+| `args` | array&lt;any&gt; |  |  | Used only by op="open_settings" for extra tab arguments; normally unnecessary. |
+| `importPath` | string |  |  | Used only by op="import"; current implementation reports unsupported and does not modify settings. |
+| `exportPath` | string |  |  | Used only by op="export" as label for the returned export path. Does not write a file. |
 
 </details>
 
