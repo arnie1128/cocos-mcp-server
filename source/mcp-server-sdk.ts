@@ -384,15 +384,48 @@ export class MCPServer {
         // The server only listens on 127.0.0.1, so external attackers can't
         // reach it; the wildcard does mean any local web page in the user's
         // browser could probe it, which is acceptable for a developer tool.
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
-        res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
+        //
+        // EXCEPTION: /game/* endpoints are scoped to a strict origin
+        // allowlist (v2.7.0 #2 fix on v2.6.0 review W7). The reasoning:
+        // /game/result is a write endpoint that mutates the single-flight
+        // queue state shared by ALL MCP sessions on this host. A malicious
+        // local browser tab with the wildcard CORS could time a POST to
+        // race a legitimate command's result. /game/command and
+        // /game/status are reads but the legitimate caller (GameDebugClient
+        // running inside cocos preview / browser preview) is well-known.
+        const isGameEndpoint = pathname?.startsWith('/game/') === true;
+        if (isGameEndpoint) {
+            const acao = resolveGameCorsOrigin(req.headers.origin);
+            if (acao !== null) {
+                res.setHeader('Access-Control-Allow-Origin', acao);
+                // Vary so browser caches don't poison cross-origin responses.
+                res.setHeader('Vary', 'Origin');
+            } // else: omit ACAO entirely; browsers will block the response.
+            // Reject preflight from disallowed origins fast so the request
+            // never reaches the queue logic.
+            if (req.method === 'OPTIONS') {
+                if (acao === null) {
+                    res.writeHead(403);
+                    res.end();
+                    return;
+                }
+                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                res.writeHead(204);
+                res.end();
+                return;
+            }
+        } else {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
+            res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
 
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204);
-            res.end();
-            return;
+            if (req.method === 'OPTIONS') {
+                res.writeHead(204);
+                res.end();
+                return;
+            }
         }
 
         try {
@@ -414,6 +447,16 @@ export class MCPServer {
                         lastPollAt: gameClient.lastPollAt,
                     },
                 }));
+                return;
+            }
+            // v2.7.0 #2: enforce origin allowlist for /game/* writes too.
+            // Browser preflight is already blocked (above) but a non-browser
+            // client (or a browser with simple-request bypass) can still
+            // POST/GET. Reject 403 here to harden the queue against
+            // cross-tab hijack.
+            if (isGameEndpoint && resolveGameCorsOrigin(req.headers.origin) === null) {
+                res.writeHead(403, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: false, error: 'origin not allowed for /game/* endpoints' }));
                 return;
             }
             // T-V26-1: GameDebugClient polls this for the next pending command.
@@ -702,6 +745,42 @@ export class MCPServer {
             this.updating = false;
         }
     }
+}
+
+// v2.7.0 #2 (W7 from v2.6.0 review): resolve the Access-Control-Allow-Origin
+// header value for /game/* endpoints. Returns:
+//   - the echo'd origin string when the origin is in our trust list
+//   - the literal 'null' string when the request has Origin: null (file://
+//     URLs send this; cocos PIE webview often runs from file://)
+//   - null (the JS value) when the origin is disallowed → caller omits the
+//     ACAO header so browsers block the response
+// No-Origin requests (typical for direct fetch from cocos preview JS or
+// curl/Node clients) get a synthetic '*'-equivalent: we echo a sentinel
+// 'null' string so direct callers without an Origin header can still see
+// the response (CORS only matters in browsers anyway).
+function resolveGameCorsOrigin(origin: string | undefined): string | null {
+    if (origin === undefined || origin === '') {
+        // No Origin header → not a browser fetch. Allow.
+        return '*';
+    }
+    if (origin === 'null') {
+        // file:// pages and some sandboxed iframes send 'null'. Allow:
+        // cocos PIE webview often falls into this bucket.
+        return 'null';
+    }
+    // Allow loopback HTTP origins (cocos browser preview at
+    // http://localhost:7456 etc.) and devtools/file schemes.
+    try {
+        const u = new URL(origin);
+        if (u.protocol === 'file:' || u.protocol === 'devtools:') return origin;
+        if ((u.protocol === 'http:' || u.protocol === 'https:')
+            && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]')) {
+            return origin;
+        }
+    } catch {
+        // Malformed Origin header → reject.
+    }
+    return null;
 }
 
 // v2.6.1 review fix (codex 🔴 + claude W1): cap request bodies at 32 MB.

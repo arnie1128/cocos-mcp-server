@@ -285,7 +285,35 @@ function getJson(pathname) {
         if (!/"queued":false/.test(statusAfter.body)) throw new Error('queue should be idle after awaiter drains result');
         queueModule.resetForTest();
 
-        // 21. v2.6.1: /game/result body cap (32 MB) — request a 33 MB body
+        // 21. v2.7.0 #2: /game/* CORS scoping — disallowed origin should 403
+        //   on POST/GET (preflight blocked too but covered separately).
+        const blockedOrigin = await new Promise((resolve, reject) => {
+            const req = http.request({
+                host: '127.0.0.1', port: PORT, method: 'GET', path: '/game/status',
+                headers: { 'Origin': 'http://evil.example' },
+            }, (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
+            req.on('error', reject);
+            req.end();
+        });
+        console.log('[/game/status disallowed-origin]', blockedOrigin.status, blockedOrigin.body);
+        if (blockedOrigin.status !== 403) throw new Error('/game/* should reject disallowed Origin with 403');
+        // Allowed origin (localhost) should pass.
+        const allowedOrigin = await new Promise((resolve, reject) => {
+            const req = http.request({
+                host: '127.0.0.1', port: PORT, method: 'GET', path: '/game/status',
+                headers: { 'Origin': 'http://localhost:7456' },
+            }, (r) => { let b = ''; r.on('data', d => b += d); r.on('end', () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
+            req.on('error', reject);
+            req.end();
+        });
+        console.log('[/game/status allowed-origin]', allowedOrigin.status, 'ACAO:', allowedOrigin.headers['access-control-allow-origin']);
+        if (allowedOrigin.status !== 200) throw new Error('/game/* should accept localhost Origin');
+        if (allowedOrigin.headers['access-control-allow-origin'] !== 'http://localhost:7456') throw new Error('ACAO should echo allowed origin');
+        // No-Origin (curl/Node fetch without Origin) should also pass with ACAO=*.
+        const noOrigin = await getJson('/game/status');
+        if (noOrigin.status !== 200) throw new Error('/game/* should accept no-Origin requests');
+
+        // 22. v2.6.1: /game/result body cap (32 MB) — request a 33 MB body
         //   should be rejected with 413. Use direct http.request with a
         //   Content-Length so the server reads the stream and trips the cap.
         // Skipped: would require allocating a 33 MB string for transmit and
