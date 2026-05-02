@@ -5,17 +5,26 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.11 — v2.4.8 cycle done, ship-it from 3 reviewers × 4 rounds）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.12 — A1-A4 reload-retest passed, v2.5.0 in progress）
 
-**當下版本**：v2.4.11（origin/main HEAD = `a5c7c0e` + comment-clarify
-follow-up，已 push、無 in-flight 任務、**已同步到 `cocos_cs_349`
-extension path**）。v2.4.8 收 v2.4.0 同梱失蹤的 A1-A4 四件 + 4 輪三方
-review patch（v2.4.9 / v2.4.10 / v2.4.11）。Round 4 三方一致 🟢 ship-it。
+**當下版本**：v2.4.12（origin/main HEAD = `185f98c`，已 push、**已同步到
+`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.4.8 收 v2.4.0
+同梱失蹤的 A1-A4 四件 + 4 輪三方 review patch（v2.4.9 / v2.4.10 / v2.4.11）+
+v2.4.12 reload retest fix（Node 22 .cmd shim）。
 
-下個 session 可以動工 **v2.5.0**（file-editor + Notifications + Prompts，
-5 天）或 v2.4.8 / v2.4.11 落地後的實機 live-test 驗證。
+**動工中**：**v2.5.0** — file-editor + Notifications + Prompts（5 天）。
+細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.5.0](roadmap/06-version-plan-v23-v27.md)。
+- T-V25-1: file-editor 4 tool（insert_text / delete_lines / replace_text /
+  query_text + path-safety guard + asset-db refresh hook）
+- T-V25-2: T-P3-3 Notifications — 前置 probe-broadcast.js 量實機事件密度
+- T-V25-3: T-P3-3 Notifications 落地（debounce + capability 補
+  `resources.subscribe: true` + main.ts broadcast listener
+  load/unload + sdkServer.notification 推送）
+- T-V25-4: T-P3-2 Prompts — `prompts/list` + `prompts/get` handler + 4
+  template (fix_script_errors / create_playable_prototype /
+  scene_validation / auto_wire_scene)
 
-**v2.4.8 — v2.4.11 階段**：
+**v2.4.8 — v2.4.12 階段**：
 - **v2.4.8**：A1 TS diagnostics（debug_wait_compile + debug_run_script_diagnostics
   + debug_get_script_diagnostic_context）+ A2 animation tools 4 件 + A3
   scene-script log capture（runWithCapture / capturedLogs）+ A4 capability
@@ -29,11 +38,18 @@ review patch（v2.4.9 / v2.4.10 / v2.4.11）。Round 4 三方一致 🟢 ship-it
 - **v2.4.11**：round 3 — 1 🔴（_ensureConsoleHook outside try → refcount
   leak path）。單行 try-block 重排。
 - **Round 4** confirms ship-it from all three reviewers, no must-fix.
+- **v2.4.12**：reload-retest fix — Node 22+ Windows .cmd shim spawn
+  EINVAL on `debug_run_script_diagnostics` → `shell:true` for .cmd/.bat
+  + cmd.exe-style `quoteForCmd` + sync-throw try/catch in execAsync.
+  POSIX path unchanged（`isWindowsShim` 雙閘）。
 
 **最近 commit**（最新到舊，僅列 v2.4.8 cycle 後）：
 
 | SHA | 內容 |
 |---|---|
+| `185f98c` | docs(handoff): v2.4.11 → v2.4.12 reload retest results + cross-platform note |
+| `acfb930` | fix(v2.4.12): A1 debug_run_script_diagnostics spawn EINVAL on Node 22+ Windows .cmd |
+| `8bb46e8` | docs(handoff): v2.4.8-v2.4.11 wrap — 4-round three-way review converged 🟢 |
 | `a5c7c0e` | fix(v2.4.11): three-way review patch round 3 on v2.4.10 — 1 must-fix |
 | `8dfd500` | chore: untrack .claude/settings.local.json (per-machine overlay) |
 | `52bad57` | fix(v2.4.10): three-way review patch round 2 on v2.4.9 — 1 must-fix + 2 polish |
@@ -43,9 +59,6 @@ review patch（v2.4.9 / v2.4.10 / v2.4.11）。Round 4 三方一致 🟢 ship-it
 | `5cd723f` | feat(v2.4.8 A2): animation tools category — list_clips/play/stop/set_clip |
 | `c92319d` | feat(v2.4.8 A3): scene-script log capture in scene-bridge |
 | `bb02c67` | docs(v2.4.8 A4): clarify resources.templates is implicit, not a capability flag |
-| `84061a9` | docs(roadmap): schedule v2.4.8 to recover v2.4.0 shipping-with leftovers |
-| `6e63bbd` | docs(roadmap): renumber v2.4.1 → v2.4.3 (asset interpreters slot shift) |
-| `acdfac1` | release: v2.4.7 — landmine #14 (cocos cumulative dirty flag) + bump for live-test fix sync |
 
 **v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
 行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
@@ -311,6 +324,9 @@ disposable asset 才能跑。
 
 **回滾錨點**：
 - v2.4.6 改動前（v2.4.5 release 點）→ `git reset --hard c4a759d`
+- v2.5.0 改動前（v2.4.12 release 點 + reload-retested）→ `git reset --hard 185f98c`
+- v2.4.12 改動前（v2.4.11 release 點 + 三方 ship-it round 4）→ `git reset --hard 8bb46e8`
+- v2.4.11 改動前（v2.4.10 release 點）→ `git reset --hard 52bad57`
 - v2.4.10 改動前（v2.4.9 release 點 + 三方 ship-it round 2）→ `git reset --hard 15b6a8e`
 - v2.4.9 改動前（v2.4.8 release 點）→ `git reset --hard a953e6e`
 - v2.4.8 改動前（v2.4.7 release 點 + reload-tested）→ `git reset --hard acdfac1`
@@ -351,7 +367,8 @@ disposable asset 才能跑。
 | **v2.4.9** | 三方 review patch round 1 on v2.4.8（2 must-fix + 4 polish） | 0.5 天 | ✅ done |
 | **v2.4.10** | 三方 review patch round 2 on v2.4.9（1 must-fix + 2 polish — AsyncLocalStorage 收 capture interleave） | 0.3 天 | ✅ done |
 | **v2.4.11** | 三方 review patch round 3 on v2.4.10（1 must-fix — refcount leak path） | 0.1 天 | ✅ done |
-| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ next |
+| **v2.4.12** | reload retest fix — Node 22+ Windows .cmd shim spawn EINVAL on A1 | 0.1 天 | ✅ done |
+| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ in-progress |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
 
@@ -409,6 +426,8 @@ v2.4.8 ✅ done（v2.4.0 同梱 leftover — A1 TS diagnostics + A2 animation + 
 v2.4.9 ✅ done（三方 review patch round 1 — 2 must-fix（ENOENT silent + symlink escape） + 4 polish，commit 15b6a8e）
 v2.4.10 ✅ done（三方 review patch round 2 — 1 must-fix（_topSlot interleave → AsyncLocalStorage） + 2 polish，commit 52bad57）
 v2.4.11 ✅ done（三方 review patch round 3 — 1 must-fix（refcount leak path），commit a5c7c0e）
+v2.4.12 ✅ done（reload retest fix — Node 22+ Windows .cmd shim 透過 shell:true + quoteForCmd + sync-throw try/catch，commit acfb930；retest doc 185f98c）
+v2.5.0 ⏳ in-progress（file-editor + Notifications + Prompts，5 天）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

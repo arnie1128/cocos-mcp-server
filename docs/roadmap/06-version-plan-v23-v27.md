@@ -268,7 +268,12 @@ feature。
 
 ## v2.5.0 — 多 client 廣度
 
-### file-editor 4 tool（Spaydo 路線 + 補強）
+> **狀態**：⏳ in-progress（v2.4.12 reload-retest 後動工）。三個子任務的
+> sub-task ID 為 T-V25-1（file-editor）/ T-V25-2（probe-broadcast 量測）/
+> T-V25-3（Notifications 落地）/ T-V25-4（Prompts）。動工順序建議：
+> T-V25-1 → T-V25-2 → T-V25-3 → T-V25-4，每個子任務一個 commit。
+
+### T-V25-1 file-editor 4 tool（Spaydo 路線 + 補強）
 
 ```
 insert_text   delete_lines   replace_text   query_text
@@ -290,9 +295,10 @@ Spaydo 沒做、我們必須補的兩件：
 
 **估時**：1 天
 
-### T-P3-3 Notifications
+### T-V25-2 + T-V25-3 — T-P3-3 Notifications
 
 **前置**：T-P3-1 已落地（resources 才有東西可推 `list_changed`）。
+**子任務拆分**：T-V25-2 = probe-broadcast 量測；T-V25-3 = 落地實作。
 
 **做法骨架**：
 
@@ -312,7 +318,7 @@ notifications/subscribe，我們是 first mover，沒有 anchor 可抄。
 
 **估時**：3 天
 
-### T-P3-2 Prompts capability（FunplayAI 路線）
+### T-V25-4 — T-P3-2 Prompts capability（FunplayAI 路線）
 
 抄 `lib/prompts.js` 4 個 template 的 pattern：每個 prompt 帶 project
 context（projectName / projectPath）baked in，內文引導 AI 優先用
