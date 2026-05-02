@@ -215,6 +215,35 @@ project + reload extension panel，`/health` 回 `tools: 170`。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
 
+### v2.4.11 → v2.4.12 reload 後實機測試紀錄
+
+**環境**：v2.4.11 reload 通過後跑 retest，A1 在 Node 22 Windows .cmd
+路徑爆 spawn EINVAL，發 v2.4.12 patch（`acfb930`）後再 reload retest。
+
+| 測項 | v2.4.11 結果 | v2.4.12 結果 |
+|---|---|---|
+| `/health` 177 tools / 17 categories | ✅ | ✅ |
+| **A4** `resources/templates/list` 回 2 templates | ✅ | (unchanged) |
+| **A3** `capturedLogs` 在 scene-bridge tool（prefab/animation）envelope 內 | ✅ | (unchanged) |
+| **A2** animation_list_clips / play (no clip → friendly error) / stop | ✅ | (unchanged) |
+| **A2** animation_set_clip {playOnLoad:true} 寫入 + read-back 持久化 | ✅ Landmine #11 scalar path | (unchanged) |
+| **A2** nodeName fallback / 雙欄位 undefined reject | ✅ | (unchanged) |
+| **A1** debug_run_script_diagnostics | 🔴 spawn EINVAL（Node 22 .cmd shim）| ✅ 88 structured diagnostics + severity + binary/tsconfig discovery 正確 |
+| **A1** debug_wait_compile | 未測（依賴 A1 binary）| ✅ no log growth → graceful "no compile triggered" return |
+| **A1** get_script_diagnostic_context — 真 project file | 未測 | ✅ 結構化 lines + targetLine + 路徑相對化 |
+| **A1** get_script_diagnostic_context — cocos editor 外路徑 | 未測 | ✅ symlink-aware reject（"resolves outside the project root"）|
+| **A1** get_script_diagnostic_context — `../` traversal | 未測 | ✅ ENOENT reject（`D:\etc\hosts` not found）|
+
+**實機觀察**：
+- Cocos editor 自帶的 `cocos_cs_349/tsconfig.json` 抓不到自家 `@types/jsb.d.ts` 的
+  TypedArray，跑 tsc 會回 88 個 diagnostics（多半是 ambient TS class 定義錯）— 這是
+  user project 自身的設定問題，不是 mcp tool bug。AI 看到 `success:false` +
+  88 diagnostics 是預期行為。
+- 跨平台：v2.4.12 fix 用 `process.platform === 'win32' && /\.(cmd|bat)$/i` 雙閘
+  限定 Windows shim 路徑，macOS / Linux 走原本 shell:false + 直接 argv。POSIX
+  argv 不經 shell parsing，spaces in paths 自然安全；quoteForCmd 不會被觸發。
+  註解已寫進 `source/lib/ts-diagnostics.ts:execAsync`。
+
 ### v2.4.8 — v2.4.11 三方 review 紀錄（4 輪）
 
 走「主 commit + 三方 review + 反修 patch」流程。**4 輪 review，3 輪反修**。

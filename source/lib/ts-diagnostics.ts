@@ -145,17 +145,30 @@ function execAsync(file: string, args: string[], cwd: string): Promise<ExecResul
         };
         // v2.4.12 live-retest fix: Node 22+ refuses to spawn .cmd / .bat
         // files via execFile without shell:true (CVE-2024-27980 patch).
-        // The validation throws SYNCHRONOUSLY inside the executor before
-        // the callback can run, so without try/catch the Promise rejects
-        // and the caller's outer catch returns a generic "spawn EINVAL"
-        // error instead of our structured spawnFailed envelope. On
-        // Windows .cmd/.bat we use shell:true to route through cmd.exe;
-        // shell:true requires us to quote args manually because Node
-        // doesn't auto-quote when the shell option is on.
+        // Validation throws SYNCHRONOUSLY inside the executor before the
+        // callback can run, so without try/catch the Promise rejects and
+        // the caller's outer catch returns a generic "spawn EINVAL"
+        // instead of our structured spawnFailed envelope.
+        //
+        // Cross-platform notes (verified for macOS + Linux):
+        //   - The .cmd / .bat shim issue is Windows-only — on POSIX,
+        //     `findTsBinary` returns either the project's `tsc` (a
+        //     Node-shebanged JS file or symlink, not .cmd) or the
+        //     unqualified `npx` token. The regex below only matches
+        //     when BOTH `process.platform === 'win32'` AND the file ends
+        //     in .cmd/.bat, so the macOS/Linux branch is unchanged from
+        //     pre-v2.4.12 behaviour.
+        //   - On POSIX with shell:false, execFile passes args as a raw
+        //     argv array to spawn. No shell parsing happens; spaces and
+        //     quotes inside individual args are preserved as-is — no
+        //     manual quoting is required or wanted.
+        //   - quoteForCmd uses cmd.exe escape rules (double-up internal
+        //     `"`). It is only invoked under isWindowsShim, never on
+        //     POSIX, so its rules don't have to align with bash/zsh.
         const isWindowsShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file);
         const quoteForCmd = (s: string): string => {
-            // Quote only if the arg contains whitespace or shell-special
-            // characters; double internal quotes per cmd.exe escape rules.
+            // Quote only if the arg contains whitespace or cmd.exe meta
+            // characters; double internal quotes per cmd.exe rules.
             if (!/[\s"&<>|^]/.test(s)) return s;
             return '"' + s.replace(/"/g, '""') + '"';
         };
