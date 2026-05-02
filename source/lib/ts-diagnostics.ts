@@ -29,6 +29,7 @@ export interface TscDiagnostic {
     column: number;
     code: string;
     message: string;
+    severity?: 'error' | 'warning' | 'info';
 }
 
 export interface RunScriptDiagnosticsOptions {
@@ -48,6 +49,13 @@ export interface RunScriptDiagnosticsResult {
     stdout: string;
     /** Raw stderr — kept for debugging tsc output the parser missed. */
     stderr: string;
+    /** v2.4.9: surfaces spawn failures (ENOENT etc.) so AI sees binary problems
+     *  separately from compile errors. Empty when tsc actually ran. */
+    systemError?: string;
+    /** v2.4.9: true when execFile reported a non-numeric error.code (binary
+     *  not found / not executable / EACCES). Distinct from a normal non-zero
+     *  exit (compile errors). */
+    spawnFailed?: boolean;
 }
 
 function exists(filePath: string): boolean {
@@ -112,38 +120,82 @@ export function findTsConfig(projectPath: string, explicit?: string): string | '
     return candidates.find(exists) ?? '';
 }
 
-interface ExecResult { code: number; stdout: string; stderr: string; error: string; }
+interface ExecResult { code: number; stdout: string; stderr: string; error: string; spawnFailed: boolean; }
 
 function execAsync(file: string, args: string[], cwd: string): Promise<ExecResult> {
     return new Promise((resolve) => {
         execFile(file, args, { cwd, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+            // v2.4.9 review fix (claude + codex 🔴): a non-numeric error.code
+            // (e.g. 'ENOENT' when the resolved tsc binary doesn't exist) was
+            // previously coerced to 0 → ok:true with empty diagnostics → AI
+            // falsely sees "no errors" when tsc never ran. Treat any error
+            // with a non-numeric code as a spawn failure (code=-1) and force
+            // the caller to surface it.
+            const rawCode = (error as any)?.code;
+            const numericCode = typeof rawCode === 'number' ? rawCode : (error ? -1 : 0);
+            const spawnFailed = !!error && typeof rawCode !== 'number';
             resolve({
-                code: error && typeof (error as any).code === 'number' ? (error as any).code : 0,
+                code: numericCode,
                 stdout: String(stdout || ''),
                 stderr: String(stderr || ''),
                 error: error ? error.message : '',
+                spawnFailed,
             });
         });
     });
 }
 
-const TSC_LINE_RE = /^(.*)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.*)$/i;
+// v2.4.9 review fix (gemini 🟡 + claude 🟡 + codex 🟡): widen to also accept
+// `warning` lines (tsc rarely emits them but TypeScript plugins do) and to
+// keep file-line-column shape compatible. The diagnostic stream's `severity`
+// is added so consumers can filter — code stays the same shape otherwise.
+const TSC_LINE_RE = /^(.*?)\((\d+),(\d+)\):\s+(error|warning|info)\s+(TS\d+):\s+(.*)$/i;
+// Project-scope diagnostics (e.g. TS18003 "No inputs were found...") have no
+// file/line/column — separately captured.
+const TSC_PROJECT_LINE_RE = /^\s*(error|warning|info)\s+(TS\d+):\s+(.*)$/i;
 
 export function parseTscOutput(output: string): TscDiagnostic[] {
     if (!output) return [];
     const diagnostics: TscDiagnostic[] = [];
+    let last: TscDiagnostic | null = null;
     for (const raw of output.split(/\r?\n/)) {
-        const line = raw.trim();
-        if (!line) continue;
-        const match = TSC_LINE_RE.exec(line);
-        if (!match) continue;
-        diagnostics.push({
-            file: match[1],
-            line: Number(match[2]),
-            column: Number(match[3]),
-            code: match[4],
-            message: match[5],
-        });
+        const line = raw.replace(/\s+$/u, '');
+        if (!line) { last = null; continue; }
+        const m = TSC_LINE_RE.exec(line.trim());
+        if (m) {
+            const diag: TscDiagnostic = {
+                file: m[1],
+                line: Number(m[2]),
+                column: Number(m[3]),
+                code: m[5],
+                message: m[6],
+            };
+            (diag as any).severity = m[4].toLowerCase();
+            diagnostics.push(diag);
+            last = diag;
+            continue;
+        }
+        const pm = TSC_PROJECT_LINE_RE.exec(line.trim());
+        if (pm) {
+            const diag: TscDiagnostic = {
+                file: '',
+                line: 0,
+                column: 0,
+                code: pm[2],
+                message: pm[3],
+            };
+            (diag as any).severity = pm[1].toLowerCase();
+            diagnostics.push(diag);
+            last = diag;
+            continue;
+        }
+        // v2.4.9 review fix (codex 🟡): TypeScript multi-line diagnostics
+        // continue with indented lines (e.g. "Type 'X' is not assignable to
+        // type 'Y'.\n  Property 'a' is missing.") — append to the previous
+        // diagnostic's message instead of dropping silently.
+        if (last && /^\s/.test(raw)) {
+            last.message = `${last.message}\n${raw.trim()}`;
+        }
     }
     return diagnostics;
 }
@@ -164,6 +216,7 @@ export async function runScriptDiagnostics(
             diagnostics: [],
             stdout: '',
             stderr: '',
+            spawnFailed: false,
         };
     }
     const binary = findTsBinary(projectPath);
@@ -174,21 +227,37 @@ export async function runScriptDiagnostics(
     const result = await execAsync(binary, args, projectPath);
     const merged = [result.stdout, result.stderr, result.error].filter(Boolean).join('\n').trim();
     const diagnostics = parseTscOutput(merged);
-    const ok = result.code === 0 && diagnostics.length === 0;
+    // v2.4.9 review fix: spawnFailed (binary not found) was being silently
+    // collapsed to ok:true. Now ok requires both a clean exit AND no spawn
+    // failure. summary calls out the spawn failure separately so the AI
+    // sees "binary not found" instead of "no errors".
+    const ok = !result.spawnFailed && result.code === 0 && diagnostics.length === 0;
+    let summary: string;
+    if (result.spawnFailed) {
+        summary = `tsc binary failed to spawn (${result.error || 'unknown error'}). Resolved binary: ${binary}.`;
+    } else if (ok) {
+        summary = 'TypeScript diagnostics completed with no errors.';
+    } else if (diagnostics.length) {
+        const errCount = diagnostics.filter(d => (d.severity ?? 'error') === 'error').length;
+        const warnCount = diagnostics.filter(d => d.severity === 'warning').length;
+        summary = warnCount
+            ? `Found ${errCount} error(s), ${warnCount} warning(s).`
+            : `Found ${diagnostics.length} TypeScript error(s).`;
+    } else {
+        summary = merged || `TypeScript diagnostics reported exit code ${result.code} but no parsed diagnostics.`;
+    }
     return {
         ok,
         tool: 'typescript',
         binary,
         tsconfigPath,
         exitCode: result.code,
-        summary: ok
-            ? 'TypeScript diagnostics completed with no errors.'
-            : diagnostics.length
-                ? `Found ${diagnostics.length} TypeScript error(s).`
-                : merged || 'TypeScript diagnostics reported a non-zero exit code.',
+        summary,
         diagnostics,
         stdout: result.stdout,
         stderr: result.stderr,
+        spawnFailed: result.spawnFailed || undefined,
+        systemError: result.spawnFailed ? result.error : undefined,
     };
 }
 

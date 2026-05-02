@@ -711,6 +711,11 @@ export class DebugTools implements ToolExecutor {
                     exitCode: result.exitCode,
                     diagnostics: result.diagnostics,
                     diagnosticCount: result.diagnostics.length,
+                    // v2.4.9 review fix: spawn failures (binary missing /
+                    // permission denied) surfaced explicitly so AI can
+                    // distinguish "tsc never ran" from "tsc found errors".
+                    spawnFailed: result.spawnFailed === true,
+                    systemError: result.systemError,
                     // Truncate raw streams to keep tool result reasonable;
                     // full content rarely useful when the parser already
                     // structured the errors.
@@ -736,10 +741,33 @@ export class DebugTools implements ToolExecutor {
             const absPath = path.isAbsolute(file) ? file : path.join(projectPath, file);
             // Path safety: ensure absolute path resolves under projectPath
             // to prevent reads outside the cocos project.
-            const resolved = path.resolve(absPath);
-            const projectResolved = path.resolve(projectPath);
-            if (!resolved.startsWith(projectResolved + path.sep) && resolved !== projectResolved) {
-                return { success: false, error: `get_script_diagnostic_context: path ${resolved} is outside the project root` };
+            //
+            // v2.4.9 review fix (codex 🔴): plain path.resolve+startsWith only
+            // catches `..` traversal — a SYMLINK inside the project pointing
+            // outside is still readable because path.resolve doesn't follow
+            // symlinks. Use fs.realpathSync on both sides so we compare the
+            // real on-disk paths (Windows is case-insensitive; both sides go
+            // through realpathSync so casing is normalised consistently).
+            const resolvedRaw = path.resolve(absPath);
+            const projectResolvedRaw = path.resolve(projectPath);
+            let resolved: string;
+            let projectResolved: string;
+            try {
+                resolved = fs.realpathSync.native(resolvedRaw);
+            } catch {
+                return { success: false, error: `get_script_diagnostic_context: file not found or unreadable: ${resolvedRaw}` };
+            }
+            try {
+                projectResolved = fs.realpathSync.native(projectResolvedRaw);
+            } catch {
+                projectResolved = projectResolvedRaw;
+            }
+            // Case-insensitive comparison on Windows; sep guard against
+            // /proj-foo vs /proj prefix confusion.
+            const cmpResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+            const cmpProject = process.platform === 'win32' ? projectResolved.toLowerCase() : projectResolved;
+            if (!cmpResolved.startsWith(cmpProject + path.sep) && cmpResolved !== cmpProject) {
+                return { success: false, error: `get_script_diagnostic_context: path ${resolved} resolves outside the project root (symlink-aware check)` };
             }
             if (!fs.existsSync(resolved)) {
                 return { success: false, error: `get_script_diagnostic_context: file not found: ${resolved}` };

@@ -1,5 +1,106 @@
 # Changelog
 
+## v2.4.9 — 2026-05-03
+
+Three-way review patch round 1 on v2.4.8 (Claude + Codex + Gemini).
+Two 🔴 must-fix + four 🟡 worth-considering raised by ≥ 2 reviewers,
+all addressed.
+
+### 🔴 must-fix #1 — `runScriptDiagnostics` ENOENT silent (Claude + Codex)
+
+`source/lib/ts-diagnostics.ts` `execAsync` previously coerced any
+non-numeric `error.code` (e.g. `'ENOENT'` when the resolved tsc
+binary doesn't exist) to `0`, so a missing tsc made the run report
+`ok: true` with empty diagnostics — AI saw "no errors" when tsc
+never ran.
+
+Fix:
+- `execAsync`: distinguish spawn failures (non-numeric error code)
+  from non-zero exits (compile errors). Return `code: -1 +
+  spawnFailed: true` on the former.
+- `runScriptDiagnostics`: `ok` requires `!spawnFailed && code === 0
+  && diagnostics.length === 0`. Summary explicitly names the spawn
+  failure including the resolved binary path so AI sees "tsc binary
+  failed to spawn (spawn ENOENT)" instead of "no errors".
+- Tool result `data` carries explicit `spawnFailed` boolean and
+  `systemError` string so the failure is structured, not buried in
+  prose.
+
+### 🔴 must-fix #2 — symlink escape on `get_script_diagnostic_context` (Codex)
+
+`source/tools/debug-tools.ts` path-safety previously used
+`path.resolve` + `startsWith(projectRoot + sep)`. `path.resolve`
+does not follow symlinks, so a symlink inside the project pointing
+outside would pass the check and `fs.readFileSync` would happily
+read outside the project root.
+
+Fix: use `fs.realpathSync.native` on both target and project root,
+then case-insensitive compare on Windows. Refuse with explicit
+"resolves outside the project root (symlink-aware check)" message.
+
+### 🟡 worth-considering #3 — concurrent capture cross-contamination (Claude + Codex)
+
+`source/scene.ts` v2.4.8 stack-based `runWithCapture` fanned every
+console.log to ALL active capture arrays, so overlapping
+`runSceneMethod` calls leaked logs across each other's results.
+
+Fix: each call gets a `CaptureSlot {token: Symbol, entries, bytes,
+truncated}` and the console hook now writes to `_topSlot()` only.
+Cocos's IPC dispatcher is single-threaded per scene-script package
+— concurrent calls only overlap at `await` boundaries and the slot
+that was top-of-stack at hook-call time gets the entry. Refactor
+`_captureSlots` array uses `findIndex(s => s.token === slot.token)`
+on splice so removing a finished call doesn't accidentally take a
+sibling's slot.
+
+### 🟡 worth-considering #4 — unbounded capture (Claude + Codex)
+
+A noisy scene-script could push unlimited entries into the capture
+buffer, blowing memory and inflating the IPC envelope.
+
+Fix: `CAPTURE_MAX_ENTRIES = 500` and `CAPTURE_MAX_BYTES = 64 KB`
+caps. When either is exceeded, future appends are dropped and a
+single `{ level: 'warn', message: '[capture truncated — exceeded
+entry/byte cap]' }` marker is appended once to the slot.
+
+### 🟡 worth-considering #5 — animation component-index lookup fragility (Claude + Codex)
+
+`queryAnimationSetTargets` previously matched cc.Animation in
+`__comps__` via metadata strings (`constructor.name === 'Animation'`
+/ `__classname__ === 'cc.Animation'` / `_cid === 'cc.Animation'`).
+Custom subclasses (e.g. `cc.SkeletalAnimation` or user-derived) and
+cocos build variants where one of those keys is renamed would not
+match.
+
+Fix: resolve the component instance via `node.getComponent('cc.Animation')`
+first (subclass-aware) then `components.indexOf(anim)` for the
+slot — canonical reference-equality lookup, no metadata-string
+fragility.
+
+### 🟡 worth-considering #6 — TSC output regex completeness (Claude + Codex + Gemini)
+
+The original regex matched only `^(.*)\((\d+),(\d+)\):\s+error\s+...`
+which dropped:
+- Warning / info severity lines
+- Project-scope errors with no file:line:col (`error TS18003: No
+  inputs were found...`)
+- Multi-line message continuation (indented follow-on lines)
+
+Fix:
+- `TSC_LINE_RE` widened to `(error|warning|info)`; severity attached
+  to the diagnostic.
+- New `TSC_PROJECT_LINE_RE` for file-less project diagnostics
+  (file/line/col stay empty).
+- Indented continuation lines are appended to the previous
+  diagnostic's `message` field with a newline separator.
+- Summary distinguishes errors vs warnings when both are present.
+
+### Test runs after fixes
+
+- `tsc --noEmit`: clean.
+- `scripts/smoke-mcp-sdk.js`: ✅ all smoke checks passed.
+- Tool count unchanged: 17 categories / 177 tools.
+
 ## v2.4.8 — 2026-05-03
 
 Recover four items the v2.4.0 plan listed under §同梱小項 but never

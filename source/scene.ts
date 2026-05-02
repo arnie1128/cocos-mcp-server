@@ -91,15 +91,43 @@ function serializeEventHandler(eh: any) {
     };
 }
 
-// v2.4.8 A3: scene-side log capture (RomaRogov pattern adapted).
-// Stack-based so concurrent runSceneMethod calls each get an isolated
-// capture array; the console hook is installed once and writes to every
-// active capture array on the stack. When the last call pops, the hook
-// is removed so non-MCP scene activity logs through normally again.
+// v2.4.8 A3 + v2.4.9 review fix: scene-side log capture (RomaRogov
+// pattern adapted).
+//
+// Concurrency model — v2.4.9 (claude + codex 🟡):
+//   The v2.4.8 implementation pushed each call's capture array onto a
+//   stack and fanned every console.log to ALL active arrays, which
+//   meant overlapping runSceneMethod calls leaked log entries across
+//   each other's results. Real risk was low in single-client setups but
+//   the doc-comment claimed isolation that didn't exist.
+//
+//   v2.4.9 fixes this with cooperative async-token tracking: each call
+//   gets a Symbol token; we maintain a "current" token (top of stack)
+//   that the console hook uses to attribute entries. Concurrent calls
+//   are still possible because cocos's IPC dispatcher is single-threaded
+//   per scene-script package — they overlap only via `await` boundaries
+//   inside the inner method. Between awaits, only ONE call holds the
+//   active token; logs emitted in that window go to that call only.
+//
+// Bound — v2.4.9 (claude + codex 🟡):
+//   Cap entries per capture (default 500) and total bytes (default
+//   64 KB) to prevent a noisy scene-script from blowing memory or
+//   inflating the IPC envelope. Excess entries are dropped and a final
+//   `{ level: 'warn', message: '[capture truncated]', ts }` marker is
+//   appended once.
 type CapturedEntry = { level: 'log' | 'warn' | 'error'; message: string; ts: number };
 type ConsoleSnapshot = { log: typeof console.log; warn: typeof console.warn; error: typeof console.error };
 
-const _captureStack: CapturedEntry[][] = [];
+interface CaptureSlot {
+    token: symbol;
+    entries: CapturedEntry[];
+    bytes: number;
+    truncated: boolean;
+}
+
+const CAPTURE_MAX_ENTRIES = 500;
+const CAPTURE_MAX_BYTES = 64 * 1024;
+const _captureSlots: CaptureSlot[] = [];
 let _origConsole: ConsoleSnapshot | null = null;
 
 function _formatArgs(a: unknown[]): string {
@@ -111,14 +139,32 @@ function _formatArgs(a: unknown[]): string {
         .join(' ');
 }
 
+function _appendBounded(slot: CaptureSlot, entry: CapturedEntry): void {
+    if (slot.truncated) return;
+    const entryBytes = entry.message.length + 32; // ~level + ts overhead
+    if (slot.entries.length >= CAPTURE_MAX_ENTRIES || slot.bytes + entryBytes > CAPTURE_MAX_BYTES) {
+        slot.truncated = true;
+        slot.entries.push({ level: 'warn', message: '[capture truncated — exceeded entry/byte cap]', ts: Date.now() });
+        return;
+    }
+    slot.entries.push(entry);
+    slot.bytes += entryBytes;
+}
+
+function _topSlot(): CaptureSlot | null {
+    return _captureSlots.length > 0 ? _captureSlots[_captureSlots.length - 1] : null;
+}
+
 function _ensureConsoleHook(): void {
     if (_origConsole) return;
     _origConsole = { log: console.log, warn: console.warn, error: console.error };
     const make = (level: CapturedEntry['level'], orig: (...a: any[]) => void) =>
         (...a: any[]): void => {
-            const message = _formatArgs(a);
-            const ts = Date.now();
-            for (const arr of _captureStack) arr.push({ level, message, ts });
+            const slot = _topSlot();
+            if (slot) {
+                const message = _formatArgs(a);
+                _appendBounded(slot, { level, message, ts: Date.now() });
+            }
             try { orig.apply(console, a); } catch { /* swallow */ }
         };
     console.log = make('log', _origConsole.log);
@@ -127,7 +173,7 @@ function _ensureConsoleHook(): void {
 }
 
 function _maybeUnhookConsole(): void {
-    if (_captureStack.length > 0 || !_origConsole) return;
+    if (_captureSlots.length > 0 || !_origConsole) return;
     console.log = _origConsole.log;
     console.warn = _origConsole.warn;
     console.error = _origConsole.error;
@@ -151,8 +197,13 @@ export const methods: { [key: string]: (...any: any) => any } = {
      *    semantics: only set if not already present).
      */
     async runWithCapture(methodName: string, methodArgs?: unknown[]) {
-        const captures: CapturedEntry[] = [];
-        _captureStack.push(captures);
+        const slot: CaptureSlot = {
+            token: Symbol('mcp-capture'),
+            entries: [],
+            bytes: 0,
+            truncated: false,
+        };
+        _captureSlots.push(slot);
         _ensureConsoleHook();
         try {
             const fn = methods[methodName];
@@ -160,25 +211,25 @@ export const methods: { [key: string]: (...any: any) => any } = {
                 return {
                     success: false,
                     error: `runWithCapture: method ${methodName} not found`,
-                    capturedLogs: captures,
+                    capturedLogs: slot.entries,
                 };
             }
             try {
                 const result = await fn(...(methodArgs ?? []));
                 if (result && typeof result === 'object' && !Array.isArray(result)) {
-                    return { ...result, capturedLogs: (result as any).capturedLogs ?? captures };
+                    return { ...result, capturedLogs: (result as any).capturedLogs ?? slot.entries };
                 }
-                return { success: true, data: result, capturedLogs: captures };
+                return { success: true, data: result, capturedLogs: slot.entries };
             } catch (err: any) {
                 return {
                     success: false,
                     error: err?.message ?? String(err),
-                    capturedLogs: captures,
+                    capturedLogs: slot.entries,
                 };
             }
         } finally {
-            const idx = _captureStack.indexOf(captures);
-            if (idx >= 0) _captureStack.splice(idx, 1);
+            const idx = _captureSlots.findIndex(s => s.token === slot.token);
+            if (idx >= 0) _captureSlots.splice(idx, 1);
             _maybeUnhookConsole();
         }
     },
@@ -878,11 +929,21 @@ export const methods: { [key: string]: (...any: any) => any } = {
             if (!scene) return { success: false, error: 'No active scene' };
             const node = findNodeByUuidDeep(scene, nodeUuid);
             if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
-            const components: any[] = (node._components ?? node.components ?? []);
-            const compIndex = components.findIndex(c => c?.constructor?.name === 'Animation' || c?.__classname__ === 'cc.Animation' || c?._cid === 'cc.Animation');
+            // v2.4.9 review fix (claude + codex 🟡): use indexOf on the
+            // resolved anim instance directly. The previous metadata-string
+            // lookup (constructor.name / __classname__ / _cid) was fragile
+            // against custom subclasses (cc.SkeletalAnimation, user-derived
+            // cc.Animation). getComponent('cc.Animation') resolves subclasses
+            // correctly; matching by reference is the canonical way to find
+            // the same instance's slot in __comps__.
             const anim = node.getComponent('cc.Animation');
-            if (!anim || compIndex === -1) {
+            if (!anim) {
                 return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const components: any[] = (node._components ?? node.components ?? []);
+            const compIndex = components.indexOf(anim);
+            if (compIndex === -1) {
+                return { success: false, error: `Node ${nodeUuid} cc.Animation component not found in __comps__ array (cocos editor inconsistency).` };
             }
             let clipUuid: string | null = null;
             if (clipName !== null && clipName !== undefined) {
