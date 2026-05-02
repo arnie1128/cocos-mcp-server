@@ -145,10 +145,66 @@ const animationSetClip: ToolDef = {
     },
 };
 
+const animationListStates: ToolDef = {
+    name: 'list_animation_states',
+    title: 'List animation states',
+    description: 'List cc.AnimationState entries on a node\'s cc.Animation component.',
+    inputSchema: z.object({
+        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+    }),
+    handler: async (args) => {
+        return runSceneMethodAsToolResponse('listAnimationStates', [args.nodeUuid]);
+    },
+};
+
+const animationGetStateInfo: ToolDef = {
+    name: 'get_animation_state_info',
+    title: 'Get animation state info',
+    description: 'Get speed and timing info for a named cc.AnimationState.',
+    inputSchema: z.object({
+        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+        stateName: z.string().describe('Animation state name.'),
+    }),
+    handler: async (args) => {
+        return runSceneMethodAsToolResponse('getAnimationStateInfo', [args.nodeUuid, args.stateName]);
+    },
+};
+
+const animationSetSpeed: ToolDef = {
+    name: 'set_animation_speed',
+    title: 'Set animation speed',
+    description: 'Set speed on a named cc.AnimationState.',
+    inputSchema: z.object({
+        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+        stateName: z.string().describe('Animation state name.'),
+        speed: z.number().describe('New AnimationState.speed value.'),
+    }),
+    handler: async (args) => {
+        return runSceneMethodAsToolResponse('setAnimationSpeed', [args.nodeUuid, args.stateName, args.speed]);
+    },
+};
+
+const animationCheckFinished: ToolDef = {
+    name: 'check_animation_finished',
+    title: 'Check animation finished',
+    description: 'Check whether a named cc.AnimationState has reached its end time.',
+    inputSchema: z.object({
+        nodeUuid: z.string().describe('UUID of the node with the cc.Animation component.'),
+        stateName: z.string().describe('Animation state name.'),
+    }),
+    handler: async (args) => {
+        return runSceneMethodAsToolResponse('checkAnimationFinished', [args.nodeUuid, args.stateName]);
+    },
+};
+
 export class AnimationTools {
     private impl = defineTools([
+        animationCheckFinished,
+        animationGetStateInfo,
         animationListClips,
+        animationListStates,
         animationPlay,
+        animationSetSpeed,
         animationStop,
         animationSetClip,
     ]);

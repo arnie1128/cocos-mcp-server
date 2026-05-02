@@ -874,6 +874,119 @@ export const methods: { [key: string]: (...any: any) => any } = {
         }
     },
 
+    listAnimationStates(nodeUuid: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const clips: any[] = typeof anim.getAnimationClips === 'function'
+                ? anim.getAnimationClips()
+                : (anim.clips ?? []);
+            const states = clips
+                .filter((clip: any) => clip?.name)
+                .map((clip: any) => anim.getState(clip.name))
+                .filter((state: any) => state)
+                .map((state: any) => ({
+                    name: state.name ?? null,
+                    speed: typeof state.speed === 'number' ? state.speed : null,
+                    totalTime: typeof state.totalTime === 'number' ? state.totalTime : null,
+                    currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
+                    isPlaying: state.isPlaying === true,
+                }));
+            return { success: true, data: states };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    getAnimationStateInfo(nodeUuid: string, stateName: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const state = anim.getState(stateName);
+            if (!state) {
+                return { success: false, error: `Animation state '${stateName}' not found` };
+            }
+            return {
+                success: true,
+                data: {
+                    speed: typeof state.speed === 'number' ? state.speed : null,
+                    isPlaying: state.isPlaying === true,
+                    currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
+                    totalTime: typeof state.totalTime === 'number' ? state.totalTime : null,
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    setAnimationSpeed(nodeUuid: string, stateName: string, speed: number) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const state = anim.getState(stateName);
+            if (!state) {
+                return { success: false, error: `Animation state '${stateName}' not found` };
+            }
+            state.speed = speed;
+            return {
+                success: true,
+                data: {
+                    speed: state.speed,
+                    isPlaying: state.isPlaying === true,
+                    currentTime: typeof state.currentTime === 'number' ? state.currentTime : null,
+                    totalTime: typeof state.totalTime === 'number' ? state.totalTime : null,
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    checkAnimationFinished(nodeUuid: string, stateName: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const state = anim.getState(stateName);
+            if (!state) {
+                return { success: false, error: `Animation state '${stateName}' not found` };
+            }
+            const currentTime = typeof state.currentTime === 'number' ? state.currentTime : 0;
+            const totalTime = typeof state.totalTime === 'number' ? state.totalTime : 0;
+            return { success: true, data: { finished: currentTime >= totalTime } };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
     playAnimation(nodeUuid: string, clipName?: string) {
         try {
             const { director } = require('cc');
