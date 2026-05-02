@@ -9,6 +9,8 @@ import {
     ListResourcesRequestSchema,
     ListResourceTemplatesRequestSchema,
     ReadResourceRequestSchema,
+    SubscribeRequestSchema,
+    UnsubscribeRequestSchema,
     isInitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCPServerSettings, ServerStatus, ToolDefinition } from './types';
@@ -16,6 +18,7 @@ import { setDebugLogEnabled, logger } from './lib/log';
 import { setEditorContextEvalEnabled, setSceneLogCaptureEnabled } from './lib/runtime-flags';
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
+import { BroadcastBridge } from './lib/broadcast-bridge';
 
 const SERVER_NAME = 'cocos-mcp-server';
 const SERVER_VERSION = '2.0.0';
@@ -29,6 +32,10 @@ interface SessionEntry {
     transport: StreamableHTTPServerTransport;
     sdkServer: Server;
     lastActivityAt: number;
+    // T-V25-3: per-session resource URI subscriptions for
+    // notifications/resources/updated push. Empty set → session
+    // gets no notifications even if the bridge fires.
+    subscriptions: Set<string>;
 }
 
 function jsonRpcError(code: number, message: string): string {
@@ -54,6 +61,10 @@ export class MCPServer {
     private enabledTools: any[] = [];
     private cleanupInterval: NodeJS.Timeout | null = null;
     private updating: boolean = false;
+    // T-V25-3: bridge cocos editor IPC broadcasts → MCP
+    // notifications/resources/updated. start()/stop() lifecycle
+    // tied to the HTTP server.
+    private broadcastBridge: BroadcastBridge = new BroadcastBridge();
 
     constructor(settings: MCPServerSettings, registry: ToolRegistry) {
         this.settings = settings;
@@ -65,19 +76,21 @@ export class MCPServer {
         logger.debug(`[MCPServer] Using shared tool registry (${Object.keys(registry).length} categories)`);
     }
 
-    private buildSdkServer(): Server {
+    private buildSdkServer(subscriptions: Set<string>): Server {
         const sdkServer = new Server(
             { name: SERVER_NAME, version: SERVER_VERSION },
             {
                 capabilities: {
                     tools: { listChanged: true },
-                    // T-P3-1: read-only state surface. subscribe stays false
-                    // until T-P3-3 wires Cocos broadcast → resources/updated.
+                    // T-V25-3 (T-P3-3): subscribe is now true — clients can
+                    // resources/subscribe to a URI; the broadcast-bridge
+                    // pushes notifications/resources/updated when the
+                    // mapped cocos broadcast fires (debounced per URI).
                     // RFC 6570 templates are implicitly supported by registering
                     // ListResourceTemplatesRequestSchema below — MCP spec has no
                     // resources.templates capability flag (cocos-cli's
                     // `templates: true` is non-spec and would be stripped).
-                    resources: { listChanged: true, subscribe: false },
+                    resources: { listChanged: true, subscribe: true },
                 },
             }
         );
@@ -111,7 +124,48 @@ export class MCPServer {
             const content = await this.resources.read(uri);
             return { contents: [content] };
         });
+        // T-V25-3: per-session resource subscription handlers. The
+        // `subscriptions` Set is captured at session-creation time and
+        // shared with the SessionEntry so `notifyResourceUpdated`
+        // can iterate sessions and check membership without a second
+        // lookup.
+        sdkServer.setRequestHandler(SubscribeRequestSchema, async (request) => {
+            const { uri } = request.params;
+            subscriptions.add(uri);
+            logger.debug(`[MCPServer] subscribe ${uri} (session active subs: ${subscriptions.size})`);
+            return {};
+        });
+        sdkServer.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+            const { uri } = request.params;
+            subscriptions.delete(uri);
+            logger.debug(`[MCPServer] unsubscribe ${uri} (session active subs: ${subscriptions.size})`);
+            return {};
+        });
         return sdkServer;
+    }
+
+    /**
+     * T-V25-3: dispatch a notifications/resources/updated to every
+     * session that previously called resources/subscribe on this URI.
+     * Called by BroadcastBridge after its per-URI debounce fires.
+     */
+    private notifyResourceUpdated(uri: string): void {
+        let pushed = 0;
+        for (const session of this.sessions.values()) {
+            if (!session.subscriptions.has(uri)) continue;
+            try {
+                session.sdkServer.notification({
+                    method: 'notifications/resources/updated',
+                    params: { uri },
+                });
+                pushed += 1;
+            } catch (err: any) {
+                logger.warn(`[MCPServer] notification push failed for ${uri}:`, err?.message ?? err);
+            }
+        }
+        if (pushed > 0) {
+            logger.debug(`[MCPServer] resources/updated ${uri} → ${pushed} session(s)`);
+        }
     }
 
     // T-P1-5: ToolResponse → MCP CallToolResult. Failures carry the error
@@ -167,6 +221,12 @@ export class MCPServer {
         // block extension teardown if stop() somehow doesn't run.
         this.cleanupInterval = setInterval(() => this.sweepIdleSessions(), SESSION_CLEANUP_INTERVAL_MS);
         this.cleanupInterval.unref?.();
+
+        // T-V25-3: spin up the cocos broadcast → MCP notifications bridge.
+        // Disabled outside the editor host (e.g. headless smoke runs)
+        // because Editor.Message.__protected__ isn't available there;
+        // BroadcastBridge.start() detects this and logs a warning.
+        this.broadcastBridge.start((uri) => this.notifyResourceUpdated(uri));
 
         logger.info(`[MCPServer] 🚀 MCP Server ready (${this.toolsList.length} tools)`);
     }
@@ -347,12 +407,16 @@ export class MCPServer {
 
         // Build the Server first so the transport callback closure captures
         // an already-initialized binding (avoids TDZ-style ordering surprises).
-        const sdkServer = this.buildSdkServer();
+        // T-V25-3: pre-create the per-session subscriptions Set and pass it
+        // into buildSdkServer so the Subscribe/Unsubscribe handlers and the
+        // SessionEntry both reference the same Set instance.
+        const subscriptions = new Set<string>();
+        const sdkServer = this.buildSdkServer(subscriptions);
         const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             enableJsonResponse: true,
             onsessioninitialized: (id) => {
-                this.sessions.set(id, { transport, sdkServer, lastActivityAt: Date.now() });
+                this.sessions.set(id, { transport, sdkServer, lastActivityAt: Date.now(), subscriptions });
                 logger.debug(`[MCPServer] session initialized: ${id} (total: ${this.sessions.size})`);
             },
             onsessionclosed: (id) => {
@@ -369,6 +433,10 @@ export class MCPServer {
             clearInterval(this.cleanupInterval);
             this.cleanupInterval = null;
         }
+        // T-V25-3: tear down the bridge before closing sessions so any
+        // in-flight notification timers are cleared and no listeners
+        // try to push to closed transports.
+        this.broadcastBridge.stop();
         for (const { transport } of this.sessions.values()) {
             try {
                 await transport.close();
