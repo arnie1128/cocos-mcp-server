@@ -5,7 +5,7 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.3 main commit landed — embedded-mode PIE 補完 → next: live retest + 三方 review）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.4 — browser-mode retest fixes → next: live retest + 三方 review）
 
 **當下版本**：v2.8.2（v2.8.0 spillover + 三方 round-1 patch + reload-
 retest 修補）。v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary on deny
@@ -18,31 +18,28 @@ via typed `cce.SceneFacade.changePreviewPlayState`）；v2.8.1 round-1 補強
 project root → 已修，commit 5725f09 + 40ad5b7 push origin/main。
 **18 categories / 187 tools**（v2.8.0 +1）。
 
-**v2.8.3 補完**（main commit landed，dist synced，pending live retest +
-三方 review）：3 件子任務全部落地——
-1. T-V283-1 `capture_preview_screenshot` 加 `mode: "auto" | "window" | "embedded"`，auto 先試 Preview-titled window，找不到 fallback 主編輯器並在 message 標 "fell back to embedded mode"。response data 多攜 `mode` 欄位。
-2. T-V283-2 新工具 `debug_get_preview_mode` 透過 `preferences/query-config 'preview'` 讀 cocos 真實設定，回 `interpreted: 'browser'|'window'|'simulator'|'embedded'|'unknown'` + `raw` dump。AI 用這個 routing 即可。
-3. T-V283-3 `debug_preview_control` 掃 capturedLogs 抓 "Failed to refresh the current scene"，提到 `data.warnings[]` 並在 top-level message 加 ⚠ 標記 + scene_save_scene 前置 hint。
+**v2.8.4 完成**（main commits landed，dist synced，retest 全綠，三方 review 暫緩到 v2.9 batch）：
+- v2.8.3 base：T-V283-1 capture mode arg + T-V283-2 get_preview_mode + T-V283-3 capturedLogs warning + #4 heuristic fix（cocos 真實鍵 `preview.current.platform`）+ #5 landmine #16
+- v2.8.4 patch：browser-mode retest 抓到 race 不限 preview 模式（landmine #16 改寫）+ auto fallback hint 改為 host-side probe + mode-aware 4 種文案 + 版本管理實務調整（每個 reload cycle 必 bump）。
 **18 categories / 188 tools**（v2.8.0 +1 / v2.8.3 +1）。
 
-**下一個動工**：reload extension → 跑 v2.8.3 live retest（end-to-end:
-get_preview_mode → preview_control(start) → wait → capture_preview_screenshot
-應該在 embedded 模式下成功 fallback 截到主編輯器；preview_control(stop)
-clean exit）→ 三方 review → push origin/main。
+**下一個動工**：v2.9.0。三方 review 暫緩到 v2.9 完成後一次 batch。
+**v2.9.0 起手項**（依優先序）：
+1. PIE freeze 對比 6 個參考專案 — 看有無 workaround 可移植。
+2. `debug_check_editor_health` / `debug_check_scene_alive` — AI 偵測 scene-script 是否凍結。
+3. `debug_set_preview_mode` setter（配對 v2.8.3 getter）。
+4. v2.8.1 deferred single-reviewer 🟡 polish batch。
+5. MediaRecorder / macro-routing（較大功能，後做）。
 
 **v2.9.0 候選清單**（v2.8.x 完整 ship 後再動）：
+- **PIE freeze 對比參考專案**（landmine #16）— 讀 harady / RomaRogov-cocos-mcp / cocos-cli / FunplayAI / Spaydo / cocos-code-mode 各家如何處理 `changePreviewPlayState` 或同等 PIE 啟動：是否有人繞過 `softReloadScene` race / 使用其他 channel / 加 retry-with-build-prebake 之類前置步驟。如果有就移植；沒有就把結論記回 landmine #16 收斂（「業界亦無解，認定為 cocos 3.8.7 內傷」）。0.5 天。
+- **`debug_check_editor_health` / `debug_check_scene_alive`** — 平行 probe `device/query`（快、不走 scene）+ `scene/execute-scene-script`（凍結時會 hang），對 scene 設 1-2s timeout，timeout 即視為 scene 凍結 → 回 `{ alive: false, suggestion: 'press Ctrl+R in cocos editor' }`。給 AI 在執行 preview_control 後可以主動偵測。0.3 天。
+- **`debug_set_preview_mode` setter** — 配對 v2.8.3 `debug_get_preview_mode`，透過 typed `preferences/set-config 'preview' '<key>' <value>` 切換 cocos 預覽模式，給 AI retest / debug 流程程序化 routing（browser↔embedded↔simulator）。需加 confirm gate / 自動 restore 避免擅改使用者偏好。0.3 天。
 - `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
-- `debug_set_preview_mode` setter — 配對 v2.8.3 `debug_get_preview_mode`，
-  透過 typed `preferences/set-config 'preview' '<key>' <value>` 切換
-  cocos 預覽模式，給 AI retest / debug 流程程序化 routing
-  （browser↔embedded↔simulator）。需加 confirm gate / 自動 restore
-  避免擅改使用者偏好。0.3 天。
-- 實機 reload-retest 跨機環境 — 在 cocos preview 設成 browser 與
-  simulator 模式下分別跑 v2.8.x preview 鏈（v2.8.3 retest 只覆蓋了
-  embedded 模式 + 觀察到 landmine #16 cocos engine race）。0.3 天。
+- 實機 reload-retest 跨 simulator 模式（v2.8.x retest 已覆蓋 embedded + browser，simulator 待補）。0.2 天。
 - v2.8.1 single-reviewer 🟡 polish：
   - `assertSavePathWithinProject` 相對路徑：先 `path.resolve(Editor.Project.path, savePath)` 再 dirname，或直接 reject 非 absolute（Codex r2）。
   - `realRootNormalized + path.sep` 換成 `path.relative(root, candidate)` 不以 `..` 開頭，避免 drive-root false-reject（Codex r2）。
@@ -331,6 +328,24 @@ project + reload extension panel，`/health` 回 `tools: 170`。
   的 walker 沒有 — 下次 patch 可整合，但只是 nice-to-have。
 - live-test 跑完 scene 仍 dirty（cocos cumulative tracking）。User 要點 Discard
   或 save 才能切回乾淨狀態。Landmine #14 已記錄此為 cocos 限制。
+
+### v2.8.4 reload 後實機測試紀錄
+
+**環境**：cocos editor 3.8.7 切到 browser 模式（`preview.current.platform = "browser"`）後跑 v2.8.4 dist。
+
+| # | 測項 | 結果 |
+|---|---|---|
+| 1 | `/health` 188 tools；`serverInfo.version: "2.8.0"`（SDK 常數追 minor base，policy 確立於 v2.8.1） | ✅ |
+| 2 | `debug_get_preview_mode` → `interpreted: "browser"`, `interpretedFromKey: "preview.current.platform=browser"` | ✅ |
+| 3 | `debug_preview_url(action="open")` → 啟動瀏覽器到 `http://192.168.2.4:7456` | ✅ |
+| 4 | `debug_preview_control(start)` 在 browser 模式 → success **但仍踩 `Failed to refresh the current scene` race**（與 embedded 模式 v2.8.3 retest 行為完全一致），cocos editor 凍結需 Ctrl+R | ❌ cocos engine bug |
+| 5 | `debug_capture_preview_screenshot{}` mode=auto → fallback 主編輯器，**hint 正確生成 browser-aware 文案**：「cocos preview is set to "browser" — actual preview content is in your external browser (NOT in this image)... use debug_game_command via GameDebugClient」 | ✅ |
+| 6 | `debug_preview_control(stop)` → clean exit | ✅ |
+| 7 | warning 文案改為「not gated by preview mode (verified in both embedded and browser modes)」+ 推薦 alternatives + Do NOT retry | ✅ |
+
+**重大發現升級 landmine #16**：原 v2.8.3 認為 race 限 embedded 模式；v2.8.4 browser-mode retest 證實**race 不限 mode**，是 `changePreviewPlayState` → `softReloadScene` 內部 race，cocos 3.8.7 engine-wide bug。`.ccc` bundle code 內部問題、外部無法修。已記為 landmine #16（v2.8.4 改寫）+ tool description / warning 改為「not gated by preview mode」。
+
+**v2.9.0 對策**（已加進候選清單最前面）：對比 6 個參考專案（harady / RomaRogov / cocos-cli / FunplayAI / Spaydo / cocos-code-mode）看是否有人繞過此 race；同時加 `debug_check_editor_health` / `debug_check_scene_alive` 工具讓 AI 偵測 scene-script 是否凍結（透過 device/query 快通道 + scene-script timeout 平行 probe）。
 
 ### v2.8.3 reload 後實機測試紀錄
 
@@ -673,6 +688,7 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.8.4 改動前（v2.8.3 #5 landmine + sharper warning 點）→ `git reset --hard ce6825f`
 - v2.8.3 改動前（v2.8.2 reload-retest doc 點）→ `git reset --hard 40ad5b7`
 - v2.8.2 改動前（v2.8.1 release 點 + round-2 ship-it）→ `git reset --hard 03568fc`
 - v2.8.1 改動前（v2.8.0 release 點）→ `git reset --hard ddb6c77`
@@ -832,7 +848,8 @@ v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V2
 v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），commit 769151b；round 2 三方一致 🟢 ship-it — Claude / Codex 0🔴-2single🟡 / Gemini 0🔴-2single🟡，所有 single 🟡 deferred 至 v2.9.0 spillover）
 v2.8.2 ✅ done（reload-retest patch — 2 bugs 三方 review 全漏的 runtime-only issues：(1) `cce.SceneFacade` 名稱應為 `cce.SceneFacadeManager` / `.instance`（cocos 3.8.7 實機驗）→ 改 probe 三候選；(2) 相對 savePath 解析到 host cwd（CocosDashboard 路徑）而非 project root → `path.resolve(projectPath, savePath)` 錨定後再 dirname，commit 5725f09）
 v2.8.2 reload-tested ✅（11 條 live-test 全綠 + 1 觀察：cocos preview 設成「編輯器內預覽 (embedded)」時 `preview_control(start)` facade 通但 `capture_preview_screenshot` 用 Preview-title 濾抓不到視窗，因 embedded 模式 gameview 嵌在主編輯器、不開新 window）
-v2.8.3 ✅ done（embedded-mode PIE 補完 — 5 件子任務：T-V283-1 capture mode arg / T-V283-2 get_preview_mode / T-V283-3 capturedLogs 警告外推 / #4 heuristic patch（cocos 真實鍵 `preview.current.platform`）/ #5 landmine #16 + sharper warning。**18 categories / 188 tools**，commits 48d11ec + 71c4868；retest 確認 auto fallback 在 embedded 模式真的截到圖；發現 cocos 3.8.7 自身 race condition 會在 embedded PIE start 時凍結 editor、需 Ctrl+R 復原 — 已記為 landmine #16，無法從外部修）
+v2.8.3 ✅ done（embedded-mode PIE 補完 — 5 件子任務，commits 48d11ec / 71c4868 / ce6825f）
+v2.8.4 ✅ done（browser-mode retest 又抓到 2 件 — (1) softReloadScene race 在 browser 模式同樣發生，landmine #16 改寫成「不限 preview 模式」；(2) auto fallback hint 過去寫死 "embedded preview mode"，在 browser 設定下誤導 → 改為 host-side probe `preferences/query-config preview.current.platform` 後依 mode 客製 hint（browser/gameView/其它/unknown 四種文案）。retest 全綠（7 條）。版本實務調整：今後每個 reload cycle 必 bump，不再 batch — cocos 面板版本字串是 user 驗 reload 是否真載到的唯一信號。三方 review 暫緩到 v2.9 一起處理）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

@@ -1,5 +1,59 @@
 # Changelog
 
+## v2.8.4 — 2026-05-02
+
+Browser-mode reload retest exposed two issues missed in v2.8.3:
+
+### 🔴 #1 — `softReloadScene` race fires in browser mode too
+
+v2.8.3's landmine #16 documented the cocos 3.8.7 race condition as
+embedded-mode-specific. Browser-mode retest hit identical symptoms:
+`changePreviewPlayState` returns success, capturedLogs has "Failed to
+refresh the current scene", PIE doesn't start, editor freezes
+requiring Ctrl+R. **The race is inside `changePreviewPlayState` →
+`softReloadScene` itself, not gated by preview destination.**
+
+Fix:
+- CLAUDE.md landmine #16 rewritten — "affects ALL preview modes
+  (embedded / browser / simulator)"; treat as engine-wide bug.
+- `debug_preview_control` description rewritten — drops
+  embedded-specific phrasing, recommends alternatives universally,
+  states "use only when start/stop side effect itself is the goal
+  (and accept the freeze risk)".
+- Captured-warning text upgraded — "not gated by preview mode
+  (verified in both embedded and browser modes)".
+
+### 🔴 #2 — `auto` fallback hint incorrectly assumed embedded
+
+When `mode="auto"` finds no Preview-titled window, v2.8.3 fell back
+to capturing the main editor BrowserWindow and labeled the result
+`"embedded preview mode"`. **In browser-mode setups this is wrong**:
+the actual gameview lives in the user's external browser (not in
+the captured Electron window), and the hint misled callers into
+thinking the image contained the preview.
+
+Fix: the auto fallback path now probes
+`preferences/query-config 'preview' → preview.current.platform`
+internally and tailors the `data.note` per real config:
+- `"browser"` → "captured the main editor window. NOTE: cocos
+  preview is set to browser — actual preview content is in your
+  external browser (NOT in this image)..."
+- `"gameView"` → "captured the main editor window (cocos preview
+  is set to gameView embedded — the editor gameview IS where
+  preview renders, so this image is correct)."
+- Other / unknown → neutral "could not determine cocos preview
+  mode" hint with debug_get_preview_mode pointer.
+
+### Versioning practice tightening
+
+v2.8.3 cycle accumulated 5 code-level changes (#1–#5) under the
+same package.json version, which left the cocos panel showing a
+stale string and made it hard for the user to verify a reload
+landed the new dist. From v2.8.4 onward, **bump version on every
+discrete reload cycle** rather than batching across retests, so
+the cocos panel version string is a reliable "did my reload
+work?" signal.
+
 ## v2.8.3 — 2026-05-02
 
 Embedded-mode PIE completion. v2.8.0–v2.8.2 shipped the typed

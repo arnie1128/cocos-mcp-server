@@ -392,7 +392,7 @@ v2.1.6 after measure showed lossy-only gains).
     `z.toJSONSchema(schema, { target: 'draft-7' })`, which inlines
     reused subschemas (verified empirically: same `vec3` instance used
     3× in `position`/`rotation`/`scale` produces three full inline
-    copies, no `$ref`). All 188 v2.8.3 tool schemas are confirmed
+    copies, no `$ref`). All 188 v2.8.4 tool schemas are confirmed
     inline.
 
     Regression guard: `node scripts/check-gemini-compat.js` walks
@@ -410,11 +410,21 @@ v2.1.6 after measure showed lossy-only gains).
     - Adopting the `zod-to-json-schema` npm package (different from
       zod's built-in `toJSONSchema`).
 
-16. **`changePreviewPlayState(true)` in embedded preview mode triggers
-    cocos's own `softReloadScene` race and may freeze the editor**
-    (verified v2.8.3 / 2026-05-02 against cocos 3.8.7).
+16. **`changePreviewPlayState(true)` triggers cocos's own
+    `softReloadScene` race in cocos 3.8.7, freezing the editor —
+    affects ALL preview modes (embedded / browser / simulator)**
+    (verified v2.8.4 / 2026-05-02 against cocos 3.8.7).
 
-    Reproduced live during v2.8.3 retest:
+    Originally identified in embedded mode during v2.8.3 retest;
+    v2.8.4 retest confirmed the same race fires in **browser
+    mode** too — same call stack, same "Failed to refresh"
+    warning, same Ctrl+R recovery requirement. The race is
+    inside `changePreviewPlayState` → `softReloadScene` itself,
+    not gated by preview destination. Treat as cocos-engine-wide
+    bug applicable to any `preview_control(start)` call.
+
+    Reproduced live during v2.8.3 retest (embedded mode) and
+    v2.8.4 retest (browser mode), both with identical stack:
     ```
     SceneFacadeManager.changePreviewPlayState
      → SceneFacadeFSM.issueCommand
