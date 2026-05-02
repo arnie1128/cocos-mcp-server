@@ -235,13 +235,22 @@ fallback。Scene-script side methods 進 `source/scene.ts`。
 
 **估時**：0.5 天
 
-### A4 — Capability `resources.templates: true`
+### A4 — Capability `resources.templates: true` 紀錄為 noop
 
-`source/mcp-server-sdk.ts` capabilities.resources 補 `templates: true`
-flag（cocos-cli prior art）。一行宣告，告訴 client server 支援 RFC 6570
-URI template。
+**結論**：實作後發現 MCP spec 的 `ServerCapabilitiesSchema`
+（`@modelcontextprotocol/sdk` types.d.ts:776–812）下 `resources` 物件
+**只有 `subscribe` 與 `listChanged` 兩個 flag**。cocos-cli 的
+`templates: true` 是 non-spec 字段，SDK 的 `z.core.$strip` 會靜默丟掉。
 
-**估時**：0.1 天
+實際上 server 已經透過 register `ListResourceTemplatesRequestSchema`
+handler（`mcp-server-sdk.ts:101`）支援 RFC 6570 URI template，client
+透過 `resources/templates/list` 方法即能取得，**無需 capability flag**。
+
+**動作**：在 `mcp-server-sdk.ts` capability 區塊補一段註解說明此事，
+不寫非規格 flag。文件級修正 + 後續 reviewer 不會再誤把這當 missing
+feature。
+
+**估時**：0.1 天 → 實際 0.05 天（一段註解）
 
 ### 驗證 checklist
 

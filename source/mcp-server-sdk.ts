@@ -72,6 +72,10 @@ export class MCPServer {
                     tools: { listChanged: true },
                     // T-P3-1: read-only state surface. subscribe stays false
                     // until T-P3-3 wires Cocos broadcast → resources/updated.
+                    // RFC 6570 templates are implicitly supported by registering
+                    // ListResourceTemplatesRequestSchema below — MCP spec has no
+                    // resources.templates capability flag (cocos-cli's
+                    // `templates: true` is non-spec and would be stripped).
                     resources: { listChanged: true, subscribe: false },
                 },
             }
