@@ -105,13 +105,20 @@ export class DebugTools implements ToolExecutor {
             },
             {
                 name: 'capture_preview_screenshot',
-                description: 'Capture the cocos Preview-in-Editor (PIE) window to a PNG. Targets an Electron BrowserWindow whose title contains "Preview" — covers PIE windows opened by the cocos toolbar play button. Returns saved file path; pair with debug_preview_url before launching to confirm preview is reachable. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
+                description: 'Capture the cocos Preview-in-Editor (PIE) gameview to a PNG. Cocos has multiple PIE render targets depending on the user\'s preview config (Preferences → Preview → Open Preview With): "browser" opens an external browser (NOT capturable here), "window" / "simulator" opens a separate Electron window (title contains "Preview"), "embedded" renders the gameview inside the main editor window. The default mode="auto" tries the Preview-titled window first and falls back to capturing the main editor window when no Preview-titled window exists (covers embedded mode). Use mode="window" to force the separate-window strategy or mode="embedded" to skip the window probe. Pair with debug_get_preview_mode to read the cocos config and route deterministically. For runtime game-canvas pixel-level capture (camera RenderTexture), use debug_game_command(type="screenshot") instead.',
                 inputSchema: z.object({
                     savePath: z.string().optional().describe('Absolute filesystem path to save the PNG. Must resolve inside the cocos project root (containment check via realpath). Omit to auto-name into <project>/temp/mcp-captures/preview-<timestamp>.png.'),
-                    windowTitle: z.string().default('Preview').describe('Substring matched against window titles (default "Preview" for PIE).'),
+                    mode: z.enum(['auto', 'window', 'embedded']).default('auto').describe('Capture target. "auto" (default) tries Preview-titled window then falls back to the main editor window. "window" only matches Preview-titled windows (fails if none). "embedded" captures the main editor window directly (skip Preview-window probe).'),
+                    windowTitle: z.string().default('Preview').describe('Substring matched against window titles in window/auto modes (default "Preview" for PIE). Ignored in embedded mode.'),
                     includeBase64: z.boolean().default(false).describe('Embed PNG bytes as base64 in response data (large; default false).'),
                 }),
-                handler: a => this.capturePreviewScreenshot(a.savePath, a.windowTitle, a.includeBase64),
+                handler: a => this.capturePreviewScreenshot(a.savePath, a.mode ?? 'auto', a.windowTitle, a.includeBase64),
+            },
+            {
+                name: 'get_preview_mode',
+                description: 'Read the cocos preview configuration via Editor.Message preferences/query-config so AI can route debug_capture_preview_screenshot to the correct mode. Returns { interpreted: "browser" | "window" | "simulator" | "embedded" | "unknown", raw: <full preview config dump> }. Use before capture: if interpreted="embedded", call capture_preview_screenshot with mode="embedded" or rely on mode="auto" fallback.',
+                inputSchema: z.object({}),
+                handler: () => this.getPreviewMode(),
             },
             {
                 name: 'batch_screenshot',
@@ -802,48 +809,121 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    // v2.7.0 #4: Preview-window screenshot. Wraps screenshot() with a
-    // PIE-focused default title and a friendlier error when no Preview
-    // window exists (the underlying pickWindow throws "No Electron window
-    // title matched" — that doesn't tell AI to launch preview first).
-    private async capturePreviewScreenshot(savePath?: string, windowTitle: string = 'Preview', includeBase64: boolean = false): Promise<ToolResponse> {
+    // v2.7.0 #4: Preview-window screenshot.
+    // v2.8.3 T-V283-1: extended to handle cocos embedded preview mode.
+    //
+    // Mode dispatch:
+    //   - "window":   require a Preview-titled BrowserWindow; fail if none.
+    //                 Original v2.7.0 behaviour. Use when cocos preview
+    //                 config is "window" / "simulator" (separate window).
+    //   - "embedded": skip the window probe and capture the main editor
+    //                 BrowserWindow directly. Use when cocos preview config
+    //                 is "embedded" (gameview renders inside main editor).
+    //   - "auto":     try "window" first; if no Preview-titled window is
+    //                 found, fall back to "embedded" and surface a hint
+    //                 in the response message. Default — keeps the happy
+    //                 path working without caller knowledge of cocos
+    //                 preview config.
+    //
+    // Browser-mode (PIE rendered to user's external browser via
+    // shell.openExternal) is NOT capturable here — the page lives in
+    // a non-Electron browser process. AI can detect this via
+    // debug_get_preview_mode and skip the call.
+    private async capturePreviewScreenshot(
+        savePath?: string,
+        mode: 'auto' | 'window' | 'embedded' = 'auto',
+        windowTitle: string = 'Preview',
+        includeBase64: boolean = false,
+    ): Promise<ToolResponse> {
         try {
-            // Pre-check so failure mode is informative, not the generic
-            // "No Electron window title matched" from pickWindow.
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const electron = require('electron');
             const BW = electron.BrowserWindow;
-            // v2.7.1 review fix (claude 🟡 + codex 🟡): with the default
-            // windowTitle='Preview' a Chinese / localized cocos editor whose
-            // main window title contains "Preview" (e.g. "Cocos Creator
-            // Preview - <ProjectName>") would falsely match. Disambiguate
-            // by excluding any title that ALSO contains "Cocos Creator"
-            // when the caller stuck with the default 'Preview' filter.
-            // Caller-provided custom windowTitle bypasses the negative
-            // filter (their intent is explicit).
-            const usingDefault = windowTitle === 'Preview';
-            const matches = BW?.getAllWindows?.()?.filter((w: any) => {
-                if (!w || w.isDestroyed()) return false;
-                const title = w.getTitle?.() || '';
-                if (!title.includes(windowTitle)) return false;
-                if (usingDefault && /Cocos\s*Creator/i.test(title)) return false;
-                return true;
-            }) ?? [];
-            if (matches.length === 0) {
-                return {
-                    success: false,
-                    error: `No Electron window title contains "${windowTitle}"${usingDefault ? ' (and is not the main editor)' : ''}. Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). Visible window titles: ${
-                        BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean).join(', ') ?? '(none)'
-                    }`,
-                };
+
+            // Resolve the target window per mode.
+            const probeWindowMode = (): { ok: true; win: any } | { ok: false; error: string; visibleTitles: string[] } => {
+                // v2.7.1 review fix (claude 🟡 + codex 🟡): with the default
+                // windowTitle='Preview' a Chinese / localized cocos editor
+                // whose main window title contains "Preview" (e.g. "Cocos
+                // Creator Preview - <ProjectName>") would falsely match.
+                // Disambiguate by excluding any title that ALSO contains
+                // "Cocos Creator" when the caller stuck with the default.
+                const usingDefault = windowTitle === 'Preview';
+                const allTitles: string[] = BW?.getAllWindows?.()?.map((w: any) => w.getTitle?.() ?? '').filter(Boolean) ?? [];
+                const matches = BW?.getAllWindows?.()?.filter((w: any) => {
+                    if (!w || w.isDestroyed()) return false;
+                    const title = w.getTitle?.() || '';
+                    if (!title.includes(windowTitle)) return false;
+                    if (usingDefault && /Cocos\s*Creator/i.test(title)) return false;
+                    return true;
+                }) ?? [];
+                if (matches.length === 0) {
+                    return { ok: false, error: `No Electron window title contains "${windowTitle}"${usingDefault ? ' (and is not the main editor)' : ''}.`, visibleTitles: allTitles };
+                }
+                return { ok: true, win: matches[0] };
+            };
+
+            const probeEmbeddedMode = (): { ok: true; win: any } | { ok: false; error: string } => {
+                // Embedded PIE renders inside the main editor BrowserWindow.
+                // Pick the same heuristic as pickWindow(): prefer a non-
+                // Preview window. Cocos main editor's title typically
+                // contains "Cocos Creator" — match that to identify it.
+                const all: any[] = BW?.getAllWindows?.()?.filter((w: any) => w && !w.isDestroyed()) ?? [];
+                if (all.length === 0) {
+                    return { ok: false, error: 'No live Electron windows available; cannot capture embedded preview.' };
+                }
+                // Prefer the editor main window (title contains "Cocos
+                // Creator") — that's where embedded PIE renders.
+                const editor = all.find((w: any) => /Cocos\s*Creator/i.test(w.getTitle?.() || ''));
+                if (editor) return { ok: true, win: editor };
+                // Fallback: any non-DevTools / non-Worker / non-Blank window.
+                const candidate = all.find((w: any) => {
+                    const t = w.getTitle?.() || '';
+                    return t && !/DevTools|Worker -|^Blank$/.test(t);
+                });
+                if (candidate) return { ok: true, win: candidate };
+                return { ok: false, error: 'No suitable editor window found for embedded preview capture.' };
+            };
+
+            let win: any = null;
+            let captureNote: string | null = null;
+            let resolvedMode: 'window' | 'embedded' = 'window';
+
+            if (mode === 'window') {
+                const r = probeWindowMode();
+                if (!r.ok) {
+                    return {
+                        success: false,
+                        error: `${r.error} Launch cocos preview first via the toolbar play button or via debug_preview_url(action="open"). If your cocos preview is set to "embedded", call this tool with mode="embedded" or mode="auto". Visible window titles: ${r.visibleTitles.join(', ') || '(none)'}`,
+                    };
+                }
+                win = r.win;
+                resolvedMode = 'window';
+            } else if (mode === 'embedded') {
+                const r = probeEmbeddedMode();
+                if (!r.ok) return { success: false, error: r.error };
+                win = r.win;
+                resolvedMode = 'embedded';
+            } else {
+                // auto
+                const wr = probeWindowMode();
+                if (wr.ok) {
+                    win = wr.win;
+                    resolvedMode = 'window';
+                } else {
+                    const er = probeEmbeddedMode();
+                    if (!er.ok) {
+                        return {
+                            success: false,
+                            error: `${wr.error} ${er.error} Launch cocos preview first or check debug_get_preview_mode to see how cocos is configured. Visible window titles: ${wr.visibleTitles.join(', ') || '(none)'}`,
+                        };
+                    }
+                    win = er.win;
+                    resolvedMode = 'embedded';
+                    captureNote = 'No Preview-titled window found; fell back to capturing the main editor window (embedded preview mode). Use debug_get_preview_mode to confirm cocos preview config.';
+                }
             }
-            // v2.7.1 review fix (claude 🟡 + codex 🟡): capture from the
-            // matched window directly instead of delegating to screenshot()
-            // → pickWindow(), which would re-run the substring filter
-            // without our negative-editor heuristic and could pick a
-            // different match. Use the first filtered window so the
-            // disambiguation cannot drift.
-            const win = matches[0];
+
             let filePath = savePath;
             if (!filePath) {
                 const resolved = this.resolveAutoCaptureFile(`preview-${Date.now()}.png`);
@@ -864,13 +944,80 @@ export class DebugTools implements ToolExecutor {
                 filePath,
                 size: png.length,
                 windowTitle: typeof win.getTitle === 'function' ? win.getTitle() : '',
+                mode: resolvedMode,
             };
+            if (captureNote) data.note = captureNote;
             if (includeBase64) {
                 data.dataUri = `data:image/png;base64,${png.toString('base64')}`;
             }
-            return { success: true, data, message: `Preview screenshot saved to ${filePath}` };
+            const message = captureNote
+                ? `Preview screenshot saved to ${filePath} (${captureNote})`
+                : `Preview screenshot saved to ${filePath} (mode=${resolvedMode})`;
+            return { success: true, data, message };
         } catch (err: any) {
             return { success: false, error: err?.message ?? String(err) };
+        }
+    }
+
+    // v2.8.3 T-V283-2: read cocos preview config so AI can route
+    // capture_preview_screenshot to the correct mode without guessing.
+    // Reads via Editor.Message preferences/query-config (typed in
+    // node_modules/@cocos/creator-types/.../preferences/@types/message.d.ts).
+    //
+    // We dump the full 'preview' category, then try to interpret a few
+    // common keys ('open_preview_with', 'preview_with', 'simulator',
+    // 'browser') into a normalized mode label. If interpretation fails,
+    // we still return the raw config so the AI can read it directly.
+    private async getPreviewMode(): Promise<ToolResponse> {
+        try {
+            // Probe at module level (no key) to get the whole category.
+            const raw: any = await Editor.Message.request('preferences', 'query-config' as any, 'preview' as any) as any;
+            if (raw === undefined || raw === null) {
+                return {
+                    success: false,
+                    error: 'preferences/query-config returned null for "preview" — cocos may not expose this category, or your build differs from 3.8.x.',
+                };
+            }
+            // Heuristic interpretation. Cocos has historically used keys
+            // like `open_preview_with` (3.8.x) or `preview_with`. The
+            // values observed: 'browser', 'simulator', 'window',
+            // 'embedded', sometimes the device name ('Apple iPhone 14').
+            const candidates = ['open_preview_with', 'preview_with', 'open_with', 'mode'];
+            const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '');
+            let interpreted: 'browser' | 'window' | 'simulator' | 'embedded' | 'unknown' = 'unknown';
+            let interpretedFromKey: string | null = null;
+            const dig = (obj: any, key: string): any => {
+                if (!obj || typeof obj !== 'object') return undefined;
+                if (key in obj) return obj[key];
+                // Sometimes the category dump nests under a default protocol.
+                for (const v of Object.values(obj)) {
+                    if (v && typeof v === 'object' && key in (v as any)) return (v as any)[key];
+                }
+                return undefined;
+            };
+            for (const k of candidates) {
+                const v = dig(raw, k);
+                if (typeof v === 'string') {
+                    const lv = lower(v);
+                    if (lv.includes('browser')) interpreted = 'browser';
+                    else if (lv.includes('simulator')) interpreted = 'simulator';
+                    else if (lv.includes('embed')) interpreted = 'embedded';
+                    else if (lv.includes('window')) interpreted = 'window';
+                    if (interpreted !== 'unknown') {
+                        interpretedFromKey = k;
+                        break;
+                    }
+                }
+            }
+            return {
+                success: true,
+                data: { interpreted, interpretedFromKey, raw },
+                message: interpreted === 'unknown'
+                    ? 'Read cocos preview config but could not interpret a mode label; inspect data.raw and pass mode= explicitly to capture_preview_screenshot.'
+                    : `cocos preview is configured as "${interpreted}" (from key "${interpretedFromKey}"). Pass mode="${interpreted === 'browser' ? 'window' : interpreted}" to capture_preview_screenshot, or rely on mode="auto".`,
+            };
+        } catch (err: any) {
+            return { success: false, error: `preferences/query-config 'preview' failed: ${err?.message ?? String(err)}` };
         }
     }
 
@@ -963,19 +1110,42 @@ export class DebugTools implements ToolExecutor {
 
     // v2.8.0 T-V28-3: PIE play / stop. Routes through scene-script so the
     // typed cce.SceneFacade.changePreviewPlayState is reached via the
-    // documented execute-scene-script channel. The HANDOFF originally
-    // listed `scene/editor-preview-set-play` as an undocumented Editor
-    // .Message channel; we found the typed facade method during T-V28-3
-    // implementation and went with that instead.
+    // documented execute-scene-script channel.
+    //
+    // v2.8.3 T-V283-3 retest finding: cocos sometimes logs
+    // "Failed to refresh the current scene" inside changePreviewPlayState
+    // even when the call returns without throwing. Observed in cocos
+    // 3.8.7 / embedded preview mode. The root cause is unclear (may
+    // relate to cumulative scene-dirty / embedded-mode timing /
+    // initial-load complaint), but the visible effect is that PIE state
+    // changes incompletely. We now SCAN the captured scene-script logs
+    // for that error string and surface it to the AI as a structured
+    // warning instead of letting it hide inside data.capturedLogs.
     private async previewControl(op: 'start' | 'stop'): Promise<ToolResponse> {
         const state = op === 'start';
         const result: ToolResponse = await runSceneMethodAsToolResponse('changePreviewPlayState', [state]);
         if (result.success) {
+            // Scan capturedLogs for the known cocos warning so AI
+            // doesn't get a misleading bare-success envelope.
+            const captured = (result as any).capturedLogs as Array<{ level: string; message: string }> | undefined;
+            const sceneRefreshError = captured?.find(
+                e => e?.level === 'error' && /Failed to refresh the current scene/i.test(e?.message ?? ''),
+            );
+            const warnings: string[] = [];
+            if (sceneRefreshError) {
+                warnings.push(
+                    'cocos editor logged "Failed to refresh the current scene" during PIE state change. PIE may not have fully started — verify with a follow-up debug_capture_preview_screenshot. Common workaround: ensure the active scene is saved (use scene_save_scene) before calling preview_control(start).',
+                );
+            }
+            const baseMessage = state
+                ? 'Entered Preview-in-Editor play mode (PIE may take a moment to appear; mode depends on cocos preview config — see debug_get_preview_mode)'
+                : 'Exited Preview-in-Editor play mode';
             return {
                 ...result,
-                message: state
-                    ? 'Entered Preview-in-Editor play mode (PIE window may take a moment to appear)'
-                    : 'Exited Preview-in-Editor play mode',
+                ...(warnings.length > 0 ? { data: { ...(result.data ?? {}), warnings } } : {}),
+                message: warnings.length > 0
+                    ? `${baseMessage}. ⚠ ${warnings.join(' ')}`
+                    : baseMessage,
             };
         }
         return result;

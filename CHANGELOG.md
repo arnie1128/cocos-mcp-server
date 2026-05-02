@@ -1,5 +1,88 @@
 # Changelog
 
+## v2.8.3 — 2026-05-02
+
+Embedded-mode PIE completion. v2.8.0–v2.8.2 shipped the typed
+`changePreviewPlayState` route + reload-retest fixes, but the
+`debug_capture_preview_screenshot` tool only matched separate
+"Preview"-titled BrowserWindows — which works for cocos preview
+config "window" / "simulator" but fails for "embedded" (gameview
+renders inside the main editor BrowserWindow). The v2.8.0 CHANGELOG
+promise "AI can now start PIE, wait for the preview window to
+appear, and capture without a human clicking the toolbar" was
+therefore not honored on the most common config.
+
+**18 categories / 188 tools** (debug 21 → 22).
+
+### #1 — `debug_capture_preview_screenshot` mode parameter (T-V283-1)
+
+New `mode` arg with three options:
+- `"window"` — original v2.7.0 behaviour: require a Preview-titled
+  BrowserWindow, fail if none. Use when cocos preview config is
+  "window" or "simulator".
+- `"embedded"` — skip the Preview-window probe and capture the
+  main editor BrowserWindow directly (where embedded gameview
+  renders).
+- `"auto"` (default) — try `"window"` first; if no Preview-titled
+  window exists, fall back to `"embedded"` and surface a hint in
+  the response message.
+
+Response data now carries `mode: "window" | "embedded"` to disclose
+which path was taken. When auto fell back, `data.note` and the
+top-level `message` mention "fell back to capturing the main editor
+window (embedded preview mode)" so the AI knows the capture targeted
+the editor rather than a dedicated preview window.
+
+The `windowTitle` arg still defaults to "Preview" but is ignored in
+embedded mode (the main editor window is selected by the same
+non-Preview / contains "Cocos Creator" heuristic that `pickWindow`
+uses, plus a fallback that excludes DevTools / Worker / Blank).
+
+### #2 — New tool `debug_get_preview_mode` (T-V283-2)
+
+Reads cocos preview configuration via the typed
+`Editor.Message.request('preferences', 'query-config', 'preview')`
+channel (typed in
+`@cocos/creator-types/.../preferences/@types/message.d.ts`). Returns:
+- `data.interpreted` — normalized label `"browser" | "window" |
+  "simulator" | "embedded" | "unknown"` derived from common keys
+  (`open_preview_with` / `preview_with` / `open_with` / `mode`).
+- `data.interpretedFromKey` — which key drove the interpretation.
+- `data.raw` — the full preview config dump for AI inspection when
+  the heuristic returns `unknown`.
+
+Top-level `message` includes a hint about which `mode` to pass to
+`capture_preview_screenshot`. Browser config maps the screenshot
+recommendation to `"window"` because the browser process isn't
+capturable through Electron — but `debug_preview_url(action="open")`
+remains the right tool for that path.
+
+### #3 — `debug_preview_control` warning surfacing (T-V283-3)
+
+v2.8.2 reload retest observed cocos sometimes logging
+`"Failed to refresh the current scene"` in scene-script captured
+logs during `changePreviewPlayState` even when the call returns
+without throwing. The root cause looks environmental
+(cumulative scene-dirty state / embedded-mode timing race / initial
+load), not a tool bug — but v2.8.2's bare success envelope hid the
+warning inside `data.capturedLogs` where AI clients had to dig for
+it.
+
+v2.8.3 now scans `capturedLogs` after the facade call, lifts any
+"Failed to refresh the current scene" error to a structured
+`data.warnings` array, and prepends a ⚠ marker to the top-level
+`message` with a workaround hint ("ensure the active scene is saved
+via scene_save_scene before calling preview_control(start)"). Bare-
+success path unchanged when no warning fires.
+
+### Why the version stays at v2.8.x
+
+v2.8.0 promised programmatic PIE start + capture; v2.8.0–v2.8.2 only
+delivered it for "window"-mode cocos config. Bumping to v2.9.0 with
+the embedded-mode gap unaddressed would mislabel the v2.8 cycle.
+v2.8.3 closes the gap; v2.9.0 will start clean with MediaRecorder /
+macro-tool routing on a fully-honoured PIE-capture baseline.
+
 ## v2.8.2 — 2026-05-02
 
 Reload-retest fixes uncovered by live-testing v2.8.0/v2.8.1 against

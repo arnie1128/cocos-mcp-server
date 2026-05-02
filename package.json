@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.8.2",
+    "version": "2.8.3",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -14,7 +14,7 @@
     },
     "description": "i18n:cocos-mcp-server.description",
     "main": "./dist/main.js",
-    "releaseDate": "2026-05-02T17:05:51+08:00",
+    "releaseDate": "2026-05-02T17:28:05+08:00",
     "homepage": "https://github.com/arnie1128/cocos-mcp-server",
     "repository": {
         "type": "git",
