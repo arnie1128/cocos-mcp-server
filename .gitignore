@@ -67,3 +67,5 @@ temp/
 # value to share. Project-level rules (if added later) live under
 # .claude/rules/ and remain trackable.
 .claude/scheduled_tasks.lock
+# Per-machine settings overlay; should never be committed.
+.claude/settings.local.json
