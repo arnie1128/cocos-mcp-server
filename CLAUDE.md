@@ -78,7 +78,8 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 185 (v2.10.2 added 4 animation-state tools:
+Total tool count today: 186 (v2.10.3 added 1: `assetAdvanced_get_users`
+asset reference lookup; v2.10.2 added 4 animation-state tools:
 `animation_list_animation_states`, `animation_get_animation_state_info`,
 `animation_set_animation_speed`, `animation_check_animation_finished`;
 v2.9.4 added 2: `debug_record_start` +

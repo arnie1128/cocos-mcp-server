@@ -5,13 +5,13 @@
 
 ## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.10.0 partial — preview landmines closed, feature backlog open）
 
-**當下版本**：v2.10.2（Stage 2 wave 1 + Polish A 完成）。**18 categories / 185 tools**（+4 animation states from #4）。
+**當下版本**：v2.10.3（Stage 3 完成）。**18 categories / 186 tools**（+1 get_users from #7）。
 
 **v2.10.x 進度**：
 - v2.10.0 ✅ landmine #16/#17 closure + cross-repo refresh
 - v2.10.1 ✅ Stage 1 #10 — tool description/title infra（codex gpt-5.5 + 我手補 5 檔）
 - v2.10.2 ✅ Stage 2 #1/#2/#4/#11 — TS def expand / game_command sub-action / animation +4 / Polish A 助手 + 共用 schema + ok/fail 遷移 ~677 LOC 減
-- v2.10.3 ⏳ Stage 3 next — #3 interpreters 擴 / #5 record format / #6 priority labeling / #7 get_users / #12 Polish B
+- v2.10.3 ✅ Stage 3 #3/#5/#6/#7/#12 — interpreters 8→15 / record format/quality / priority labeling / get_users(uuid) / Polish B 3 lib 抽取（cors / log-parser / node-classifications）
 - v2.10.4 ⏳ Stage 4 — #8 prefs macro / #9 discover prompt / #13 Polish C
 
 **v2.10.0 已 land**（本 session）：
