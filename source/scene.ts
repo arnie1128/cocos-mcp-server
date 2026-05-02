@@ -760,4 +760,156 @@ export const methods: { [key: string]: (...any: any) => any } = {
         }
     },
 
+    /**
+     * v2.4.8 A2: cc.Animation drivers — see source/tools/animation-tools.ts.
+     * Implementation note: cocos exposes the engine's `cc.Animation` (and
+     * its sub-classes via `js.getClassByName`). We use the runtime API
+     * (`getComponent('cc.Animation')`) rather than the editor's set-property
+     * channel because the latter would only persist defaultClip / playOnLoad
+     * but cannot trigger play()/stop() — those are runtime methods only.
+     */
+    getAnimationClips(nodeUuid: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            const clips: any[] = anim.clips ?? [];
+            const defaultClipName = anim.defaultClip?.name ?? null;
+            return {
+                success: true,
+                data: {
+                    nodeUuid,
+                    nodeName: node.name,
+                    defaultClip: defaultClipName,
+                    playOnLoad: anim.playOnLoad === true,
+                    clips: clips.filter(c => c).map(c => ({
+                        name: c.name ?? null,
+                        uuid: c._uuid ?? c.uuid ?? null,
+                        duration: typeof c.duration === 'number' ? c.duration : null,
+                        wrapMode: c.wrapMode ?? null,
+                    })),
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    playAnimation(nodeUuid: string, clipName?: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            if (clipName) {
+                // Validate clip exists before calling play() — cc.Animation.play
+                // silently does nothing on unknown names which would mask
+                // typos in AI-generated calls.
+                const known = (anim.clips ?? []).some((c: any) => c?.name === clipName);
+                if (!known && (anim.defaultClip?.name !== clipName)) {
+                    return {
+                        success: false,
+                        error: `Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`,
+                    };
+                }
+                anim.play(clipName);
+            } else {
+                if (!anim.defaultClip) {
+                    return { success: false, error: 'No clipName given and no defaultClip configured' };
+                }
+                anim.play();
+            }
+            return {
+                success: true,
+                message: `Playing '${clipName ?? anim.defaultClip?.name}' on ${node.name}`,
+                data: { nodeUuid, clipName: clipName ?? anim.defaultClip?.name ?? null },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    stopAnimation(nodeUuid: string) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const anim = node.getComponent('cc.Animation');
+            if (!anim) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            anim.stop();
+            return { success: true, message: `Stopped animation on ${node.name}` };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
+    /**
+     * Resolve a clip name → asset uuid on a node's cc.Animation. Returns
+     * the matching clip's `_uuid` along with the cc.Animation component
+     * index inside `__comps__`, both of which the host-side
+     * animation_set_clip handler needs to issue `set-property` writes.
+     *
+     * Why host-side does the actual write: Landmine #11 — scalar
+     * property writes via the editor's set-property channel propagate
+     * to the serialization model immediately. Direct runtime mutation
+     * (`anim.defaultClip = x`) only updates layer (a) and may not
+     * persist on save_scene. So scene-script returns the metadata; host
+     * does the persistence.
+     */
+    queryAnimationSetTargets(nodeUuid: string, clipName: string | null) {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) return { success: false, error: 'No active scene' };
+            const node = findNodeByUuidDeep(scene, nodeUuid);
+            if (!node) return { success: false, error: `Node ${nodeUuid} not found` };
+            const components: any[] = (node._components ?? node.components ?? []);
+            const compIndex = components.findIndex(c => c?.constructor?.name === 'Animation' || c?.__classname__ === 'cc.Animation' || c?._cid === 'cc.Animation');
+            const anim = node.getComponent('cc.Animation');
+            if (!anim || compIndex === -1) {
+                return { success: false, error: `Node ${nodeUuid} has no cc.Animation component` };
+            }
+            let clipUuid: string | null = null;
+            if (clipName !== null && clipName !== undefined) {
+                const clip = (anim.clips ?? []).find((c: any) => c?.name === clipName);
+                if (!clip) {
+                    return {
+                        success: false,
+                        error: `Clip '${clipName}' is not registered on this Animation. Known: ${(anim.clips ?? []).map((c: any) => c?.name).filter(Boolean).join(', ') || '(none)'}.`,
+                    };
+                }
+                clipUuid = clip._uuid ?? clip.uuid ?? null;
+                if (!clipUuid) {
+                    return { success: false, error: `Clip '${clipName}' has no asset uuid; cannot persist as defaultClip.` };
+                }
+            }
+            return {
+                success: true,
+                data: {
+                    componentIndex: compIndex,
+                    clipUuid,
+                    currentDefaultClip: anim.defaultClip?.name ?? null,
+                    currentPlayOnLoad: anim.playOnLoad === true,
+                },
+            };
+        } catch (error: any) {
+            return { success: false, error: error?.message ?? String(error) };
+        }
+    },
+
 };

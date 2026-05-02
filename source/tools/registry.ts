@@ -15,6 +15,7 @@ import { AssetAdvancedTools } from './asset-advanced-tools';
 import { ValidationTools } from './validation-tools';
 import { InspectorTools } from './inspector-tools';
 import { AssetMetaTools } from './asset-meta-tools';
+import { AnimationTools } from './animation-tools';
 
 export type ToolRegistry = Record<string, ToolExecutor>;
 
@@ -36,5 +37,6 @@ export function createToolRegistry(): ToolRegistry {
         validation: new ValidationTools(),
         inspector: new InspectorTools(),
         assetMeta: new AssetMetaTools(),
+        animation: new AnimationTools(),
     };
 }
