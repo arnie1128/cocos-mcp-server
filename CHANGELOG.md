@@ -1,5 +1,74 @@
 # Changelog
 
+## v2.4.3 — 2026-05-03
+
+Asset interpreters system — fills the gap left by `set_component_property`
+which only mutates scene nodes. AI can now read and write asset import
+settings (texture compression, FBX animation extraction, SpriteFrame
+trim mode, etc.) that live in `<asset>.meta` userData. Three new MCP
+tools, one new tool category. Originally planned as v2.4.1; renumbered
+to v2.4.3 because v2.4.1/v2.4.2 patch slots were consumed by three-way
+review fixes on v2.4.0.
+
+### New tool category: `assetMeta` (3 tools)
+
+- **`assetMeta_list_interpreters`** — list importer types we have
+  specialized interpreters for (image, texture, sprite-frame, fbx,
+  material, effect, particle, plus `*` wildcard fallback). Plan
+  asset_set_properties calls — the fallback rejects writes.
+- **`assetMeta_get_properties`** — read meta + sub-meta userData via
+  the importer-specific interpreter. Returns
+  `{properties: {path: {type, value, tooltip?, enumList?}}, arrays}`.
+  Use BEFORE asset_set_properties so AI sees real property names + types.
+- **`assetMeta_set_properties`** — batch-write meta fields with path
+  validation against an allow-list (userData.*, subMetas.*,
+  platformSettings.*). Commits via `asset-db save-asset-meta` +
+  `refresh-asset` so cocos re-imports with the new settings. Per-entry
+  success/error reporting for partial failures.
+
+All three accept InstanceReference (`{id: assetUuid, type?}`) for the
+asset target plus a backward-compat bare `assetUuid` field. Built with
+the v2.4.0 step-5 `@mcpTool` decorator.
+
+### Architecture additions
+
+- `source/asset-interpreters/interface.ts` — `IAssetInterpreter`,
+  `AssetPropertiesDescription`, `PropertySetSpec`, `PropertySetResult`.
+- `source/asset-interpreters/base.ts` — `BaseAssetInterpreter` with
+  shared `getProperties` / `setProperties` / recursive userData
+  extraction / `convertPropertyValue` / regex-validated `setProperty`.
+- `source/asset-interpreters/manager.ts` — `AssetInterpreterManager`
+  with Map<importerType, interpreter> lookup and wildcard fallback.
+  Plain factory pattern (no `static {}` block) to keep cocos build
+  pipeline unchanged.
+- `source/asset-interpreters/specialized.ts` — eight importer-specific
+  interpreters: ImageInterpreter (top-level vs sub-asset routing),
+  TextureInterpreter, SpriteFrameInterpreter (rejects writes to
+  computed read-only fields), FbxInterpreter, MaterialInterpreter
+  (userData reads only; full editing deferred to v2.5+),
+  EffectInterpreter, ParticleInterpreter, UnknownInterpreter
+  (read-only fallback).
+
+### Verification
+
+- `npm run build` tsc clean
+- `node scripts/smoke-mcp-sdk.js` ✅ 14 checks unchanged
+- Tool count: 16 categories / 170 tools (+1 cat / +3 tools)
+
+### Material editing scope note
+
+MaterialInterpreter v2.4.3 only handles userData reads. RomaRogov's
+full material editing path uses `scene/query-material` +
+`scene/apply-material` + an asset-uuid preprocessing layer
+(McpServerManager.decodeUuid) for cc.TextureBase property writes.
+Porting that wholesale is deferred to v2.5+. AI needing to swap
+effects, set technique passes, or write asset-typed material
+properties should use `debug_execute_javascript` (context='scene')
+which can call `cce.SceneFacade.applyMaterial` directly — that path
+is already shipped (v2.3.0).
+
+---
+
 ## v2.4.2 — 2026-05-02
 
 Second-round three-way review fixes on v2.4.1. Two 🔴 from Codex + four
