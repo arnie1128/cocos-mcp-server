@@ -5,29 +5,36 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.4.2）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.4.6）
 
-**當下版本**：v2.4.2（origin/main HEAD = `2b5c1f2`，已 push、無 in-flight
-任務）。v2.4.0 6-step 重構落地 + 兩輪三方 review patch（v2.4.1 / v2.4.2）。
+**當下版本**：v2.4.6（origin/main HEAD = `ac0539f`，已 push、無 in-flight
+任務）。v2.4.3 asset interpreters 落地 + **三輪**三方 review patch（v2.4.4 /
+v2.4.5 / v2.4.6）。
 
-**最近 commit**（最新到舊）：
+**最近 commit**（最新到舊，僅列 v2.4.3 cycle 後）：
 
 | SHA | 內容 |
 |---|---|
+| `ac0539f` | fix(v2.4.6): round-3 review fixes on v2.4.5 (1 must-fix + 1 polish) |
+| `c4a759d` | fix(v2.4.5): round-2 review polish on v2.4.4 (7 worth-considering) |
+| `ba6e39e` | fix(v2.4.4): three-way review fixes on v2.4.3 (2 must-fix + 5 polish) |
+| `aa95e53` | feat(v2.4.3 step C): wire 3 asset-meta MCP tools + bump v2.4.3 |
+| `c928769` | feat(v2.4.3 step B): 8 specialized asset interpreters |
+| `1c92f1a` | feat(v2.4.3 step A): asset-interpreter scaffold (interface + base + manager) |
+| `5c4907b` | docs(handoff): v2.4.0/2.4.1/2.4.2 wrap |
 | `2b5c1f2` | fix(v2.4.2): second-round review fixes on v2.4.1 (2 must-fix + 4 polish) |
 | `c39e1aa` | fix(v2.4.1): three-way review fixes on v2.4.0 (9 issues) |
 | `0231b10` | release: v2.4.0 (6-step refactor + InstanceReference + TS definitions) |
-| `0df2dde` | feat(v2.4.0 step 6): add inspector_get_instance_definition + common types |
-| `91dec60` | feat(v2.4.0 step 5): add @mcpTool decorator (no reflect-metadata) |
-| `0b62050` | feat(v2.4.0 step 4): add InstanceReference {id,type} mode (opt-in) |
-| `4747f8f` | feat(v2.4.0 step 3): add lib/batch-set + plural set_*_properties tools |
-| `5105db5` | feat(v2.4.0 step 2): add lib/resolve-node helper for nodeUuid|nodeName |
-| `1c8b347` | refactor(v2.4.0 step 1): collapse tool 3-layer to declarative array |
 
 **v2.4.0 / v2.4.1 / v2.4.2 階段**：v2.4.0 是 6-step 架構重構（無新 user-facing
 行為），v2.4.1 + v2.4.2 是兩輪三方 review patch。v2.4.2 三方 🟢 ship-it 一致
-通過。下一個 session 可以動工 v2.4.1 (asset interpreters，被 v2.4.0 佔用版號
-所以實際是 v2.4.3+) 或 v2.5.0 (file-editor + Notifications)。
+通過。
+
+**v2.4.3 / v2.4.4 / v2.4.5 / v2.4.6 階段**：v2.4.3 落地 asset-meta 編輯能力
+（從 RomaRogov-cocos-mcp 移植 asset-interpreter 系統，新增 3 tool / 1 category），
+v2.4.4 / v2.4.5 / v2.4.6 是三輪三方 review patch。v2.4.6 三方 🟢 ship-it 一致
+通過。下一個 session 可以動工 v2.5.0（file-editor + Notifications + Prompts）
+或先做實機 live-test 驗證 v2.4.3 asset-meta tool 在真 cocos editor 行為。
 
 ### v2.4.0 改動摘要
 
@@ -87,34 +94,101 @@ v2.4.2 commit `2b5c1f2` 全部反修。
 `??` fallback 不 fall through 到 `dump.type`（v2.4.1 改 truthy → nullish 的副
 作用）。實機若沒看到空字串 `__type__` 就不必處理，下次有 symptom 再補。
 
+### v2.4.3 改動摘要
+
+| 區 | 內容 |
+|---|---|
+| 新增檔（4）| `source/asset-interpreters/{interface, base, manager, specialized}.ts` — 移植 RomaRogov-cocos-mcp asset-interpreter 系統 |
+| 新增 tool category | `assetMeta`（用 v2.4.0 step 5 的 `@mcpTool` decorator）|
+| 新增 tool（3）| `assetMeta_list_interpreters` / `assetMeta_get_properties` / `assetMeta_set_properties` |
+| 8 specialized interpreter | Image / Texture / SpriteFrame / Fbx / Material / Effect / Particle / Unknown(`*`) |
+| 安全強化（v2.4.4）| `BaseAssetInterpreter.setProperty` 加 prototype-pollution guard（reject `__proto__`/`constructor`/`prototype`/empty segments）|
+| 路徑驗證（v2.4.4）| 移除 `importer`/`importerVersion`/`sourceUuid`/`isGroup`/`folder` 從 writable allow-list（避免 AI 改壞 importer 觸發 re-import 失敗）|
+| 數值嚴格性（v2.4.5/v2.4.6）| `convertPropertyValue` Number/Float/Integer 拒絕 `''` / `Infinity` / `'1.2.3'` / `'123foo'` 等 silent coercion |
+| Material 編輯範圍 | v2.4.3 只支援 userData reads；effect/passes/技術切換需走 `debug_execute_javascript(context='scene')` 直接呼叫 `cce.SceneFacade.applyMaterial`（v2.5+ 再評估完整 port）|
+| Tool 數 | 16 categories / **170 tools**（+1 cat / +3 tool）|
+
+### 三方 review 紀錄（v2.4.3 cycle）
+
+走「主 commit + 三方 review + 反修 patch」流程。**四輪 review，三輪反修**。
+
+#### Round 1 — v2.4.3 commit `aa95e53`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `BaseAssetInterpreter.setProperty` prototype-pollution（`userData.__proto__.polluted` walk 進入 Object.prototype）| Gemini + Claude + Codex |
+| 2 | 🔴 must-fix | `ImageInterpreter` 寫進 `Object.values(meta.subMetas)` 第一個，無視 `texture` vs `spriteFrame`（沉默寫錯子資產）| Gemini + Claude + Codex |
+| 3 | 🟡 worth | `resolveAssetInfo` 缺 malformed-reference 檢查（mock v2.4.1/v2.4.2 修法）| Gemini + Claude |
+| 4 | 🟡 worth | inspector deny-list 太薄（Gemini, codex round-1 v2.4.3 沒提；其實是 v2.4.0 codex round-1 已提）| Gemini |
+| 5 | 🟡 worth | `importer`/`sourceUuid` 等不該在 writable allow-list | Claude |
+| 6 | 🟡 worth | `Boolean('false') === true` 等 silent coercion bug | Codex |
+| 7 | 🟡 worth | `useAdvancedInspection` schema 宣告但無實作 | Codex |
+| 8 | 🟡 worth | tool 描述提到 `asset_*` 但實際 register 是 `assetMeta_*` | Codex |
+| 9 | 🟡 worth | save-vs-refresh 失敗 conflated（refresh 失敗時不該把 success flip 成 failed）| Claude + Codex |
+
+v2.4.4 commit `ba6e39e` 全部反修。
+
+#### Round 2 — v2.4.4 commit `ba6e39e`
+
+無 🔴。**7 個 🟡** worth-considering polish：
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🟡 worth | `PropertySetResult.warning?: string` 沒宣告，用 `(r as any).warning` cast | Claude + Codex |
+| 2 | 🟡 worth | `parseFloat('1.2.3')` 太寬鬆，回 `1.2` | Gemini + Claude + Codex |
+| 3 | 🟡 worth | `parseInt('123foo')` 太寬鬆，回 `123` | Codex |
+| 4 | 🟡 worth | `ImageInterpreter` sub-meta 沒 fallback 到 key（image meta 常以 'texture'/'spriteFrame' 為 key）| Codex |
+| 5 | 🟡 worth | 還有兩處 `asset_*` tool 名 string 漏改 | Codex |
+| 6 | 🟡 worth | JSDoc 寫 `Object.create(null)` 但實作是 `{}` | Claude + Codex |
+| 7 | 🟡 worth | unused `isPathSafe` import in specialized.ts | Claude |
+
+v2.4.5 commit `c4a759d` 全部反修。
+
+#### Round 3 — v2.4.5 commit `c4a759d`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `Number('')` 沉默 coerce 成 `0`（v2.4.5 換 parseFloat→Number 後的副作用）| Codex |
+| 2 | 🟡 worth | `Number('Infinity')` 通過 `Number.isNaN` 檢查，cocos asset 不該接受無窮 | Codex |
+
+v2.4.6 commit `ac0539f` 反修。
+
+#### Round 4 — v2.4.6 commit `ac0539f`
+
+三方 🟢 ship-it 一致通過。
+
 ### 下一個動工
 
-**選項 A（推薦）**：**v2.4.3 = asset interpreters**（原計畫的 v2.4.1 內容，
-版號被 review patch 佔用所以順延）。細拆見
-[`docs/roadmap/06-version-plan-v23-v27.md` §v2.4.1](roadmap/06-version-plan-v23-v27.md)。
+**選項 A（推薦）**：**v2.5.0 file-editor + Notifications + Prompts**（5 天）。
+細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.5.0](roadmap/06-version-plan-v23-v27.md)。
+- file-editor 4 tool（Spaydo 路線 + path-safety guard + asset-db refresh hook）
+- T-P3-3 Notifications（resources/updated subscribe；前置：先寫 probe-broadcast script 量實機事件密度）
+- T-P3-2 Prompts capability（FunplayAI 路線，4 個 template）
 
-**選項 B**：實機 live-test v2.4.0 新 tool（`set_node_properties` /
-`set_component_properties` / `inspector_get_instance_definition`）+ Claude
-Code 整合驗證 InstanceReference round-trip。Live-test 前需 ping user
-（feedback memory: notify-before-live-test）。
-
-**選項 C**：v2.5.0 file-editor + Notifications + Prompts（5 天）。
+**選項 B**：實機 live-test v2.4.3 asset-meta tool（`assetMeta_get_properties` /
+`assetMeta_set_properties`）+ v2.4.0 InstanceReference 流程。Live-test 前需
+ping user（feedback memory: notify-before-live-test）。建議先做這個，因為
+v2.4.3 是新 user-facing surface，沒實機驗過就推 v2.5.0 風險疊加。
 
 **動工前讀**：
 
 1. 本 §NEXT SESSION ENTRY POINT
-2. CHANGELOG.md v2.4.0 / v2.4.1 / v2.4.2 區塊
-3. CLAUDE.md §Landmines（無新增 landmine — v2.4.x 都是 lib helper 抽出 + 新工具，
-   未踩既有 IPC quirks）
+2. CHANGELOG.md v2.4.3 / v2.4.4 / v2.4.5 / v2.4.6 區塊
+3. CLAUDE.md §Landmines（**無新增 landmine** — v2.4.3 cycle 雖然踩過 prototype
+   pollution 但 fix 是檔案層級保護，不算 cocos-specific quirk）
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.4.6 改動前（v2.4.5 release 點）→ `git reset --hard c4a759d`
+- v2.4.5 改動前（v2.4.4 release 點）→ `git reset --hard ba6e39e`
+- v2.4.4 改動前（v2.4.3 release 點）→ `git reset --hard aa95e53`
+- v2.4.3 全部改動前（v2.4.2 release 點）→ `git reset --hard 2b5c1f2`
 - v2.4.2 改動前（v2.4.1 release 點）→ `git reset --hard c39e1aa`
 - v2.4.1 改動前（v2.4.0 release 點）→ `git reset --hard 0231b10`
 - v2.4.0 改動前（v2.3.1 release 點）→ `git reset --hard 351023b`
 
-**動工建議**：v2.4.x 三 commit 已穩定，下個版本直接動工不需先驗證
-v2.4.x；新功能落地後同樣走主 commit + 三方 review + 反修流程。
+**動工建議**：v2.4.3 — v2.4.6 stack 已穩定（三方四輪），下個版本直接動工不
+需先驗證 v2.4.x；新功能落地後同樣走主 commit + 三方 review + 反修流程。
 
 ---
 
@@ -133,8 +207,11 @@ v2.4.x；新功能落地後同樣走主 commit + 三方 review + 反修流程。
 | **v2.4.0** | 6-step 重構（含 InstanceReference + TS 定義生成 + decorator） | 4 天 | ✅ done |
 | **v2.4.1** | 三方 review patch round 1（9 issues 全清） | 0.5 天 | ✅ done |
 | **v2.4.2** | 三方 review patch round 2（2 must-fix + 4 polish） | 0.3 天 | ✅ done |
-| **v2.4.3** | Asset interpreters（asset meta 編輯能力，原 v2.4.1 計畫） | 2-3 天 | ⏳ next |
-| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ |
+| **v2.4.3** | Asset interpreters（asset meta 編輯能力，原 v2.4.1 計畫） | 2-3 天 | ✅ done |
+| **v2.4.4** | 三方 review patch round 1 on v2.4.3（2 must-fix + 5 polish） | 0.5 天 | ✅ done |
+| **v2.4.5** | 三方 review patch round 2 on v2.4.4（7 worth-considering） | 0.3 天 | ✅ done |
+| **v2.4.6** | 三方 review patch round 3 on v2.4.5（1 must-fix + 1 polish） | 0.1 天 | ✅ done |
+| **v2.5.0** | file-editor + Notifications + Prompts | 5 天 | ⏳ next |
 | **v2.6.0** | Gemini-compat schema + debug_game_command | 4-5 天 | ⏳ |
 | **v2.7.0** | spillover buffer | — | ⏳ |
 
@@ -183,10 +260,14 @@ v2.3.1 ✅ done（三方 review patch — 6 issues 全清，commit 351023b）
 v2.4.0 ✅ done（6-step 重構 + InstanceReference + TS 定義生成 + @mcpTool，167 tools）
 v2.4.1 ✅ done（三方 review patch round 1 — 9 issues 全清，commit c39e1aa）
 v2.4.2 ✅ done（三方 review patch round 2 — 2 must-fix + 4 polish，commit 2b5c1f2）
+v2.4.3 ✅ done（asset-meta 編輯系統 — assetMeta category +3 tools，170 tools）
+v2.4.4 ✅ done（三方 review patch round 1 — 2 must-fix（proto pollution + ImageInterpreter routing） + 5 polish，commit ba6e39e）
+v2.4.5 ✅ done（三方 review patch round 2 — 7 polish 全清，commit c4a759d）
+v2.4.6 ✅ done（三方 review patch round 3 — 1 must-fix（Number('')→0） + 1 polish，commit ac0539f）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ 擴充功能（next v2.4.3 asset interpreters；細拆見 docs/roadmap/06 §v2.4.1）
+B-2 ⏳ 擴充功能（next v2.5.0 file-editor + Notifications + Prompts；細拆見 docs/roadmap/06）
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -284,6 +365,10 @@ curl -s -X POST http://127.0.0.1:3000/api/project/delete_asset -H "Content-Type:
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.4.6 改動前（v2.4.5 release 點） | `git reset --hard c4a759d` 然後 `git push --force-with-lease` |
+| v2.4.5 改動前（v2.4.4 release 點） | `git reset --hard ba6e39e` 然後 `git push --force-with-lease` |
+| v2.4.4 改動前（v2.4.3 release 點） | `git reset --hard aa95e53` 然後 `git push --force-with-lease` |
+| v2.4.3 全部改動前（v2.4.2 release 點） | `git reset --hard 2b5c1f2` 然後 `git push --force-with-lease` |
 | v2.4.2 review patch round 2 改動前（v2.4.1 release 點） | `git reset --hard c39e1aa` 然後 `git push --force-with-lease` |
 | v2.4.1 review patch round 1 改動前（v2.4.0 release 點） | `git reset --hard 0231b10` 然後 `git push --force-with-lease` |
 | v2.4.0 全部改動前（v2.3.1 release 點） | `git reset --hard 351023b` 然後 `git push --force-with-lease` |
