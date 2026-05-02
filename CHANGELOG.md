@@ -1,5 +1,96 @@
 # Changelog
 
+## v2.5.0 — 2026-05-03
+
+Multi-client breadth: file-editor + Notifications + Prompts. Targets
+clients without native file ops (Claude Desktop / Cline / Continue) and
+adds two MCP-spec capabilities (resources/subscribe, prompts) that
+were previously stubbed. **18 categories / 181 tools** (was 17 / 177).
+
+### T-V25-1 — file-editor 4 tools (new `fileEditor` category)
+
+- `file_editor_insert_text(filePath, line, text)`
+- `file_editor_delete_lines(filePath, startLine, endLine)`
+- `file_editor_replace_text(filePath, search, replace, useRegex?, replaceAll?)`
+- `file_editor_query_text(filePath, startLine?, endLine?)`
+
+Description tagged `[claude-code-redundant]` so Claude Code's ranker
+prefers the IDE's native Edit/Write. Other clients without native
+file ops use this for source code edits.
+
+Hardening over upstream Spaydo cocos-mcp-extension:
+- Path safety via `fs.realpathSync.native` on BOTH target and project
+  root (same v2.4.9 fix applied to debug_get_script_diagnostic_context).
+  Plain `path.resolve+startsWith` Spaydo used is symlink-unsafe; a
+  symlink inside the project pointing outside still passed.
+- Asset-db refresh hook on writes for cocos-recognised extensions
+  (.ts/.tsx/.js/.json/.scene/.prefab/.anim/.material/.effect/.fnt).
+  Editor reimports automatically; failure non-fatal.
+- 5MB read cap, case-insensitive containment compare on Windows,
+  zod schema with describe(), defineTools declarative pattern.
+
+### T-V25-2 — `scripts/probe-broadcast.js` (sampling helper)
+
+Standalone Node CLI that drives a 30s editor-context sampling
+expression via `/api/debug/execute_javascript`. Registers listeners
+on `Editor.Message.__protected__.addBroadcastListener` for ~14
+broadcast types likely to be noisy (scene mutations, asset-db,
+build-worker), samples for `PROBE_SAMPLE_MS` (default 30 000), then
+prints per-type `{count, eventsPerSec, firstAt, lastAt}` to stdout.
+
+Used to inform the debounce window choice for T-V25-3 Notifications.
+Requires `enableEditorContextEval = true` temporarily; turn off again
+after sampling.
+
+### T-V25-3 — Notifications T-P3-3 (resources/subscribe)
+
+- New `source/lib/broadcast-bridge.ts`. `BROADCAST_TO_URIS` maps
+  cocos broadcast type → list of cocos:// resource URIs to
+  invalidate. `scene:change-node` touches scene/current +
+  scene/hierarchy; `scene:save-asset` broadcasts to all scene
+  resources + prefabs + assets;  `asset-db:asset-{add,change,delete}`
+  touches assets + prefabs + scene/list. Per-URI debounce (default
+  1s/URI; tunable via `setDebounceMs`).
+- `BroadcastBridge.start(dispatch)` registers via
+  `Editor.Message.__protected__.addBroadcastListener`. When a listener
+  fires, schedules a single timer per URI that invokes
+  `dispatch(uri)` once. `stop()` removes all listeners + clears
+  pending timers. Graceful no-op fallback when `__protected__`
+  isn't available (headless smoke).
+- `mcp-server-sdk.ts`: capability `resources.subscribe: true` (was
+  false). `SessionEntry.subscriptions: Set<string>` tracks URIs the
+  session subscribed to; created at session-init time and shared by
+  reference with the session's Subscribe/Unsubscribe handlers.
+  `notifyResourceUpdated(uri)` iterates sessions and pushes
+  `notifications/resources/updated` only to subscribers.
+- Bridge lifecycle tied to MCPServer.start()/stop().
+
+Debounce rationale: probe-broadcast.js exists for tuning but data
+collection is user-side. 1s/URI is the conservative default; worst
+case (drag-at-60fps) collapses to 1 push/sec/URI.
+
+### T-V25-4 — Prompts T-P3-2 (4 templates)
+
+- `source/prompts/registry.ts`. PromptRegistry with `list()` +
+  `get(name)`. 4 templates ported from FunplayAI route:
+  `fix_script_errors`, `create_playable_prototype`,
+  `scene_validation`, `auto_wire_scene`.
+- Each `get(name)` bakes `Target Cocos project: <name>` + `Project
+  path: <path>` header into the rendered text (lazy resolver — Editor
+  may not be ready at MCPServer construction but is at call time).
+  Templates have no arguments; fully baked.
+- Body text guides AI to default to `execute_javascript` and only
+  switch to specialist tools when they are clearly the better
+  primitive (TS diagnostics, screenshots, scene/asset resource
+  reads, animation_set_clip with set-property propagation per
+  Landmine #11).
+- Capability `prompts.listChanged: false` (no hot-reload v2.5).
+- `prompts/list` + `prompts/get` handlers registered per session.
+
+### Tool count
+
+18 categories / 181 tools.
+
 ## v2.4.12 — 2026-05-03
 
 Live-retest patch on v2.4.11. Reload-tested A4 (templates handler),
