@@ -5,35 +5,49 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.1 round-1 patch landed → next: round-2 三方 review）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.x cycle wrap — round-2 三方一致 🟢 ship-it → next: v2.9.0 / live-reload-retest v2.8.x）
 
-**當下版本**：v2.8.1（v2.8.0 spillover + round-1 patch — Claude 🟡 +
-Codex 2 🔴 + 2 🟡 + Gemini 2 🔴 + 1 🟡 consolidated；4 must-fix + 2
-polish landed）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.x
-cycle 三輪 review patch 已收尾；v2.8.0 落地三件子任務（T-V28-1 CORS
-hoist + Vary on deny / T-V28-2 resolveAutoCaptureFile helper /
-T-V28-3 `debug_preview_control` via typed
-`cce.SceneFacade.changePreviewPlayState`）。v2.8.1 round-1 補強：
-project-root anchored containment（替換 v2.8.0 的 tautological dir-
-self equality 檢查）、SERVER_VERSION 同步、explicit savePath 也走
-containment guard、Array.isArray Origin guard、`changePreviewPlayState`
-加入 `contributions.scene.methods`、HANDOFF commit table SHA 補正。
+**當下版本**：v2.8.1（v2.8.0 spillover + round-1 patch consolidated 落
+地）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.x cycle 三輪
+review patch 已收尾；v2.8.0 落地三件子任務（T-V28-1 CORS hoist + Vary
+on deny / T-V28-2 resolveAutoCaptureFile helper / T-V28-3
+`debug_preview_control` via typed `cce.SceneFacade.changePreviewPlayState`）；
+v2.8.1 round-1 補強 4 must-fix（project-root anchored containment +
+SERVER_VERSION sync + explicit savePath containment + scene-method
+declaration）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA）。
+Round 2 三方 review（Claude 🟢 + Codex no 🔴 / 2 single-🟡 + Gemini 🟢 /
+2 single-🟡）一致 🟢 ship-it，無 ≥2-reviewer 🟡 重疊，所有 single 🟡
+deferred 至 v2.9.0 spillover。
 **18 categories / 187 tools**（v2.8.0 +1）。
 
-**下一個動工**：**round-2 三方 review** 跑在 v2.8.1 commit 上，驗
-round-1 fix 是否完全收，且無新引入 bug；如再有 ≥2-reviewer 🟡 / 任何
-🔴 → v2.8.2 patch；如三方一致 🟢 ship-it → push origin/main。
+**下一個動工**：**v2.9.0** — 候選清單見下方。建議先做 **v2.7.x +
+v2.8.x reload retest** 把 4 件新 tool（`debug_preview_url` /
+`debug_query_devices` / `debug_capture_preview_screenshot` /
+`debug_preview_control`）+ containment helper 在實機 cocos editor
+跑過，再決定 v2.9.0 主題。
 
-**v2.8.x → v2.9.0 候選清單**（v2.7.0 spillover 順延，扣除 v2.8.0 落地
-的 3 件）：
+**v2.9.0 候選清單**（v2.7.0 spillover + v2.8.x single-reviewer 🟡
+deferrals）：
 - `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
-- 實機 reload-retest v2.7.x + v2.8.0 — 把 `debug_preview_url` /
+- 實機 reload-retest v2.7.x + v2.8.x — 把 `debug_preview_url` /
   `debug_query_devices` / `debug_capture_preview_screenshot` /
   `debug_preview_control` 在 cocos editor 跑過；live-test
-  `nudgeEditorModel` + CORS scoping 在跨瀏覽器 origin 行為。0.5 天。
+  containment helper 在 symlink temp dir 行為 + CORS scoping 在跨
+  瀏覽器 origin 行為。0.5 天。
+- v2.8.1 single-reviewer 🟡 polish：
+  - `assertSavePathWithinProject` 相對路徑：先 `path.resolve(Editor.Project.path, savePath)` 再 dirname，或直接 reject 非 absolute（Codex r2）。
+  - `realRootNormalized + path.sep` 換成 `path.relative(root, candidate)` 不以 `..` 開頭，避免 drive-root false-reject（Codex r2）。
+  - TOCTOU between realpath 與 writeFileSync — 改 `fs.openSync(filePath, 'wx')` 模式（Codex r1 + Gemini r1）。
+  - `previewControlInFlight` 模組級 flag 防止雙重 PIE-start（Codex r1）。
+  - `previewControl` 失敗分支補 `message` 與成功分支對稱（Claude r1）。
+  - Vary: Origin 套到非 /game/* 分支讓 invariant 全檔一致（Claude r1）。
+  - `package.json contributions.scene.methods` 對齊 — 把 `getAnimationClips` / `runWithCapture` 等遺漏方法一次補上（Gemini r2）。
+  - `getScriptDiagnosticContext` 自帶 path-safety 收斂到 `assertSavePathWithinProject`（Gemini r2）。
+  - `scene.ts` 註解 `cce.SceneFacade` vs `SceneFacadeManager` 用詞統一（Gemini r1）。
+  共 0.3 天。
 
 > ~~decorator 捨棄 `reflect-metadata`~~ — closed at v2.7.0 task #1
 > verification（2026-05-02）：v2.4.0 step 5 採 descriptor-capture，
@@ -428,6 +442,43 @@ Cocos Creator reload 後 `/health` 回 `tools: 181`，
   argv 不經 shell parsing，spaces in paths 自然安全；quoteForCmd 不會被觸發。
   註解已寫進 `source/lib/ts-diagnostics.ts:execAsync`。
 
+### v2.8.0 — v2.8.1 三方 review 紀錄（2 輪 / 1 反修）
+
+走「主 commit + 三方 review + 反修 patch」流程。**2 輪 review，1 輪反修**。
+
+#### Round 1 — v2.8.0 commit `ddb6c77`
+
+| # | Severity | 內容 | Reviewers |
+|---|---|---|---|
+| 1 | 🔴 must-fix | `resolveAutoCaptureFile` containment check 為 tautological（`realpath(dir) === realpath(dirname(join(dir, basename)))` 兩邊都 collapse 到 `dir`，無法擋 `temp/mcp-captures` 自身為 symlink 逃出 project tree）→ 改錨定 `realpath(Editor.Project.path)` | Codex 🔴 + Claude 🟡 |
+| 2 | 🔴 must-fix | `SERVER_VERSION = '2.7.3'` 漂移（package.json 已 2.8.0，但 MCP initialize 握手回報 SDK 常數）→ 同步 '2.8.0' | Codex 🔴 |
+| 3 | 🔴 must-fix | `screenshot` / `capturePreviewScreenshot` / `batchScreenshot` 在 caller 提供 `savePath` / `savePathPrefix` 時繞過 containment guard（AI-generated 路徑可寫到任何地方）→ 新 helper `assertSavePathWithinProject` 同樣錨定 project root | Gemini 🔴 + Codex 🟡 |
+| 4 | 🔴 must-fix | `changePreviewPlayState` 未在 `package.json` `contributions.scene.methods` 列出 | Gemini 🔴 |
+| 5 | 🟡 worth | `req.headers.origin` 可為 `string[]`（Node http duplicate Origin），WHATWG URL 會 throw／mis-classify → `Array.isArray` 早 reject | Codex 🟡 + Gemini 🟡 |
+| 6 | 🟡 worth | `HANDOFF.md` commit table `<v2.8.0>` placeholder 應補回真 SHA | Codex 🟡 |
+
+Single-reviewer 🟡 deferred（v2.8.x → v2.9.0 spillover）：TOCTOU between
+realpath check 和 writeFileSync（Codex + Gemini，但兩位都注明本地 dev
+tool 風險很低）/ Vary header on non-game branches（Claude）/
+previewControlInFlight 雙重 PIE-start guard（Codex）/ previewControl
+失敗分支 message 缺失對稱（Claude）/ scene.ts 註解 cce.SceneFacade vs
+SceneFacadeManager 用詞不一致（Gemini）。
+
+v2.8.1 commit `769151b` 反修：4 🔴 + 2 🟡 全清。
+
+#### Round 2 — v2.8.1 commit `769151b`
+
+三方一致 🟢 ship-it。
+
+| reviewer | 結果 | 細節 |
+|---|---|---|
+| Claude r2 | 🟢 ship-it | 6 件 round-1 fix 全部驗過、無 regression、CHANGELOG / HANDOFF / dist 一致；single-🟡 deferrals 重檢無新理由提升 |
+| Codex r2 | 🟢 ship-it（無 🔴） | 提 2 件 single-🟡：(a) `assertSavePathWithinProject` 對相對路徑的 `path.dirname` 會回 `.`，後續驗證會踩到 host cwd 而非 project root；(b) `realRootNormalized + path.sep` 在 project root 為 drive root（`C:\`）時可能 false-reject。建議改用 `path.relative` |
+| Gemini r2 | 🟢 ship-it | 提 2 件 single-🟡：(a) `package.json` `contributions.scene.methods` 雖補了 `changePreviewPlayState` 但 `getAnimationClips` / `runWithCapture` 等仍未列；(b) `getScriptDiagnosticContext` 自帶 path-safety 邏輯，可考慮收斂到新 helper |
+
+無 🔴，無 ≥2-reviewer 🟡 重疊；所有 single-🟡 依「主 commit + 三方
+review + 反修 patch」workflow 規則 deferred 至 v2.9.0 spillover。
+
 ### v2.7.0 — v2.7.3 三方 review 紀錄（3 輪 + 1 re-attendance）
 
 走「主 commit + 三方 review + 反修 patch」流程。**3 輪 review，3 輪反修**；
@@ -700,7 +751,7 @@ v2.7.1 ✅ done（三方 review patch round 1 — 4 must-fix（resolveGameCorsOr
 v2.7.2 ✅ done（三方 review patch round 2 — CLAUDE.md architecture map drift（debug 17→20 / node 11→12 / component 10→11 / +4 missing entries）+ HANDOFF heading stale，commit dd88952；Codex r2 出貨 due to out-of-credits）
 v2.7.3 ✅ done（Codex round-2 re-attendance — 2 must-fix（HANDOFF body 漏更新 v2.7.2 + v2.8.0 candidates 列已落地工具）+ 2 polish（smoke ACAO=* + CLAUDE.md v2.3.0 數學澄清），commit d1a868f；round 3 三方一致 🟢 ship-it）
 v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V28-2 resolveAutoCaptureFile helper for 4 capture paths + T-V28-3 debug_preview_control via typed cce.SceneFacade.changePreviewPlayState，18 categories / 187 tools，commits 39c0b36 / 80d722f / c4a4dc8 / ddb6c77）
-v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），三方 round-2 pending）
+v2.8.1 ✅ done（三方 review round 1 — 4 must-fix（containment helper anchor against project root + SERVER_VERSION sync + explicit savePath also containment-checked + changePreviewPlayState in contributions.scene.methods）+ 2 polish（Array.isArray Origin guard + HANDOFF SHA fix），commit 769151b；round 2 三方一致 🟢 ship-it — Claude / Codex 0🔴-2single🟡 / Gemini 0🔴-2single🟡，所有 single 🟡 deferred 至 v2.9.0 spillover）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
