@@ -5,16 +5,29 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.5.1 — multi-client breadth done, ship-it from 3 reviewers × 2 rounds）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.5.1 + reload-retested → next: v2.6.0）
 
-**當下版本**：v2.5.1（origin/main HEAD = `1aa1120`，已 push、**已同步到
-`cocos_cs_349` extension path**，等 user reload retest）。v2.5.0
+**當下版本**：v2.5.1（origin/main HEAD = `3aa83e1`，已 push、**已同步到
+`cocos_cs_349` extension path 並 reload retest 全綠**）。v2.5.0
 file-editor + Notifications + Prompts 落地 + 1 輪三方 review patch（v2.5.1）。
-Round 2 三方一致 🟢 ship-it。**18 categories / 181 tools**。
+Round 2 三方一致 🟢 ship-it。Reload 後實機 retest 17 條全綠，包含
+T-V25-3 Notifications 端到端 subscribe→broadcast→SSE 推送、CRLF 寫入
+disk bytes 確認、regex `$1` backreference 展開等 round-1 fix verified。
+**18 categories / 181 tools**。
 
-下一個 session 可以動工 **v2.6.0**（Gemini-compat schema + debug_game_command，
-4-5 天）或先做實機 live-test 驗證 v2.5.0 / v2.5.1 新 tool（fileEditor 4 件 +
-Notifications subscribe path + 4 個 prompts）。
+**下一個動工**：**v2.6.0** — 跨 LLM 兼容 + runtime QA（4-5 天）。
+細拆見 [`docs/roadmap/06-version-plan-v23-v27.md` §v2.6.0](roadmap/06-version-plan-v23-v27.md)。
+- Gemini-compat schema patch（cocos-cli 路線）— zod-to-inline-JSON-Schema-7
+  覆寫 `tools/list` handler，避免 `$ref` 讓 Gemini parser 掛掉。`vec3Schema`
+  / `prefabPositionSchema` / `transformPositionSchema` 等 reused subschema
+  跑 Gemini 都會炸。0.5-1 天。
+- `debug_game_command` + `GameDebugClient` injection（harady 路線）—
+  注一個 client 進 cocos preview process，AI 透過 `debug_game_command`
+  能 screenshot / state / navigate / click / inspect。AI runtime QA 大門。
+  3-4 天。
+- 同梱：`decodeUuid` UUID 兼容層（RomaRogov）+ FunplayAI
+  `capture_game_screenshot` / `capture_preview_screenshot`（preview-side
+  截圖，跟 GameDebugClient 同層）。
 
 **v2.5.0 → v2.5.1 階段**：
 - **v2.5.0**：T-V25-1 fileEditor 4 tools（path-safety realpathSync + asset-db
@@ -52,6 +65,8 @@ Notifications subscribe path + 4 個 prompts）。
 
 | SHA | 內容 |
 |---|---|
+| `3aa83e1` | docs(handoff): v2.5.1 reload retest — all green end-to-end |
+| `a6c0c9b` | docs(handoff): v2.5.0 → v2.5.1 wrap — 2-round three-way review converged 🟢 |
 | `1aa1120` | fix(v2.5.1): three-way review patch round 1 on v2.5.0 — 4 must-fix + 5 polish |
 | `543c06a` | release: v2.5.0 — multi-client breadth (file-editor + Notifications + Prompts) |
 | `e56b22c` | feat(T-V25-4): Prompts T-P3-2 — 4 templates with project-context baking |
