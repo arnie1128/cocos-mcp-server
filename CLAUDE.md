@@ -48,7 +48,7 @@ source/
 │   ├── component-tools.ts         #  11 tools  (P4 T-P4-1 added add/remove/list_event_handler)
 │   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
 │   ├── project-tools.ts           #  24 tools
-│   ├── debug-tools.ts             #  20 tools  (v2.3.0 net +3: execute_javascript/screenshot/batch_screenshot — execute_script kept as compat alias not net-new; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot)
+│   ├── debug-tools.ts             #  21 tools  (v2.3.0 net +3: execute_javascript/screenshot/batch_screenshot — execute_script kept as compat alias not net-new; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot; v2.8.0 +preview_control)
 │   ├── preferences-tools.ts       #   7 tools
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools
@@ -78,13 +78,14 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 186 (v2.7.0 added 3: `debug_preview_url` /
-`debug_query_devices` / `debug_capture_preview_screenshot`; v2.6.0
-added 2 debug tools — `debug_game_command` and
-`debug_game_client_status`; v2.5.0 added file-editor 4 tools; v2.4.8
-added 7 across A1/A2 categories; v2.4.3 added 3 assetMeta; v2.4.0
-added 4 inspector/setter; v2.1.1 added 6 prefab/EventHandler; net of
-two drops in v2.1.2 / v2.1.4). 18 categories. Original author's
+Total tool count today: 187 (v2.8.0 added 1: `debug_preview_control`;
+v2.7.0 added 3: `debug_preview_url` / `debug_query_devices` /
+`debug_capture_preview_screenshot`; v2.6.0 added 2 debug tools —
+`debug_game_command` and `debug_game_client_status`; v2.5.0 added
+file-editor 4 tools; v2.4.8 added 7 across A1/A2 categories; v2.4.3
+added 3 assetMeta; v2.4.0 added 4 inspector/setter; v2.1.1 added 6
+prefab/EventHandler; net of two drops in v2.1.2 / v2.1.4). 18
+categories. Original author's
 v1.5.0 plan was to collapse to ~50 action-router tools; we are not
 committing to that target until token cost is measured (P2 closed at
 v2.1.6 after measure showed lossy-only gains).
@@ -390,7 +391,7 @@ v2.1.6 after measure showed lossy-only gains).
     `z.toJSONSchema(schema, { target: 'draft-7' })`, which inlines
     reused subschemas (verified empirically: same `vec3` instance used
     3× in `position`/`rotation`/`scale` produces three full inline
-    copies, no `$ref`). All 183 v2.6.1 tool schemas are confirmed
+    copies, no `$ref`). All 187 v2.8.0 tool schemas are confirmed
     inline.
 
     Regression guard: `node scripts/check-gemini-compat.js` walks

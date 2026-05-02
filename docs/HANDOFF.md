@@ -5,38 +5,33 @@
 > 什麼留這、細拆規劃看 `docs/roadmap/06-version-plan-v23-v27.md`、
 > 跨專案分析看 `docs/research/cross-repo-survey.md`。**
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.7.3 round-2 re-attendance → next: v2.8.0 / live-reload-retest v2.7.x）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-02 / v2.8.0 main commit landed → next: 三方 review loop → v2.8.x patch bumps）
 
-**當下版本**：v2.7.3（v2.7.0 minor + 3 round review patches；
-origin/main push pending 至此 commit 完成）。v2.6.0–v2.6.2 cycle 全綠
-+ reload-retest 通過；v2.7.0 落地 preview-QA + security 主題（CORS
-scoping for /game/*、debug_preview_url、debug_query_devices、
-debug_capture_preview_screenshot）；v2.7.1 round-1 三方 review fixes
-（4 🔴 + 4 ≥2-reviewer 🟡）；v2.7.2 round-2 doc fix（CLAUDE.md
-architecture map drift + HANDOFF heading）；v2.7.3 round-2 re-attendance
-（Codex re-run caught 2 🔴 missed in v2.7.2 + 2 🟡 paid down）。
-**18 categories / 186 tools**（v2.7.0 +3）。
+**當下版本**：v2.8.0（spillover 釋出 — 3 件 carryover 還清 + 1 件
+新工具）。v2.6.0–v2.6.2 cycle 全綠 + reload-retest 通過；v2.7.0 落地
+preview-QA + security 主題；v2.7.1 → v2.7.3 三方 review patch 已收尾；
+v2.8.0 落地三件子任務：T-V28-1（CORS hoist + Vary: Origin on deny
+branch）、T-V28-2（resolveAutoCaptureFile helper 套到 4 處 auto-named
+capture path）、T-V28-3（`debug_preview_control` 新工具，typed
+`cce.SceneFacade.changePreviewPlayState` 路線取代 undocumented
+`scene/editor-preview-set-play`）。
+**18 categories / 187 tools**（v2.8.0 +1）。
 
-**下一個動工**：**v2.8.0** — open spillover；建議先做 **v2.7.x reload
-retest** 把 v2.7.0 三件新 tool 在實機 cocos editor 跑過，再決定 v2.8.0
-主題。
+**下一個動工**：**三方 review loop**（Claude / Codex / Gemini）跑在
+v2.8.0 main commit 上；按一貫流程合併 🔴 + ≥2-reviewer 🟡 為 v2.8.1
+patch bump；rerun until 三方一致 🟢 ship-it。push origin/main 在 ship-it
+之後。
 
-**v2.8.0 候選清單**（從 v2.7.0 規劃時的 spillover 候選順延，已扣除
-v2.7.0 落地的 3 件）：
+**v2.8.x → v2.9.0 候選清單**（v2.7.0 spillover 順延，扣除 v2.8.0 落地
+的 3 件）：
 - `debug_record_start/stop` MediaRecorder（harady 路線；client 端已有
   部分 code 註解可移植）。1.5 天。
 - RomaRogov macro-tool enum routing 模式（`undo_recording({op})` /
   `reference_image({op,...})` 等收斂）。1-2 天。
-- harady `debug_preview` 程式化 PIE start/stop（v2.7.0 #3 只 ship
-  `debug_preview_url` 走 documented `preview/query-preview-url`；
-  PIE play/stop 須走 undocumented `scene/editor-preview-set-play`，
-  v2.7.0 刻意暫緩；若 v2.8.0 接受 protected/undocumented 風險，可動）。
-  0.5 天。
-- `Vary: Origin` on disallowed-origin branch（v2.7.0 review Claude 單方
-  🟡）+ hoist double `resolveGameCorsOrigin` call（v2.7.0 review Claude
-  單方 🟡 cosmetic）。0.1 天 polish。
-- Realpath check on `screenshot()` auto-named save path（v2.7.0
-  review Codex 單方 🟡 carry-over from v2.6.x）。0.2 天。
+- 實機 reload-retest v2.7.x + v2.8.0 — 把 `debug_preview_url` /
+  `debug_query_devices` / `debug_capture_preview_screenshot` /
+  `debug_preview_control` 在 cocos editor 跑過；live-test
+  `nudgeEditorModel` + CORS scoping 在跨瀏覽器 origin 行為。0.5 天。
 
 > ~~decorator 捨棄 `reflect-metadata`~~ — closed at v2.7.0 task #1
 > verification（2026-05-02）：v2.4.0 step 5 採 descriptor-capture，
@@ -111,6 +106,11 @@ v2.7.0 落地的 3 件）：
 
 | SHA | 內容 |
 |---|---|
+| `<v2.8.0>` | release: v2.8.0 — spillover (CORS polish + realpath helper + debug_preview_control) — main commit pending packaging |
+| `c4a4dc8` | feat(v2.8.0 #3): debug_preview_control for programmatic PIE play/stop |
+| `80d722f` | fix(v2.8.0 #2): realpath containment helper for all auto-named capture paths |
+| `39c0b36` | fix(v2.8.0 #1): CORS hoist resolveGameCorsOrigin + Vary: Origin on deny branch |
+| `e695a99` | docs(handoff): v2.7.x cycle wrap — round 3 three-way ship-it converged |
 | `d1a868f` | fix(v2.7.3): codex round-2 re-attendance — 2 must-fix + 2 polish |
 | `dd88952` | fix(v2.7.2): three-way review patch round 2 on v2.7.1 — doc accuracy |
 | `39d044f` | fix(v2.7.1): three-way review patch round 1 on v2.7.0 — 4 must-fix + 4 polish |
@@ -543,6 +543,7 @@ disposable asset 才能跑。
 4. 對應選項的 docs/roadmap/06 段落
 
 **回滾錨點**：
+- v2.8.x patch 改動前（v2.8.0 main commit）→ `git reset --hard <v2.8.0 head>` (查 `git log` v2.8.0 release commit)
 - v2.8.0 改動前（v2.7.3 release 點 + 三方 ship-it round 3）→ `git reset --hard d1a868f`
 - v2.7.3 改動前（v2.7.2 release 點）→ `git reset --hard dd88952`
 - v2.7.2 改動前（v2.7.1 release 點）→ `git reset --hard 39d044f`
@@ -695,6 +696,7 @@ v2.7.0 ✅ done（preview-QA + security hardening — CORS scoping for /game/* +
 v2.7.1 ✅ done（三方 review patch round 1 — 4 must-fix（resolveGameCorsOrigin doc/code mismatch + CHANGELOG 'public' channels misleading + smoke OPTIONS preflight + IPv6 [::1] portability）+ 4 polish，commit 39d044f）
 v2.7.2 ✅ done（三方 review patch round 2 — CLAUDE.md architecture map drift（debug 17→20 / node 11→12 / component 10→11 / +4 missing entries）+ HANDOFF heading stale，commit dd88952；Codex r2 出貨 due to out-of-credits）
 v2.7.3 ✅ done（Codex round-2 re-attendance — 2 must-fix（HANDOFF body 漏更新 v2.7.2 + v2.8.0 candidates 列已落地工具）+ 2 polish（smoke ACAO=* + CLAUDE.md v2.3.0 數學澄清），commit d1a868f；round 3 三方一致 🟢 ship-it）
+v2.8.0 ✅ done（spillover — T-V28-1 CORS hoist + Vary: Origin on deny + T-V28-2 resolveAutoCaptureFile helper for 4 capture paths + T-V28-3 debug_preview_control via typed cce.SceneFacade.changePreviewPlayState，18 categories / 187 tools，commits 39c0b36 / 80d722f / c4a4dc8；三方 review pending）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：

@@ -1,5 +1,70 @@
 # Changelog
 
+## v2.8.0 — 2026-05-02
+
+Spillover release: pays down the three carryover items on the v2.7.0
+single-reviewer 🟡 list and ships one new tool from the deferred PIE
+control candidate. **18 categories / 187 tools** (debug 20 → 21).
+
+### #1 — CORS hoist + Vary: Origin on deny branch (T-V28-1)
+
+`source/mcp-server-sdk.ts` /game/* request handler:
+- Hoists `resolveGameCorsOrigin(req.headers.origin)` to a single
+  `gameAcao` classification at the top of the branch. The OPTIONS
+  preflight, the response-header writer, and the post-CORS 403
+  enforcement all reuse the same value instead of re-classifying twice
+  per request.
+- Emits `Vary: Origin` on BOTH the allow- and deny- branches. v2.7.0
+  set Vary only when an ACAO header was actually emitted, leaving a
+  window where a shared browser cache could serve a cached allowed-
+  origin response to a later disallowed origin (or vice versa). Vary
+  now keys cache uniformly regardless of outcome.
+
+Carryover from v2.7.0 review Claude single-reviewer 🟡; no functional
+change for legitimate browser flows.
+
+### #2 — Realpath containment for all auto-named capture paths (T-V28-2)
+
+`source/tools/debug-tools.ts`:
+- New helper `resolveAutoCaptureFile(basename)` returning
+  `{ ok, filePath, dir }` with the same realpath containment check
+  v2.6.1 added to `persistGameScreenshot`.
+- Applied at all 4 auto-named capture sites:
+  - `screenshot()`              → `screenshot-<ts>.png`
+  - `capturePreviewScreenshot()`→ `preview-<ts>.png`
+  - `batchScreenshot()`         → `batch-<ts>` prefix
+  - `persistGameScreenshot()`   → `game-<ts>.<ext>` (refactored to
+    use the helper too — eliminates the inline copy)
+
+Carryover from v2.7.0 Codex single-reviewer 🟡. Protects against
+`<project>/temp/mcp-captures` resolving outside the project tree via
+a symlink chain.
+
+### #3 — debug_preview_control tool (T-V28-3)
+
+New MCP tool: `debug_preview_control` with `op: 'start' | 'stop'`.
+Programmatically enters or exits Preview-in-Editor (PIE) play mode —
+equivalent to clicking the toolbar play button.
+
+Implementation routes through `runSceneMethodAsToolResponse` to a new
+scene-side method `changePreviewPlayState(state)` in `source/scene.ts`
+which calls the typed `cce.SceneFacade.changePreviewPlayState` method
+documented on `SceneFacadeManager` in
+`@cocos/creator-types/.../scene-facade-manager.d.ts:250`.
+
+The HANDOFF originally listed the undocumented Editor.Message channel
+`scene/editor-preview-set-play` for this. During T-V28-3 reconnaissance
+we found the typed facade method and went with that instead so the
+callsite is type-checked and not subject to silent removal between
+cocos versions.
+
+Pairs with `debug_capture_preview_screenshot`: AI can now start PIE,
+wait for the preview window to appear, and capture without a human
+clicking the toolbar.
+
+Tool count: 186 → 187. Gemini-compat smoke confirms all 187 schemas
+remain inline (no $ref / $defs / definitions).
+
 ## v2.7.3 — 2026-05-02
 
 Codex round-2 re-attendance patch (Codex was out-of-credits during the
