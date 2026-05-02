@@ -33,7 +33,7 @@ import {
     ParticleInterpreter, UnknownInterpreter,
     AnimationClipInterpreter, AudioClipInterpreter, PrefabInterpreter,
     SceneInterpreter, LabelAtlasInterpreter, SpineInterpreter,
-    JsonInterpreter
+    JsonInterpreter, TiledMapInterpreter,
 } from '../asset-interpreters/specialized';
 import { PropertySetSpec } from '../asset-interpreters/interface';
 
@@ -55,6 +55,7 @@ function buildManager(): AssetInterpreterManager {
             new LabelAtlasInterpreter(),
             new SpineInterpreter(),
             new JsonInterpreter(),
+            new TiledMapInterpreter(),
         ],
         fallback,
     );

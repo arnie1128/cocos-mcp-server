@@ -9,14 +9,8 @@ import { resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 import { is2DComponentType, is3DComponentType, BUILTIN_2D_COMPONENTS } from '../lib/node-classifications';
-
-// vec3 used by create_node's initialTransform — original schema had no
-// per-axis description and no required marker, so axes are plain optional numbers.
-const vec3Schema = z.object({
-    x: z.number().optional(),
-    y: z.number().optional(),
-    z: z.number().optional(),
-});
+// vec3 shared via lib/schemas.ts — used by create_node's initialTransform.
+import { vec3Schema } from '../lib/schemas';
 
 // Standard cc.Layers bit values. Custom user-defined layers go through the
 // numeric branch of the create_node `layer` arg, so this list only enumerates

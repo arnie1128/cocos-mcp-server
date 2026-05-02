@@ -26,3 +26,11 @@ export const colorSchema = z.object({
     b: z.number().min(0).max(255).optional(),
     a: z.number().min(0).max(255).optional(),
 });
+
+/**
+ * Reference shape — short alias for `instanceReferenceSchema`
+ * exported by `lib/instance-reference.ts`. Kept here so callers can
+ * import all common zod shapes from a single module. The canonical
+ * definition (with describe text) lives in `instance-reference.ts`.
+ */
+export { instanceReferenceSchema as referenceSchema } from './instance-reference';

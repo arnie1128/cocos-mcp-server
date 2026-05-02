@@ -222,6 +222,10 @@ export class JsonInterpreter extends BaseAssetInterpreter {
     get importerType(): string { return 'json'; }
 }
 
+export class TiledMapInterpreter extends BaseAssetInterpreter {
+    get importerType(): string { return 'tiled-map'; }
+}
+
 
 /**
  * Catch-all for importer strings we don't have a specialized handler
