@@ -3,9 +3,9 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.5 done — v2.11.x cycle live）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.6 done — v2.11.x cycle wrap 候選）
 
-**當下版本**：v2.11.5（Group C inspector 補完 + Group A #3+#4：場景快照 + 資產清查 + Group B #7+#9：build-hash tools + Core/Full profile）。**18 categories / 192 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方清單（#8）。
+**當下版本**：v2.11.6（FunplayAI #8：Electron webContents input simulation 5 工具）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 候選清單全部 ship。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
@@ -14,6 +14,7 @@
 - v2.11.3 — #5 inspector 4 缺口（部分 ship）：(a) `i18n:` tooltip 解析 ✅；(b) Asset → Importer suffix 分支於 `get_instance_definition`（`data.kind = 'node' \| 'component' \| 'asset'`）✅；(c) `inspector_get_settings_definition` 新工具：`CommonTypes` ✅，`ProjectSettings` / `CurrentSceneGlobals` 因 cocos channel 未驗證 → 回傳明確 `pending` 訊息（部分 ship）；(d) `inspector_set_instance_properties` 通用 batch writer ✅，依 reference type 分派至既有 AssetMetaTools / ComponentTools / NodeTools 實例。1 支 codex；後手修 2 處 implicit any。Tool count 181 → 183 (+2)，inspector 2 → 4
 - v2.11.4 — #2 `component_auto_bind` + #1 批次節點三件套（`node_create_tree` / `node_set_layout` / `prefab_create_from_spec`）：2 支循序 codex；後手修 `z.lazy()` → `z.any()` 避免 Gemini $ref + 移除 `as any` decorator cast。Tool count 183 → 187 (+4)
 - v2.11.5 — Group A #3+#4：`validation_take_snapshot` + `validation_compare_snapshots`（場景節點快照與 diff，session-scoped）+ `assetAdvanced_get_tree`（遞迴資產樹，dirs-first 排序）+ `assetAdvanced_get_unused_assets` 由 placeholder 升級為真正 dependency-scan 實作（query-asset-dependencies）。三方 review 後修補：root asset 加入 referenced set、serializeNodeTree uuid/_id fallback + visited-set cycle guard、query-asset-depends channel 名稱修正。Tool count 187 → 190 (+3)。Group B #7+#9：`server_get_build_hash` / `server_check_code_sync`（build identity + 原始碼同步狀態診斷工具）+ pplyProfile('core'|'full') IPC + Core/Full 按鈕（UI + composable）+ `postbuild` 腳本（scripts/gen-build-hash.js）。三方 review 後修補：sourceRoot path traversal、get_build_hash raw JSON、double getEnabledTools()。Tool count 190 → 192 (+2)
+- v2.11.6 — #8 `input_list_windows` + `input_simulate_mouse_move` / `input_simulate_mouse_click` / `input_simulate_mouse_drag` / `input_simulate_key_press`：基於 Electron `webContents.sendInputEvent()`，不需 OS 層 API（Cocos Creator 是 Electron app）；支援 editor / preview / simulator / focused 四種 windowKind + titleContains 字串定位 + windowId 精確定位 + 可選 panel 相對座標（DOM traversal）。1 支 codex；tsc 零錯誤 + Gemini compat 197/197 inline。Tool count 192 → 197 (+5)，categories 18 → 19
 
 完整 v2.10.x 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 

@@ -59,6 +59,7 @@ source/
 │   ├── asset-meta-tools.ts        #   3 tools  (v2.4.3 — list_interpreters / get_properties / set_properties)
 │   ├── animation-tools.ts         #   4 tools  (v2.4.8 A2)
 │   ├── file-editor-tools.ts       #   4 tools  (v2.5.0 — insert_text / delete_lines / replace_text / query_text)
+│   ├── input-tools.ts             #   5 tools  (v2.11.6 FunplayAI #8: list_windows / simulate_mouse_move / simulate_mouse_click / simulate_mouse_drag / simulate_key_press — Electron webContents.sendInputEvent, no OS-level API)
 │   └── tool-manager.ts            # Per-config enable/disable persistence
 ├── panels/                 # Vue 3 panel UI (default + tool-manager tabs)
 │   └── default/
@@ -78,7 +79,7 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 192 (v2.11.5 added 5 tools: `server_get_build_hash` / `server_check_code_sync` / `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
+Total tool count today: 197 (v2.11.6 added 5 tools: `input_list_windows` / `input_simulate_mouse_move` / `input_simulate_mouse_click` / `input_simulate_mouse_drag` / `input_simulate_key_press` — Electron webContents.sendInputEvent, works across editor/preview/simulator BrowserWindows; 19 categories. v2.11.5 added 5 tools: `server_get_build_hash` / `server_check_code_sync` / `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
 `inspector_get_settings_definition` (all three branches wired in v2.11.5: CommonTypes; ProjectSettings via `project/query-config 'project'` → renderPlainJsonClass; CurrentSceneGlobals via scene root `_globals` → renderTsClass) +
 `inspector_set_instance_properties` (generic batch writer that dispatches by
 reference type to existing assetMeta / component / node setters); v2.11.3

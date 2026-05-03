@@ -17,6 +17,7 @@ import { InspectorTools } from './inspector-tools';
 import { AssetMetaTools } from './asset-meta-tools';
 import { AnimationTools } from './animation-tools';
 import { FileEditorTools } from './file-editor-tools';
+import { InputTools } from './input-tools';
 
 export type ToolRegistry = Record<string, ToolExecutor>;
 
@@ -40,5 +41,6 @@ export function createToolRegistry(): ToolRegistry {
         assetMeta: new AssetMetaTools(),
         animation: new AnimationTools(),
         fileEditor: new FileEditorTools(),
+        input: new InputTools(),
     };
 }
