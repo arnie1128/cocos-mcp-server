@@ -59,7 +59,7 @@ source/
 │   ├── asset-meta-tools.ts        #   3 tools  (v2.4.3 — list_interpreters / get_properties / set_properties)
 │   ├── animation-tools.ts         #   4 tools  (v2.4.8 A2)
 │   ├── file-editor-tools.ts       #   4 tools  (v2.5.0 — insert_text / delete_lines / replace_text / query_text)
-│   ├── input-tools.ts             #   5 tools  (v2.11.6 FunplayAI #8: list_windows / simulate_mouse_move / simulate_mouse_click / simulate_mouse_drag / simulate_key_press — Electron webContents.sendInputEvent, no OS-level API)
+│   ├── input-tools.ts             #   5 tools  (v2.11.6 FunplayAI #8: list_windows / simulate_mouse_move / simulate_mouse_click / simulate_mouse_drag / simulate_key_press — Electron webContents.sendInputEvent, no OS-level API; require('electron') deferred to method scope, explicit error if main-process context unavailable)
 │   └── tool-manager.ts            # Per-config enable/disable persistence
 ├── panels/                 # Vue 3 panel UI (default + tool-manager tabs)
 │   └── default/
