@@ -53,8 +53,8 @@ source/
 │   ├── server-tools.ts            #   6 tools
 │   ├── broadcast-tools.ts         #   5 tools
 │   ├── reference-image-tools.ts   #   1 tool   (v2.9.x macro-routing collapse: 12 → 1, single op-router referenceImage_manage)
-│   ├── asset-advanced-tools.ts    #  11 tools
-│   ├── validation-tools.ts        #   3 tools
+│   ├── asset-advanced-tools.ts    #  12 tools  (v2.11.5 +get_tree real implementation; get_unused_assets real implementation)
+│   ├── validation-tools.ts        #   5 tools  (v2.11.5 +take_snapshot / +compare_snapshots)
 │   ├── inspector-tools.ts         #   4 tools  (v2.4.0 step 6 — get_instance_definition / get_common_types_definition; v2.11.3 +get_settings_definition / +set_instance_properties)
 │   ├── asset-meta-tools.ts        #   3 tools  (v2.4.3 — list_interpreters / get_properties / set_properties)
 │   ├── animation-tools.ts         #   4 tools  (v2.4.8 A2)
@@ -78,7 +78,7 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 187 (v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
+Total tool count today: 190 (v2.11.5 added 3 tools: `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
 `inspector_get_settings_definition` (CommonTypes complete; ProjectSettings /
 CurrentSceneGlobals return `pending` until cocos channel verified) +
 `inspector_set_instance_properties` (generic batch writer that dispatches by

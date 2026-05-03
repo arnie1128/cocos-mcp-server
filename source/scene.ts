@@ -130,6 +130,63 @@ interface CaptureSlot {
     truncated: boolean;
 }
 
+interface SnapshotNode {
+    uuid: string;
+    name: string;
+    active: boolean;
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number; w: number };
+    scale: { x: number; y: number; z: number };
+    components: Array<{ type: string; enabled: boolean }>;
+    childUuids: string[];
+}
+
+function serializeNodeTree(node: any, nodes: Record<string, SnapshotNode>, visited = new Set<string>()): void {
+    const uuid = node?.uuid ?? node?._id;
+    if (typeof uuid !== 'string') return;
+    if (visited.has(uuid)) return;
+    visited.add(uuid);
+
+    const children = node.children ?? node._children ?? [];
+    const position = node.position ?? node.getPosition?.() ?? {};
+    const rotation = node.rotation ?? node.getRotation?.() ?? {};
+    const scale = node.scale ?? node.getScale?.() ?? {};
+    const components = node.components ?? node._components ?? [];
+
+    nodes[uuid] = {
+        uuid,
+        name: node.name ?? '',
+        active: node.active !== false,
+        position: {
+            x: typeof position.x === 'number' ? position.x : 0,
+            y: typeof position.y === 'number' ? position.y : 0,
+            z: typeof position.z === 'number' ? position.z : 0,
+        },
+        rotation: {
+            x: typeof rotation.x === 'number' ? rotation.x : 0,
+            y: typeof rotation.y === 'number' ? rotation.y : 0,
+            z: typeof rotation.z === 'number' ? rotation.z : 0,
+            w: typeof rotation.w === 'number' ? rotation.w : 1,
+        },
+        scale: {
+            x: typeof scale.x === 'number' ? scale.x : 1,
+            y: typeof scale.y === 'number' ? scale.y : 1,
+            z: typeof scale.z === 'number' ? scale.z : 1,
+        },
+        components: components.map((comp: any) => ({
+            type: comp?.constructor?.name ?? comp?.__classname__ ?? comp?._cid ?? 'Unknown',
+            enabled: comp?.enabled !== false,
+        })),
+        childUuids: children
+            .map((child: any) => child?.uuid ?? child?._id)
+            .filter((id: any) => typeof id === 'string'),
+    };
+
+    for (const child of children) {
+        serializeNodeTree(child, nodes, visited);
+    }
+}
+
 const CAPTURE_MAX_ENTRIES = 500;
 const CAPTURE_MAX_BYTES = 64 * 1024;
 const _captureALS = new AsyncLocalStorage<CaptureSlot>();
@@ -187,6 +244,30 @@ function _maybeUnhookConsole(): void {
 }
 
 export const methods: { [key: string]: (...any: any) => any } = {
+    takeSceneSnapshot() {
+        try {
+            const { director } = require('cc');
+            const scene = director.getScene();
+            if (!scene) {
+                return fail('No active scene');
+            }
+
+            const nodes: Record<string, SnapshotNode> = {};
+            const children = scene.children ?? scene._children ?? [];
+            for (const child of children) {
+                serializeNodeTree(child, nodes);
+            }
+
+            return ok({
+                    sceneName: scene.name ?? '',
+                    rootUuids: children.map((child: any) => child.uuid).filter((uuid: any) => typeof uuid === 'string'),
+                    nodes,
+                });
+        } catch (error: any) {
+            return fail(error?.message ?? String(error));
+        }
+    },
+
     /**
      * v2.4.8 A3: invoke another scene-script method by name, capturing
      * console.{log,warn,error} during the call and returning capturedLogs
