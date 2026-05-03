@@ -1,4 +1,4 @@
-# CLAUDE.md — cocos-mcp-server (fork)
+﻿# CLAUDE.md — cocos-mcp-server (fork)
 
 Project-level instructions for AI sessions working on this fork. User-facing
 analysis and roadmap live in `docs/`.
@@ -50,7 +50,7 @@ source/
 │   ├── project-tools.ts           #  24 tools
 │   ├── debug-tools.ts             #  26 tools  (v2.3.0 net +3: execute_javascript/screenshot/batch_screenshot — execute_script kept as compat alias not net-new; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot; v2.8.0 +preview_control; v2.8.3 +get_preview_mode; v2.9.0 +check_editor_health/+set_preview_mode; v2.9.4 +record_start/+record_stop)
 │   ├── preferences-tools.ts       #   7 tools
-│   ├── server-tools.ts            #   6 tools
+│   ├── server-tools.ts            #   8 tools  (v2.11.5 +get_build_hash / +check_code_sync)
 │   ├── broadcast-tools.ts         #   5 tools
 │   ├── reference-image-tools.ts   #   1 tool   (v2.9.x macro-routing collapse: 12 → 1, single op-router referenceImage_manage)
 │   ├── asset-advanced-tools.ts    #  12 tools  (v2.11.5 +get_tree real implementation; get_unused_assets real implementation)
@@ -78,7 +78,7 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 190 (v2.11.5 added 3 tools: `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
+Total tool count today: 192 (v2.11.5 added 5 tools: `server_get_build_hash` / `server_check_code_sync` / `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
 `inspector_get_settings_definition` (all three branches wired in v2.11.5: CommonTypes; ProjectSettings via `project/query-config 'project'` → renderPlainJsonClass; CurrentSceneGlobals via scene root `_globals` → renderTsClass) +
 `inspector_set_instance_properties` (generic batch writer that dispatches by
 reference type to existing assetMeta / component / node setters); v2.11.3

@@ -134,6 +134,17 @@ export function useToolConfig() {
     const getCategoryDisplayName = (category: string) =>
         CATEGORY_DISPLAY[category] || category;
 
+    const applyProfile = async (profile: 'core' | 'full') => {
+        try {
+            const result: any = await Editor.Message.request(PACKAGE_NAME, 'applyToolProfile', profile);
+            if (result?.success) {
+                await loadToolManagerState();
+            }
+        } catch (error) {
+            logger.error('[Vue App] Failed to apply tool profile:', error);
+        }
+    };
+
     return {
         availableTools,
         toolCategories,
@@ -148,5 +159,6 @@ export function useToolConfig() {
         toggleCategoryTools,
         getToolsByCategory,
         getCategoryDisplayName,
+        applyProfile,
     };
 }

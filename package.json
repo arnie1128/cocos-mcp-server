@@ -1,4 +1,4 @@
-﻿{
+{
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
@@ -8,7 +8,8 @@
     "scripts": {
         "preinstall": "node ./scripts/preinstall.js",
         "build": "tsc",
-"watch": "tsc -w",
+        "postbuild": "node scripts/gen-build-hash.js",
+        "watch": "tsc -w",
         "smoke": "node scripts/smoke-mcp-sdk.js",
         "check:gemini": "node scripts/check-gemini-compat.js"
     },
@@ -192,6 +193,7 @@
                 "setAnimationSpeed",
                 "setNodeProperty",
                 "stopAnimation",
+                "takeSceneSnapshot",
                 "unlinkPrefab"
             ]
         }

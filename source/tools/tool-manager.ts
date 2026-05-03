@@ -312,6 +312,21 @@ export class ToolManager {
         return currentConfig.tools.filter(tool => tool.enabled);
     }
 
+
+    public applyProfile(profile: 'core' | 'full'): void {
+        if (profile !== 'core' && profile !== 'full') {
+            throw new Error(`Invalid profile '${profile}'. Expected 'core' or 'full'.`);
+        }
+        const currentConfig = this.getCurrentConfiguration();
+        if (!currentConfig) throw new Error('沒有當前配置');
+        const updates = currentConfig.tools.map(tool => ({
+            category: tool.category,
+            name: tool.name,
+            enabled: profile === 'full' || !tool.description?.includes('[specialist]'),
+        }));
+        this.updateToolStatusBatch(currentConfig.id, updates);
+    }
+
     public getToolManagerState() {
         const currentConfig = this.getCurrentConfiguration();
         return {

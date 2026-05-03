@@ -493,7 +493,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         for (const asset of roots) {
             referencedUuids.add(asset.uuid);
             try {
-                const deps = await Editor.Message.request('asset-db', 'query-asset-depends', asset.uuid);
+                const deps = await Editor.Message.request('asset-db', 'query-asset-dependencies', asset.uuid, undefined);
                 if (Array.isArray(deps)) {
                     deps.forEach(addDependency);
                 }
@@ -646,7 +646,7 @@ export class AssetAdvancedTools implements ToolExecutor {
 
         const users: any[] = [];
         for (const asset of uniqueAssets) {
-            const deps = await Editor.Message.request('asset-db', 'query-asset-depends', asset.uuid);
+            const deps = await Editor.Message.request('asset-db', 'query-asset-dependencies', asset.uuid, undefined);
             if (Array.isArray(deps) && deps.includes(targetUuid)) {
                 let type = 'script';
                 if (asset.type === 'cc.SceneAsset') type = 'scene';

@@ -90,6 +90,8 @@
                         </div>
                     </div>
                     <div class="tools-section-controls">
+                        <ui-button @click="applyProfile('core')" class="small">Core</ui-button>
+                        <ui-button @click="applyProfile('full')" class="small">Full</ui-button>
                         <ui-button @click="selectAllTools" class="small">全選</ui-button>
                         <ui-button @click="deselectAllTools" class="small">取消全選</ui-button>
                         <ui-button @click="saveChanges" class="primary">儲存更改</ui-button>

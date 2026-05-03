@@ -217,6 +217,19 @@ export const methods: { [key: string]: (...any: any) => any } = {
 
     async getEnabledTools() {
         return toolManager.getEnabledTools();
+    },
+
+    async applyToolProfile(profile: 'core' | 'full') {
+        try {
+            toolManager.applyProfile(profile);
+            const enabledTools = toolManager.getEnabledTools();
+            if (mcpServer) {
+                mcpServer.updateEnabledTools(enabledTools);
+            }
+            return { success: true, profile, enabledCount: enabledTools.length };
+        } catch (error: any) {
+            throw new Error(`套用工具設定檔失敗: ${error.message}`);
+        }
     }
 };
 
