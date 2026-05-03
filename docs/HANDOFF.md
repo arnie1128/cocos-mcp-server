@@ -3,9 +3,9 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.6 done — v2.11.x cycle wrap 候選）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.7 done — v2.11.x cycle wrap COMPLETE）
 
-**當下版本**：v2.11.6（FunplayAI #8：Electron webContents input simulation 5 工具）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 候選清單全部 ship。
+**當下版本**：v2.11.7（cumulative review + simplify pass on whole project；DNS rebinding 防護 + 並行/TOCTOU/payload 修補；landmine #18 加入）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 候選清單 9/9 全 ship。下一階段進入 v2.12.x，候選見下。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
@@ -15,24 +15,37 @@
 - v2.11.4 — #2 `component_auto_bind` + #1 批次節點三件套（`node_create_tree` / `node_set_layout` / `prefab_create_from_spec`）：2 支循序 codex；後手修 `z.lazy()` → `z.any()` 避免 Gemini $ref + 移除 `as any` decorator cast。Tool count 183 → 187 (+4)
 - v2.11.5 — Group A #3+#4：`validation_take_snapshot` + `validation_compare_snapshots`（場景節點快照與 diff，session-scoped）+ `assetAdvanced_get_tree`（遞迴資產樹，dirs-first 排序）+ `assetAdvanced_get_unused_assets` 由 placeholder 升級為真正 dependency-scan 實作（query-asset-dependencies）。三方 review 後修補：root asset 加入 referenced set、serializeNodeTree uuid/_id fallback + visited-set cycle guard、query-asset-depends channel 名稱修正。Tool count 187 → 190 (+3)。Group B #7+#9：`server_get_build_hash` / `server_check_code_sync`（build identity + 原始碼同步狀態診斷工具）+ pplyProfile('core'|'full') IPC + Core/Full 按鈕（UI + composable）+ `postbuild` 腳本（scripts/gen-build-hash.js）。三方 review 後修補：sourceRoot path traversal、get_build_hash raw JSON、double getEnabledTools()。Tool count 190 → 192 (+2)
 - v2.11.6 — #8 `input_list_windows` + `input_simulate_mouse_move` / `input_simulate_mouse_click` / `input_simulate_mouse_drag` / `input_simulate_key_press`：基於 Electron `webContents.sendInputEvent()`，不需 OS 層 API（Cocos Creator 是 Electron app）；支援 editor / preview / simulator / focused 四種 windowKind + titleContains 字串定位 + windowId 精確定位 + 可選 panel 相對座標（DOM traversal）。1 支 codex；tsc 零錯誤 + Gemini compat 197/197 inline。Tool count 192 → 197 (+5)，categories 18 → 19
+- **v2.11.7 — cumulative review + simplify pass on whole project（非僅 v2.11.5/6 diff）**：3 支並行 codex 全專案 audit（reuse / quality+efficiency / security）+ 1 支 ship 驗證 + 7 支跨 repo 重新分析（含新增 chenShengBiao Python repo）。
+  - **Security**：landmine #18 — loopback Host check on `/mcp` + `/api/*` + `/game/*`（DNS rebinding 防護，`/health` 例外）；`batch_import_assets` 加 fileFilter+recursive guard + 500 file cap；`batch_delete_assets` 加 200 url cap；`server_check_code_sync` containment 改用 `path.relative`
+  - **Performance**：`asset-advanced` 6 個 sequential await loop 改 `Promise.allSettled`（get_unused_assets / get_users / validate_asset_references / export_asset_manifest / batch_import_assets / batch_delete_assets）+ `prefab_create_from_spec` query-node 平行化 + `debug_get_node_tree` 同層子節點平行化
+  - **Quality**：`component_auto_bind` recursive flatten → iterative DFS + 移除多餘 dump-shape unwrap；`validation_compare_snapshots.modified` payload 只回傳變動欄位（before+after 全嵌入會爆 token 預算）；TOCTOU `existsSync→readFileSync` 7 sites 改 try/catch ENOENT（settings / tool-manager / resources/registry / server-tools）
+  - **Deferred**（記錄於 cross-repo-survey §內部 tech-debt）：3 個 lib 抽出（component-lookup 9 sites / dump-unwrap 16 sites / scene-root 14 sites，總 ~110 行可省）+ 19 個 `new Promise(async)` antipattern + get_node_tree/get_scene_hierarchy 加 caps
+  - Tool count 不變 197（純 review/simplify，無新工具）
 
 完整 v2.10.x 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 
-**v2.11.5+ 候選清單**（剩 5 項；#1 / #2 / #5 / #6 已 ship；依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
+**v2.12.x+ 候選清單**（v2.11.7 cycle wrap 後重新整理；詳見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md) v2.11.7 refresh）：
 
 | # | 來源 | 項目 | 估時 | 風險 |
 |---|---|---|---|---|
-| ~~1~~ | ~~harady~~ | ~~批次節點/排版三件套~~ | ✅ v2.11.4 ship | — |
-| ~~2~~ | ~~harady~~ | ~~`component_auto_bind`~~ | ✅ v2.11.4 ship | — |
-| ~~3~~ | ~~Spaydo~~ | ~~`validation_take_snapshot` / `validation_compare_snapshots`~~ | ✅ v2.11.5 ship | — |
-| ~~4~~ | ~~Spaydo~~ | ~~`asset_get_tree` + `assetAdvanced_get_unused_assets` 真正實作~~ | ✅ v2.11.5 ship | — |
-| ~~5~~ | ~~cocos-code-mode~~ | ~~inspector 4 缺口~~ | ✅ v2.11.3 ship；ProjectSettings/CurrentSceneGlobals ✅ v2.11.5 補完 | — |
-| ~~6~~ | ~~RomaRogov~~ | ~~`@ccclass` URL → class name 萃取 helper~~ | ✅ v2.11.2 ship | — |
-| ~~7~~ | ~~harady~~ | ~~`server_check_code_sync` + `server_get_build_hash`~~ | ✅ v2.11.5 ship | — |
-| 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
-| ~~9~~ | ~~FunplayAI~~ | ~~core/full tool profile（tool-manager 第二層輕量 profile）~~ | ✅ v2.11.5 ship | — |
+| 1 | Spaydo | validation 5 子工具（validate_scene/_node/_components/get_scene_stats/validate_references） | 1.5 天 | 低 |
+| 2 | chenShengBiao（新 repo, Python headless）| scaffold_* 9 工具（player_controller/enemy_ai/spawner/game_loop/ui_screen/camera_follow/audio_controller/input_abstraction/score_system） | 2 天 | 低 |
+| 3 | chenShengBiao | assert_scene_state（declarative 場景斷言；與 validation_compare_snapshots 互補）| 1 天 | 低 |
+| 4 | cocos-code-mode | assetGetPreview（任意資產類型 base64 thumbnail）| 0.7 天 | 低 |
+| 5 | chenShengBiao | composite UI presets（dialog_modal / main_menu / hud_bar / toast / loading_spinner）| 1 天 | 低 |
+| 6 | harady | component_query_enum（component property enum 值查詢）| 0.5 天 | 低 |
+| 7 | chenShengBiao | batch_scene_ops（JSON spec 批次場景變更）| 1 天 | 中 |
+| 8 | cocos-cli | multi-node selection（PR #525 SelectionService）| 0.7 天 | 中 |
+| 9 | cocos-cli | resource template `cocos://assets/{ccType}` | 0.3 天 | 低 |
+| 10 | harady | debug 內省（list_messages / list_extensions / get_extension_info）| 0.5 天 | 低 |
+| 11 | cocos-code-mode | editorGetScenePreview（顯式 camera framing 截圖） | 0.5 天 | 低 |
 
-詳細 v2.11.x 候選 + 跨 repo 比對見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)（v2.11.1 refresh）。
+**內部 tech-debt 候選**（v2.11.7 review 結論，建議 v2.12.x 中段順手做）：
+- T1 lib 抽出 `findComponentIndexByType`（9 sites）— 0.5 天
+- T2 lib 抽出 dump-shape unwrap helper（16 sites）— 0.5 天
+- T3 lib 抽出 scene root UUID extractor（14 sites）— 0.5 天
+- T4 `new Promise(async (resolve) => …)` antipattern 清掃（19 sites）— 1 天
+- T5 get_node_tree / get_scene_hierarchy 加 maxDepth/maxNodes/summary cap — 1 天
 
 **未解 issues（不變）**：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（文件已記）
@@ -54,6 +67,7 @@
 
 | SHA | 內容 |
 |---|---|
+| `987756c` | fix(v2.11.7): cumulative review + simplify pass on whole project |
 | `2fe8f4d` | feat(v2.11.6 #8): input simulation via Electron webContents.sendInputEvent |
 | `a71353e` | feat(v2.11.5 #7+#9): build-hash tools + Core/Full profile + asset-db channel fix |
 | `e0fb6c6` | merge(v2.11.5 group-a): scene snapshots + asset tree + real get_unused_assets |
@@ -115,11 +129,11 @@ P0 ✅ done
 P1 ✅ done
 P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
 v2.1.2 — v2.1.7 ✅ done（修補 + audit + P2 close + B-1 description sweep；見 docs/archive/handoff/v2.1.md）
-v2.2.0 — v2.11.3 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/）
+v2.2.0 — v2.11.7 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/；v2.11.x cycle wrap 見上方 NEXT SESSION ENTRY POINT）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.11.5+ — 跨 repo gap 5 項候選（Spaydo snapshot diff + 資產清查 / harady code_sync / FunplayAI input simulation + tool profile）+ inspector settings ProjectSettings/CurrentSceneGlobals follow-up，依 docs/research/cross-repo-survey.md
+B-2 ⏳ v2.12.x+ — 跨 repo gap 11 項候選 + 5 項內部 tech-debt（lib 抽出 + antipattern 清掃），依 docs/research/cross-repo-survey.md v2.11.7 refresh
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -135,9 +149,9 @@ npx tsc --noEmit
 node scripts/check-gemini-compat.js
 node scripts/smoke-mcp-sdk.js
 
-# 工具數（v2.9.7）
+# 工具數（v2.11.7）
 node -e "const {createToolRegistry} = require('./dist/tools/registry.js'); const r=createToolRegistry(); let total=0; for (const c of Object.keys(r)) total += r[c].getTools().length; console.log('categories:', Object.keys(r).length, 'tools:', total);"
-# 預期：categories: 18 tools: 180
+# 預期：categories: 19 tools: 197
 
 # Resource registry 健檢（不需 cocos editor）
 node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'); const r=createResourceRegistry({}); console.log('static:', r.list().length, 'templates:', r.listTemplates().length);"
@@ -177,6 +191,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.11.7 改動前（v2.11.6 ship 點）→ `git reset --hard 93d3c9f`
 - v2.11.6 改動前（v2.11.5 ship 點）→ `git reset --hard 487eb38`
 - v2.11.4 改動前（v2.11.3 ship 點）→ `git reset --hard 1a636ca`
 - v2.11.3 改動前（v2.11.2 ship 點）→ `git reset --hard 9a0151e`
