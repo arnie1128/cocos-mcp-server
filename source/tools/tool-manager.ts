@@ -86,13 +86,12 @@ export class ToolManager {
 
         try {
             this.ensureSettingsDir();
-            const settingsFile = this.getToolManagerSettingsPath();
-            if (fs.existsSync(settingsFile)) {
-                const content = fs.readFileSync(settingsFile, 'utf8');
-                return { ...DEFAULT_TOOL_MANAGER_SETTINGS, ...JSON.parse(content) };
+            const content = fs.readFileSync(this.getToolManagerSettingsPath(), 'utf8');
+            return { ...DEFAULT_TOOL_MANAGER_SETTINGS, ...JSON.parse(content) };
+        } catch (e: any) {
+            if (e?.code !== 'ENOENT') {
+                console.error('Failed to read tool manager settings:', e);
             }
-        } catch (e) {
-            console.error('Failed to read tool manager settings:', e);
         }
         return DEFAULT_TOOL_MANAGER_SETTINGS;
     }

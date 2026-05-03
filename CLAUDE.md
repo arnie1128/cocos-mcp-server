@@ -440,6 +440,28 @@ v2.1.6 after measure showed lossy-only gains).
       itself does not freeze the editor (it merely no-ops); only
       `preview_control(start)` triggers landmine #16.
 
+18. **HTTP server requires loopback Host header on all routes except
+    `/health`** (added v2.11.7 from cumulative security review).
+    Even though the MCP server binds to `127.0.0.1`, a malicious public
+    DNS name resolving to `127.0.0.1` (DNS rebinding) lets a victim's
+    browser tab reach the server while sending `Host: attacker.com`.
+    `mcp-server-sdk.ts` `handleHttpRequest` now rejects any non-loopback
+    Host with 403 before any tool dispatch. The check (`isLoopbackHost`
+    in `lib/cors.ts`) accepts only `127.0.0.1`, `localhost`, or `[::1]`
+    (with optional port).
+
+    `/health` is the sole exempted route so monitoring probes from the
+    cocos editor itself still work even if Host is set unusually.
+
+    Implications:
+    - Test rigs / curl scripts must send `Host: 127.0.0.1:<port>` or
+      `Host: localhost:<port>` (the default for HTTP/1.1 to a loopback
+      target). Smoke and live-test both work unchanged.
+    - DO NOT broaden the allowlist for "localhost variants" without
+      reviewing whether the new entry can be a DNS rebinding target.
+    - `/game/*` Origin allowlist still applies on top — the loopback
+      Host check is independent (Host vs Origin are separate headers).
+
 ## Conventions
 
 - TypeScript strict; `tsc --noEmit` must pass before commit.

@@ -24,15 +24,16 @@ export class ServerTools implements ToolExecutor {
     })
     async getBuildHash(): Promise<ToolResponse> {
         const hashFile = path.join(__dirname, '../build-hash.json');
-        if (!fs.existsSync(hashFile)) {
-            return ok({ buildHash: 'dev', gitSha: 'unknown', buildTime: null, note: 'build-hash.json not found — run npm run build to generate it' });
-        }
+        let info: any;
         try {
-            const info = JSON.parse(fs.readFileSync(hashFile, 'utf8'));
-            return ok({ buildHash: info.buildHash ?? 'dev', gitSha: info.gitSha ?? 'unknown', buildTime: info.buildTime ?? null });
+            info = JSON.parse(fs.readFileSync(hashFile, 'utf8'));
         } catch (e: any) {
+            if (e?.code === 'ENOENT') {
+                return ok({ buildHash: 'dev', gitSha: 'unknown', buildTime: null, note: 'build-hash.json not found — run npm run build to generate it' });
+            }
             return fail(`Failed to read build-hash.json: ${e.message}`);
         }
+        return ok({ buildHash: info.buildHash ?? 'dev', gitSha: info.gitSha ?? 'unknown', buildTime: info.buildTime ?? null });
     }
 
     @mcpTool({
@@ -47,16 +48,15 @@ export class ServerTools implements ToolExecutor {
         const extRoot = path.join(__dirname, '../..');
         const hashFile = path.join(__dirname, '../build-hash.json');
         let buildInfo: any = null;
-        if (fs.existsSync(hashFile)) {
-            try { buildInfo = JSON.parse(fs.readFileSync(hashFile, 'utf8')); } catch {}
-        }
+        try { buildInfo = JSON.parse(fs.readFileSync(hashFile, 'utf8')); } catch {}
         if (!buildInfo?.buildTime) {
             return ok({ inSync: false, buildInfo: null, staleSourceFiles: [], message: 'No build-hash.json found — run npm run build first' });
         }
         const buildTime = new Date(buildInfo.buildTime).getTime();
         const srcRoot = path.resolve(args.sourceRoot ?? path.join(extRoot, 'source'));
         const resolvedExt = path.resolve(extRoot);
-        if (!srcRoot.startsWith(resolvedExt + path.sep) && srcRoot !== resolvedExt) {
+        const rel = path.relative(resolvedExt, srcRoot);
+        if (rel.startsWith('..') || path.isAbsolute(rel)) {
             return fail('sourceRoot must be within the extension root');
         }
         const staleSourceFiles: string[] = [];

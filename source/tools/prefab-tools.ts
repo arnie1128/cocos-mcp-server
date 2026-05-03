@@ -71,14 +71,19 @@ export class PrefabTools implements ToolExecutor {
                 }
 
                 if (args.autoBindMode !== 'none') {
-                    for (const uuid of Object.values(createdNodes) as string[]) {
-                        const nodeData: any = await Editor.Message.request('scene', 'query-node', uuid);
-                        const comps: any[] = nodeData?.__comps__ || [];
+                    const uuids = Object.values(createdNodes) as string[];
+                    const nodeDataResults = await Promise.allSettled(
+                        uuids.map(uuid => Editor.Message.request('scene', 'query-node', uuid))
+                    );
+                    for (let i = 0; i < uuids.length; i++) {
+                        const r = nodeDataResults[i];
+                        if (r.status !== 'fulfilled') continue;
+                        const comps: any[] = (r.value as any)?.__comps__ || [];
                         for (const comp of comps) {
                             const componentType = comp?.__type__;
                             if (typeof componentType === 'string' && !componentType.startsWith('cc.')) {
                                 await this.componentTools.execute('auto_bind', {
-                                    nodeUuid: uuid,
+                                    nodeUuid: uuids[i],
                                     componentType,
                                     mode: args.autoBindMode,
                                 });

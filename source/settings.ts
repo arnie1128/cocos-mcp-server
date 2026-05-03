@@ -37,13 +37,12 @@ function ensureSettingsDir(): void {
 export function readSettings(): MCPServerSettings {
     try {
         ensureSettingsDir();
-        const settingsFile = getSettingsPath();
-        if (fs.existsSync(settingsFile)) {
-            const content = fs.readFileSync(settingsFile, 'utf8');
-            return { ...DEFAULT_SETTINGS, ...JSON.parse(content) };
+        const content = fs.readFileSync(getSettingsPath(), 'utf8');
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(content) };
+    } catch (e: any) {
+        if (e?.code !== 'ENOENT') {
+            logger.error('Failed to read settings:', e);
         }
-    } catch (e) {
-        logger.error('Failed to read settings:', e);
     }
     return DEFAULT_SETTINGS;
 }
@@ -63,13 +62,12 @@ export function saveSettings(settings: MCPServerSettings): void {
 export function readToolManagerSettings(): ToolManagerSettings {
     try {
         ensureSettingsDir();
-        const settingsFile = getToolManagerSettingsPath();
-        if (fs.existsSync(settingsFile)) {
-            const content = fs.readFileSync(settingsFile, 'utf8');
-            return { ...DEFAULT_TOOL_MANAGER_SETTINGS, ...JSON.parse(content) };
+        const content = fs.readFileSync(getToolManagerSettingsPath(), 'utf8');
+        return { ...DEFAULT_TOOL_MANAGER_SETTINGS, ...JSON.parse(content) };
+    } catch (e: any) {
+        if (e?.code !== 'ENOENT') {
+            logger.error('Failed to read tool manager settings:', e);
         }
-    } catch (e) {
-        logger.error('Failed to read tool manager settings:', e);
     }
     return DEFAULT_TOOL_MANAGER_SETTINGS;
 }

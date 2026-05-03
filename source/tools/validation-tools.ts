@@ -98,7 +98,11 @@ export class ValidationTools implements ToolExecutor {
                 const after = headNodes[uuid];
                 const fields = ['name', 'active', 'position', 'rotation', 'scale', 'components', 'childUuids']
                     .filter(field => JSON.stringify(before?.[field]) !== JSON.stringify(after?.[field]));
-                return { uuid, name: after?.name ?? before?.name ?? '', fields, before, after };
+                const changes: Record<string, { before: any; after: any }> = {};
+                for (const field of fields) {
+                    changes[field] = { before: before?.[field], after: after?.[field] };
+                }
+                return { uuid, name: after?.name ?? before?.name ?? '', fields, changes };
             })
             .filter(change => change.fields.length > 0);
 

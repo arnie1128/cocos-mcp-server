@@ -186,18 +186,27 @@ async function callTool(registry: ToolRegistry, category: string, tool: string, 
 }
 
 function readDocsFile(absPath: string): string {
-    if (!fs.existsSync(absPath)) {
-        return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`\n\nThe docs resource expected this file at the extension root. If the\nextension was installed without source files, fetch the latest from\nhttps://github.com/arnie1128/cocos-mcp-server.`;
+    try {
+        return fs.readFileSync(absPath, 'utf8');
+    } catch (e: any) {
+        if (e?.code === 'ENOENT') {
+            return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`\n\nThe docs resource expected this file at the extension root. If the\nextension was installed without source files, fetch the latest from\nhttps://github.com/arnie1128/cocos-mcp-server.`;
+        }
+        throw e;
     }
-    return fs.readFileSync(absPath, 'utf8');
 }
 
 function readDocsSection(absPath: string, sectionHeader: string): string {
-    if (!fs.existsSync(absPath)) {
-        return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`.`;
+    let raw: string;
+    try {
+        raw = fs.readFileSync(absPath, 'utf8');
+    } catch (e: any) {
+        if (e?.code === 'ENOENT') {
+            return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`.`;
+        }
+        throw e;
     }
     // Strip optional UTF-8 BOM that some editors add to markdown files.
-    const raw = fs.readFileSync(absPath, 'utf8');
     const content = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
     // v2.3.1 review fix: split on CRLF or LF so Windows-saved markdown
     // doesn't leave \r residue at end of every line and confuse the section

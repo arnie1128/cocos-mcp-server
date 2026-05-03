@@ -21,7 +21,7 @@ import { setEditorContextEvalEnabled, setSceneLogCaptureEnabled } from './lib/ru
 import { ToolRegistry } from './tools/registry';
 import { ResourceRegistry, createResourceRegistry } from './resources/registry';
 import { BroadcastBridge } from './lib/broadcast-bridge';
-import { applyGameCorsHeaders, applyDefaultCorsHeaders } from './lib/cors';
+import { applyGameCorsHeaders, applyDefaultCorsHeaders, isLoopbackHost } from './lib/cors';
 import { PromptRegistry, createPromptRegistry } from './prompts/registry';
 import {
     consumePendingCommand,
@@ -387,6 +387,16 @@ export class MCPServer {
     private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
         const parsedUrl = url.parse(req.url || '', true);
         const pathname = parsedUrl.pathname;
+
+        // /health is the only route safe to serve under any Host. All
+        // mutating / privileged routes require a loopback Host header so a
+        // DNS-rebinding attacker resolving attacker.com → 127.0.0.1 cannot
+        // drive the editor from a victim browser tab.
+        if (pathname !== '/health' && !isLoopbackHost(req.headers.host)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'host not allowed; loopback only' }));
+            return;
+        }
 
         // CORS is wildcard so the Cocos Creator panel webview (which loads
         // from a `file://` or `devtools://` origin) can hit this endpoint.

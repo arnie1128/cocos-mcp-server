@@ -460,10 +460,9 @@ export class DebugTools implements ToolExecutor {
                     };
 
                     if (nodeData.children && nodeData.children.length > 0) {
-                        for (const childId of nodeData.children) {
-                            const childTree = await buildTree(childId, depth + 1);
-                            tree.children.push(childTree);
-                        }
+                        tree.children = await Promise.all(
+                            nodeData.children.map((childId: any) => buildTree(childId, depth + 1))
+                        );
                     }
 
                     return tree;
@@ -478,11 +477,9 @@ export class DebugTools implements ToolExecutor {
                 });
             } else {
                 Editor.Message.request('scene', 'query-hierarchy').then(async (hierarchy: any) => {
-                    const trees = [];
-                    for (const rootNode of hierarchy.children) {
-                        const tree = await buildTree(rootNode.uuid);
-                        trees.push(tree);
-                    }
+                    const trees = await Promise.all(
+                        hierarchy.children.map((rootNode: any) => buildTree(rootNode.uuid))
+                    );
                     resolve(ok(trees));
                 }).catch((err: Error) => {
                     resolve(fail(err.message));

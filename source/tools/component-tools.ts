@@ -226,18 +226,19 @@ export class ComponentTools implements ToolExecutor {
 
         const tree: any = await Editor.Message.request('scene', 'query-node-tree');
         const sceneNodes: Array<{ uuid: string; name: string }> = [];
-        const flatten = (node: any): void => {
-            if (!node) return;
-            const uuid = typeof node.uuid === 'string' ? node.uuid : node.uuid?.value;
-            const name = typeof node.name === 'string' ? node.name : node.name?.value;
-            if (uuid && name) {
-                sceneNodes.push({ uuid, name });
+        const stack: any[] = tree ? [tree] : [];
+        while (stack.length > 0) {
+            const node = stack.pop();
+            if (!node) continue;
+            if (typeof node.uuid === 'string' && typeof node.name === 'string') {
+                sceneNodes.push({ uuid: node.uuid, name: node.name });
             }
-            for (const child of node.children ?? []) {
-                flatten(child);
+            if (Array.isArray(node.children)) {
+                for (let i = node.children.length - 1; i >= 0; i--) {
+                    stack.push(node.children[i]);
+                }
             }
-        };
-        flatten(tree);
+        }
 
         const bound: Array<{ property: string; matchedNodeUuid: string; matchedNodeName: string }> = [];
         const skipped: Array<{ property: string; reason: string }> = [];
