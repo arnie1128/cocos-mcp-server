@@ -94,11 +94,13 @@ export class DebugTools implements ToolExecutor {
                 description: '[specialist] Read a debug node tree from a root or scene root for hierarchy/component inspection.',
                 inputSchema: z.object({
                     rootUuid: z.string().optional().describe('Root node UUID to expand. Omit to use the current scene root.'),
-                    maxDepth: z.number().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
+                    maxDepth: z.number().int().positive().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
+                    maxNodes: z.number().int().positive().default(2000).describe('Maximum nodes to include before truncating traversal. Default 2000.'),
+                    summaryOnly: z.boolean().default(false).describe('Return childCount without per-node children arrays. Default false.'),
                 }),
     })
     async getNodeTree(args: any): Promise<ToolResponse> {
-        return this.getNodeTreeImpl(args.rootUuid, args.maxDepth);
+        return this.getNodeTreeImpl(args.rootUuid, args.maxDepth, args.maxNodes, args.summaryOnly);
     }
 
     @mcpTool({
@@ -440,15 +442,15 @@ export class DebugTools implements ToolExecutor {
         }
     }
 
-    private async getNodeTreeImpl(rootUuid?: string, maxDepth: number = 10): Promise<ToolResponse> {
+    private async getNodeTreeImpl(rootUuid?: string, maxDepth: number = 10, maxNodes: number = 2000, summaryOnly: boolean = false): Promise<ToolResponse> {
         return new Promise((resolve) => {
-            const buildTree = async (nodeUuid: string, depth: number = 0): Promise<any> => {
-                if (depth >= maxDepth) {
-                    return { truncated: true };
-                }
+            const counter = { count: 0 };
+            const truncation = { truncated: false, truncatedBy: undefined as 'maxDepth' | 'maxNodes' | undefined };
 
+            const buildTree = async (nodeUuid: string, depth: number = 0): Promise<any> => {
                 try {
                     const nodeData = await Editor.Message.request('scene', 'query-node', nodeUuid);
+                    counter.count++;
                     
                     const tree = {
                         uuid: nodeData.uuid,
@@ -456,13 +458,32 @@ export class DebugTools implements ToolExecutor {
                         active: nodeData.active,
                         components: (nodeData as any).components ? (nodeData as any).components.map((c: any) => c.__type__) : [],
                         childCount: nodeData.children ? nodeData.children.length : 0,
-                        children: [] as any[]
-                    };
+                        ...(summaryOnly ? {} : { children: [] as any[] })
+                    } as any;
 
-                    if (nodeData.children && nodeData.children.length > 0) {
+                    if (!summaryOnly && tree.childCount > 0 && depth >= maxDepth - 1) {
+                        truncation.truncated = true;
+                        truncation.truncatedBy ??= 'maxDepth';
+                        tree.truncated = true;
+                        tree.truncatedBy = 'maxDepth';
+                        return tree;
+                    }
+                    if (!summaryOnly && tree.childCount > 0 && counter.count >= maxNodes) {
+                        truncation.truncated = true;
+                        truncation.truncatedBy ??= 'maxNodes';
+                        tree.truncated = true;
+                        tree.truncatedBy = 'maxNodes';
+                        return tree;
+                    }
+
+                    if (!summaryOnly && nodeData.children && nodeData.children.length > 0) {
                         tree.children = await Promise.all(
                             nodeData.children.map((childId: any) => buildTree(childId, depth + 1))
                         );
+                        if (counter.count >= maxNodes) {
+                            truncation.truncated = true;
+                            truncation.truncatedBy ??= 'maxNodes';
+                        }
                     }
 
                     return tree;
@@ -471,16 +492,34 @@ export class DebugTools implements ToolExecutor {
                 }
             };
 
+            const respond = (data: any) => {
+                const response = ok(data) as ToolResponse & {
+                    truncated: boolean;
+                    truncatedBy?: 'maxDepth' | 'maxNodes';
+                    nodeCount: number;
+                    maxDepth: number;
+                    maxNodes: number;
+                    summaryOnly: boolean;
+                };
+                response.truncated = truncation.truncated;
+                if (truncation.truncatedBy) response.truncatedBy = truncation.truncatedBy;
+                response.nodeCount = counter.count;
+                response.maxDepth = maxDepth;
+                response.maxNodes = maxNodes;
+                response.summaryOnly = summaryOnly;
+                resolve(response);
+            };
+
             if (rootUuid) {
                 buildTree(rootUuid).then(tree => {
-                    resolve(ok(tree));
+                    respond(tree);
                 });
             } else {
                 Editor.Message.request('scene', 'query-hierarchy').then(async (hierarchy: any) => {
                     const trees = await Promise.all(
                         hierarchy.children.map((rootNode: any) => buildTree(rootNode.uuid))
                     );
-                    resolve(ok(trees));
+                    respond(trees);
                 }).catch((err: Error) => {
                     resolve(fail(err.message));
                 });

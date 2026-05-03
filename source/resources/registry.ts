@@ -59,7 +59,7 @@ const STATIC_RESOURCES: ResourceDescriptor[] = [
     {
         uri: 'cocos://scene/hierarchy',
         name: 'Scene hierarchy',
-        description: 'Full node hierarchy of the active scene. Component summaries omitted by default; use the tool form for the includeComponents flag. Backed by scene_get_scene_hierarchy.',
+        description: 'Capped node hierarchy of the active scene. Component type summaries included; backed by debug_get_node_tree with maxDepth=8 and maxNodes=2000.',
         mimeType: MIME_JSON,
     },
     {
@@ -134,7 +134,11 @@ const HANDLERS: Record<string, ResourceHandler> = {
     },
     'cocos://scene/hierarchy': {
         mimeType: MIME_JSON,
-        fetch: async (r) => JSON.stringify(await callTool(r, 'scene', 'get_scene_hierarchy', {})),
+        fetch: async (r) => JSON.stringify(await callTool(r, 'debug', 'get_node_tree', {
+            maxDepth: 8,
+            maxNodes: 2000,
+            summaryOnly: false,
+        })),
     },
     'cocos://scene/list': {
         mimeType: MIME_JSON,

@@ -113,10 +113,13 @@ export class SceneTools implements ToolExecutor {
         description: SCENE_DOCS.get_scene_hierarchy,
         inputSchema: z.object({
             includeComponents: z.boolean().default(false).describe('Include component type/enabled summaries on each node. Increases response size.'),
+            maxDepth: z.number().int().positive().default(10).describe('Maximum tree depth. Default 10; large values can return a lot of data.'),
+            maxNodes: z.number().int().positive().default(2000).describe('Maximum nodes to include before truncating traversal. Default 2000.'),
+            summaryOnly: z.boolean().default(false).describe('Return childCount without per-node children arrays. Default false.'),
         }),
     })
-    async getSceneHierarchy(args: { includeComponents?: boolean }): Promise<ToolResponse> {
-        return this.getSceneHierarchyImpl(args.includeComponents);
+    async getSceneHierarchy(args: { includeComponents?: boolean; maxDepth?: number; maxNodes?: number; summaryOnly?: boolean }): Promise<ToolResponse> {
+        return this.getSceneHierarchyImpl(args.includeComponents, args.maxDepth, args.maxNodes, args.summaryOnly);
     }
 
     private async getCurrentSceneImpl(): Promise<ToolResponse> {
@@ -499,20 +502,29 @@ export class SceneTools implements ToolExecutor {
         return new Promise((r) => setTimeout(r, ms));
     }
 
-    private async getSceneHierarchyImpl(includeComponents: boolean = false): Promise<ToolResponse> {
+    private async getSceneHierarchyImpl(includeComponents: boolean = false, maxDepth: number = 10, maxNodes: number = 2000, summaryOnly: boolean = false): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // 優先嚐試使用 Editor API 查詢場景節點樹
             Editor.Message.request('scene', 'query-node-tree').then((tree: any) => {
                 if (tree) {
-                    const hierarchy = this.buildHierarchy(tree, includeComponents);
-                    resolve(ok(hierarchy));
+                    const counter = { count: 0 };
+                    const truncation = { truncated: false, truncatedBy: undefined as 'maxDepth' | 'maxNodes' | undefined };
+                    const hierarchy = this.buildHierarchy(tree, includeComponents, maxDepth, maxNodes, summaryOnly, counter, truncation);
+                    resolve(this.withHierarchyCaps(ok(hierarchy), counter, truncation, maxDepth, maxNodes, summaryOnly));
                 } else {
                     resolve(fail('No scene hierarchy available'));
                 }
             }).catch((err: Error) => {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getSceneHierarchy', [includeComponents]).then((result: any) => {
-                    resolve(result);
+                    if (!result?.success || !result.data) {
+                        resolve(result);
+                        return;
+                    }
+                    const counter = { count: 0 };
+                    const truncation = { truncated: false, truncatedBy: undefined as 'maxDepth' | 'maxNodes' | undefined };
+                    const hierarchy = this.buildHierarchy(result.data, includeComponents, maxDepth, maxNodes, summaryOnly, counter, truncation);
+                    resolve(this.withHierarchyCaps(ok(hierarchy, result.message), counter, truncation, maxDepth, maxNodes, summaryOnly));
                 }).catch((err2: Error) => {
                     resolve(fail(`Direct API failed: ${err.message}, Scene script failed: ${err2.message}`));
                 });
@@ -520,14 +532,28 @@ export class SceneTools implements ToolExecutor {
         });
     }
 
-    private buildHierarchy(node: any, includeComponents: boolean): any {
+    private buildHierarchy(
+        node: any,
+        includeComponents: boolean,
+        maxDepth: number,
+        maxNodes: number,
+        summaryOnly: boolean,
+        counter: { count: number },
+        truncation: { truncated: boolean; truncatedBy?: 'maxDepth' | 'maxNodes' },
+        depth: number = 0,
+    ): any {
+        counter.count++;
+
         const nodeInfo: any = {
             uuid: node.uuid,
             name: node.name,
             type: node.type,
             active: node.active,
-            children: []
+            childCount: node.children ? node.children.length : 0,
         };
+        if (!summaryOnly) {
+            nodeInfo.children = [];
+        }
 
         if (includeComponents && node.__comps__) {
             nodeInfo.components = node.__comps__.map((comp: any) => ({
@@ -536,13 +562,57 @@ export class SceneTools implements ToolExecutor {
             }));
         }
 
-        if (node.children) {
+        if (!summaryOnly && nodeInfo.childCount > 0 && depth >= maxDepth - 1) {
+            truncation.truncated = true;
+            truncation.truncatedBy ??= 'maxDepth';
+            nodeInfo.truncated = true;
+            nodeInfo.truncatedBy = 'maxDepth';
+            return nodeInfo;
+        }
+        if (!summaryOnly && nodeInfo.childCount > 0 && counter.count >= maxNodes) {
+            truncation.truncated = true;
+            truncation.truncatedBy ??= 'maxNodes';
+            nodeInfo.truncated = true;
+            nodeInfo.truncatedBy = 'maxNodes';
+            return nodeInfo;
+        }
+
+        if (!summaryOnly && node.children) {
             nodeInfo.children = node.children.map((child: any) => 
-                this.buildHierarchy(child, includeComponents)
+                this.buildHierarchy(child, includeComponents, maxDepth, maxNodes, summaryOnly, counter, truncation, depth + 1)
             );
+            if (counter.count >= maxNodes) {
+                truncation.truncated = true;
+                truncation.truncatedBy ??= 'maxNodes';
+            }
         }
 
         return nodeInfo;
+    }
+
+    private withHierarchyCaps(
+        response: ToolResponse,
+        counter: { count: number },
+        truncation: { truncated: boolean; truncatedBy?: 'maxDepth' | 'maxNodes' },
+        maxDepth: number,
+        maxNodes: number,
+        summaryOnly: boolean,
+    ): ToolResponse {
+        const cappedResponse = response as ToolResponse & {
+            truncated: boolean;
+            truncatedBy?: 'maxDepth' | 'maxNodes';
+            nodeCount: number;
+            maxDepth: number;
+            maxNodes: number;
+            summaryOnly: boolean;
+        };
+        cappedResponse.truncated = truncation.truncated;
+        if (truncation.truncatedBy) cappedResponse.truncatedBy = truncation.truncatedBy;
+        cappedResponse.nodeCount = counter.count;
+        cappedResponse.maxDepth = maxDepth;
+        cappedResponse.maxNodes = maxNodes;
+        cappedResponse.summaryOnly = summaryOnly;
+        return cappedResponse;
     }
 
     // Programmatic save-as. The cocos `scene/save-as-scene` channel only opens
