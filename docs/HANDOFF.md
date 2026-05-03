@@ -54,7 +54,7 @@
 
 | SHA | 內容 |
 |---|---|
-| _(pending)_ | feat(v2.11.4 #2+#1): component_auto_bind + node_create_tree/set_layout + prefab_create_from_spec |
+| `e4f8115` | feat(v2.11.4 #2+#1): component_auto_bind + node_create_tree/set_layout + prefab_create_from_spec |
 | `1a636ca` | feat(v2.11.3 #5): close cocos-code-mode inspector parity gaps (3.5/4 ship) |
 | `9a0151e` | feat(v2.11.2 #6): add @ccclass extractor + component_resolve_script_class tool |
 | `e05b889` | docs: tighten v2.11.x candidate list after re-verification against codebase |
