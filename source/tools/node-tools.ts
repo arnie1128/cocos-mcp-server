@@ -144,30 +144,27 @@ export class NodeTools implements ToolExecutor {
                 })
     })
     async createTree(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                let parentUuid = args.parentUuid;
-                if (!parentUuid) {
-                    parentUuid = await getSceneRootUuid();
-                }
-
-                const nodes: Record<string, string> = {};
-                for (const item of args.spec) {
-                    const result = await this.createTreeNode(item, parentUuid, '', nodes);
-                    if (!result.success) {
-                        resolve(result);
-                        return;
-                    }
-                }
-
-                resolve(ok({
-                    nodes,
-                    count: Object.keys(nodes).length,
-                }));
-            } catch (err: any) {
-                resolve(fail(`Failed to create node tree: ${err.message}`));
+        try {
+            let parentUuid = args.parentUuid;
+            if (!parentUuid) {
+                parentUuid = await getSceneRootUuid();
             }
-        });
+
+            const nodes: Record<string, string> = {};
+            for (const item of args.spec) {
+                const result = await this.createTreeNode(item, parentUuid, '', nodes);
+                if (!result.success) {
+                    return result;
+                }
+            }
+
+            return ok({
+                nodes,
+                count: Object.keys(nodes).length,
+            });
+        } catch (err: any) {
+            return fail(`Failed to create node tree: ${err.message}`);
+        }
     }
 
     @mcpTool({ name: 'create_node', title: 'Create scene node', description: '[specialist] Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.',
@@ -193,8 +190,7 @@ export class NodeTools implements ToolExecutor {
                 })
     })
     async createNode(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
+        try {
                 let targetParentUuid = args.parentUuid;
                 
                 // 如果沒有提供父節點UUID，獲取場景根節點
@@ -223,12 +219,10 @@ export class NodeTools implements ToolExecutor {
                             finalAssetUuid = assetInfo.uuid;
                             debugLog(`Asset path '${args.assetPath}' resolved to UUID: ${finalAssetUuid}`);
                         } else {
-                            resolve(fail(`Asset not found at path: ${args.assetPath}`));
-                            return;
+                            return fail(`Asset not found at path: ${args.assetPath}`);
                         }
                     } catch (err) {
-                        resolve(fail(`Failed to resolve asset path '${args.assetPath}': ${err}`));
-                        return;
+                        return fail(`Failed to resolve asset path '${args.assetPath}': ${err}`);
                     }
                 }
 
@@ -336,8 +330,7 @@ export class NodeTools implements ToolExecutor {
                         } else if (typeof args.layer === 'string') {
                             const preset = (LAYER_PRESETS as any)[args.layer] as number | undefined;
                             if (typeof preset !== 'number') {
-                                resolve(fail(`Unknown layer preset '${args.layer}'. Allowed: ${Object.keys(LAYER_PRESETS).join(', ')}, or pass a raw number.`));
-                                return;
+                                return fail(`Unknown layer preset '${args.layer}'. Allowed: ${Object.keys(LAYER_PRESETS).join(', ')}, or pass a raw number.`);
                             }
                             resolvedLayer = preset;
                             layerSource = 'explicit';
@@ -391,7 +384,7 @@ export class NodeTools implements ToolExecutor {
                     ? `Node '${args.name}' instantiated from asset successfully`
                     : `Node '${args.name}' created successfully`;
 
-                resolve({
+                return {
                     success: true,
                     data: {
                         uuid: uuid,
@@ -405,12 +398,11 @@ export class NodeTools implements ToolExecutor {
                         message: successMessage
                     },
                     verificationData: verificationData
-                });
+                };
 
             } catch (err: any) {
-                resolve(fail(`Failed to create node: ${err.message}. Args: ${JSON.stringify(args)}`));
+                return fail(`Failed to create node: ${err.message}. Args: ${JSON.stringify(args)}`);
             }
-        });
     }
 
     // Walk up from `startUuid` (inclusive) checking for a component whose
@@ -498,66 +490,62 @@ export class NodeTools implements ToolExecutor {
                 })
     })
     async setLayout(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                const typeMap: Record<string, number> = { NONE: 0, HORIZONTAL: 1, VERTICAL: 2, GRID: 3 };
-                const resizeModeMap: Record<string, number> = { NONE: 0, CONTAINER: 1, CHILDREN: 2 };
-                const startAxisMap: Record<string, number> = { HORIZONTAL: 0, VERTICAL: 1 };
+        try {
+            const typeMap: Record<string, number> = { NONE: 0, HORIZONTAL: 1, VERTICAL: 2, GRID: 3 };
+            const resizeModeMap: Record<string, number> = { NONE: 0, CONTAINER: 1, CHILDREN: 2 };
+            const startAxisMap: Record<string, number> = { HORIZONTAL: 0, VERTICAL: 1 };
 
-                let nodeData: any = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
-                let comps: any[] = nodeData?.__comps__ || [];
-                let layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
+            let nodeData: any = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
+            let comps: any[] = nodeData?.__comps__ || [];
+            let layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
 
-                if (layoutIdx === -1) {
-                    const addResult = await this.componentTools.execute('add_component', {
-                        nodeUuid: args.nodeUuid,
-                        componentType: 'cc.Layout',
-                    });
-                    if (!addResult.success) {
-                        resolve(addResult);
-                        return;
-                    }
-
-                    nodeData = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
-                    comps = nodeData?.__comps__ || [];
-                    layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
-                }
-
-                if (layoutIdx === -1) {
-                    resolve(fail('cc.Layout component not found after add_component'));
-                    return;
-                }
-
-                const setProps: Array<{ prop: string; value: any }> = [];
-                if (args.type !== undefined) setProps.push({ prop: 'type', value: typeMap[args.type] });
-                if (args.resizeMode !== undefined) setProps.push({ prop: 'resizeMode', value: resizeModeMap[args.resizeMode] });
-                if (args.paddingTop !== undefined) setProps.push({ prop: 'paddingTop', value: args.paddingTop });
-                if (args.paddingBottom !== undefined) setProps.push({ prop: 'paddingBottom', value: args.paddingBottom });
-                if (args.paddingLeft !== undefined) setProps.push({ prop: 'paddingLeft', value: args.paddingLeft });
-                if (args.paddingRight !== undefined) setProps.push({ prop: 'paddingRight', value: args.paddingRight });
-                if (args.spacingX !== undefined) setProps.push({ prop: 'spacingX', value: args.spacingX });
-                if (args.spacingY !== undefined) setProps.push({ prop: 'spacingY', value: args.spacingY });
-                if (args.startAxis !== undefined) setProps.push({ prop: 'startAxis', value: startAxisMap[args.startAxis] });
-                if (args.constraintNum !== undefined) setProps.push({ prop: 'constraintNum', value: args.constraintNum });
-                if (args.autoAlignment !== undefined) setProps.push({ prop: 'autoAlignment', value: args.autoAlignment });
-                if (args.affectedByScale !== undefined) setProps.push({ prop: 'affectedByScale', value: args.affectedByScale });
-
-                for (const item of setProps) {
-                    await Editor.Message.request('scene', 'set-property', {
-                        uuid: args.nodeUuid,
-                        path: '__comps__.' + layoutIdx + '.' + item.prop,
-                        dump: { value: item.value },
-                    });
-                }
-
-                resolve(ok({
+            if (layoutIdx === -1) {
+                const addResult = await this.componentTools.execute('add_component', {
                     nodeUuid: args.nodeUuid,
-                    applied: setProps.map(item => item.prop),
-                }));
-            } catch (err: any) {
-                resolve(fail(`Failed to set layout: ${err.message}`));
+                    componentType: 'cc.Layout',
+                });
+                if (!addResult.success) {
+                    return addResult;
+                }
+
+                nodeData = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
+                comps = nodeData?.__comps__ || [];
+                layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
             }
-        });
+
+            if (layoutIdx === -1) {
+                return fail('cc.Layout component not found after add_component');
+            }
+
+            const setProps: Array<{ prop: string; value: any }> = [];
+            if (args.type !== undefined) setProps.push({ prop: 'type', value: typeMap[args.type] });
+            if (args.resizeMode !== undefined) setProps.push({ prop: 'resizeMode', value: resizeModeMap[args.resizeMode] });
+            if (args.paddingTop !== undefined) setProps.push({ prop: 'paddingTop', value: args.paddingTop });
+            if (args.paddingBottom !== undefined) setProps.push({ prop: 'paddingBottom', value: args.paddingBottom });
+            if (args.paddingLeft !== undefined) setProps.push({ prop: 'paddingLeft', value: args.paddingLeft });
+            if (args.paddingRight !== undefined) setProps.push({ prop: 'paddingRight', value: args.paddingRight });
+            if (args.spacingX !== undefined) setProps.push({ prop: 'spacingX', value: args.spacingX });
+            if (args.spacingY !== undefined) setProps.push({ prop: 'spacingY', value: args.spacingY });
+            if (args.startAxis !== undefined) setProps.push({ prop: 'startAxis', value: startAxisMap[args.startAxis] });
+            if (args.constraintNum !== undefined) setProps.push({ prop: 'constraintNum', value: args.constraintNum });
+            if (args.autoAlignment !== undefined) setProps.push({ prop: 'autoAlignment', value: args.autoAlignment });
+            if (args.affectedByScale !== undefined) setProps.push({ prop: 'affectedByScale', value: args.affectedByScale });
+
+            for (const item of setProps) {
+                await Editor.Message.request('scene', 'set-property', {
+                    uuid: args.nodeUuid,
+                    path: '__comps__.' + layoutIdx + '.' + item.prop,
+                    dump: { value: item.value },
+                });
+            }
+
+            return ok({
+                nodeUuid: args.nodeUuid,
+                applied: setProps.map(item => item.prop),
+            });
+        } catch (err: any) {
+            return fail(`Failed to set layout: ${err.message}`);
+        }
     }
 
     @mcpTool({ name: 'find_nodes', title: 'Find nodes by pattern', description: '[specialist] Search current-scene nodes by name pattern and return multiple matches. No mutation; use when names may be duplicated.',
@@ -793,18 +781,16 @@ export class NodeTools implements ToolExecutor {
             if ('response' in r) return r.response;
             args = { ...args, uuid: r.uuid };
         }
-        return new Promise(async (resolve) => {
-            const { uuid, position, rotation, scale } = args;
-            const updatePromises: Promise<any>[] = [];
-            const updates: string[] = [];
-            const warnings: string[] = [];
+        const { uuid, position, rotation, scale } = args;
+        const updatePromises: Promise<any>[] = [];
+        const updates: string[] = [];
+        const warnings: string[] = [];
             
-            try {
+        try {
                 // First get node info to determine if it's 2D or 3D
                 const nodeInfoResponse = await this.getNodeInfo(uuid);
                 if (!nodeInfoResponse.success || !nodeInfoResponse.data) {
-                    resolve(fail('Failed to get node information'));
-                    return;
+                    return fail('Failed to get node information');
                 }
                 
                 const nodeInfo = nodeInfoResponse.data;
@@ -859,8 +845,7 @@ export class NodeTools implements ToolExecutor {
                 }
                 
                 if (updatePromises.length === 0) {
-                    resolve(fail('No transform properties specified'));
-                    return;
+                    return fail('No transform properties specified');
                 }
                 
                 await Promise.all(updatePromises);
@@ -899,12 +884,11 @@ export class NodeTools implements ToolExecutor {
                     response.warning = warnings.join('; ');
                 }
                 
-                resolve(response);
+                return response;
                 
             } catch (err: any) {
-                resolve(fail(`Failed to update transform: ${err.message}`));
+                return fail(`Failed to update transform: ${err.message}`);
             }
-        });
     }
 
     private is2DNode(nodeInfo: any): boolean {
@@ -1061,17 +1045,15 @@ export class NodeTools implements ToolExecutor {
         if (uuid && typeof uuid === 'object') {
             uuid = uuid.uuid;
         }
-        return new Promise(async (resolve) => {
-            try {
-                const nodeInfoResponse = await this.getNodeInfo(uuid);
-                if (!nodeInfoResponse.success || !nodeInfoResponse.data) {
-                    resolve(fail('Failed to get node information'));
-                    return;
-                }
+        try {
+            const nodeInfoResponse = await this.getNodeInfo(uuid);
+            if (!nodeInfoResponse.success || !nodeInfoResponse.data) {
+                return fail('Failed to get node information');
+            }
 
-                const nodeInfo = nodeInfoResponse.data;
-                const is2D = this.is2DNode(nodeInfo);
-                const components = nodeInfo.components || [];
+            const nodeInfo = nodeInfoResponse.data;
+            const is2D = this.is2DNode(nodeInfo);
+            const components = nodeInfo.components || [];
                 
                 // Collect detection reasons
                 const detectionReasons: string[] = [];
@@ -1106,27 +1088,26 @@ export class NodeTools implements ToolExecutor {
                     detectionReasons.push('No specific indicators found, defaulting based on heuristics');
                 }
 
-                resolve(ok({
-                        nodeUuid: uuid,
-                        nodeName: nodeInfo.name,
-                        nodeType: is2D ? '2D' : '3D',
-                        detectionReasons: detectionReasons,
-                        components: components.map((comp: any) => ({
-                            type: comp.type,
-                            category: this.getComponentCategory(comp.type)
-                        })),
-                        position: nodeInfo.position,
-                        transformConstraints: {
-                            position: is2D ? 'x, y only (z ignored)' : 'x, y, z all used',
-                            rotation: is2D ? 'z only (x, y ignored)' : 'x, y, z all used',
-                            scale: is2D ? 'x, y main, z typically 1' : 'x, y, z all used'
-                        }
-                    }));
+            return ok({
+                    nodeUuid: uuid,
+                    nodeName: nodeInfo.name,
+                    nodeType: is2D ? '2D' : '3D',
+                    detectionReasons: detectionReasons,
+                    components: components.map((comp: any) => ({
+                        type: comp.type,
+                        category: this.getComponentCategory(comp.type)
+                    })),
+                    position: nodeInfo.position,
+                    transformConstraints: {
+                        position: is2D ? 'x, y only (z ignored)' : 'x, y, z all used',
+                        rotation: is2D ? 'z only (x, y ignored)' : 'x, y, z all used',
+                        scale: is2D ? 'x, y main, z typically 1' : 'x, y, z all used'
+                    }
+                });
                 
-            } catch (err: any) {
-                resolve(fail(`Failed to detect node type: ${err.message}`));
-            }
-        });
+        } catch (err: any) {
+            return fail(`Failed to detect node type: ${err.message}`);
+        }
     }
 
     @mcpTool({ name: 'set_node_properties', title: 'Set node properties', description: '[specialist] Batch-set multiple properties on the same node in one tool call. Mutates scene; entries run sequentially in array order so cocos undo/serialization stay coherent. Returns per-entry success/error so partial failures are visible. Duplicate paths are rejected up-front; overlapping paths (e.g. position vs position.x) are warned. Use when changing several properties on the same node at once. Accepts reference={id,type} (preferred), uuid, or nodeName.',

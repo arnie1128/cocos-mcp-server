@@ -559,37 +559,33 @@ export class ComponentTools implements ToolExecutor {
     }
 
     private async removeComponentImpl(nodeUuid: string, componentType: string): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            // 1. 查找節點上的所有組件
-            const allComponentsInfo = await this.getComponentsImpl(nodeUuid);
-            if (!allComponentsInfo.success || !allComponentsInfo.data?.components) {
-                resolve(fail(`Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}`));
-                return;
+        // 1. 查找節點上的所有組件
+        const allComponentsInfo = await this.getComponentsImpl(nodeUuid);
+        if (!allComponentsInfo.success || !allComponentsInfo.data?.components) {
+            return fail(`Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}`);
+        }
+        // 2. 只查找type字段等於componentType的組件（即cid）
+        const exists = allComponentsInfo.data.components.some((comp: any) => comp.type === componentType);
+        if (!exists) {
+            return fail(`Component cid '${componentType}' not found on node '${nodeUuid}'. 請用getComponents獲取type字段（cid）作為componentType。`);
+        }
+        // 3. 官方API直接移除
+        try {
+            await Editor.Message.request('scene', 'remove-component', {
+                uuid: nodeUuid,
+                component: componentType
+            });
+            // 4. 再查一次確認是否移除
+            const afterRemoveInfo = await this.getComponentsImpl(nodeUuid);
+            const stillExists = afterRemoveInfo.success && afterRemoveInfo.data?.components?.some((comp: any) => comp.type === componentType);
+            if (stillExists) {
+                return fail(`Component cid '${componentType}' was not removed from node '${nodeUuid}'.`);
+            } else {
+                return ok({ nodeUuid, componentType }, `Component cid '${componentType}' removed successfully from node '${nodeUuid}'`);
             }
-            // 2. 只查找type字段等於componentType的組件（即cid）
-            const exists = allComponentsInfo.data.components.some((comp: any) => comp.type === componentType);
-            if (!exists) {
-                resolve(fail(`Component cid '${componentType}' not found on node '${nodeUuid}'. 請用getComponents獲取type字段（cid）作為componentType。`));
-                return;
-            }
-            // 3. 官方API直接移除
-            try {
-                await Editor.Message.request('scene', 'remove-component', {
-                    uuid: nodeUuid,
-                    component: componentType
-                });
-                // 4. 再查一次確認是否移除
-                const afterRemoveInfo = await this.getComponentsImpl(nodeUuid);
-                const stillExists = afterRemoveInfo.success && afterRemoveInfo.data?.components?.some((comp: any) => comp.type === componentType);
-                if (stillExists) {
-                    resolve(fail(`Component cid '${componentType}' was not removed from node '${nodeUuid}'.`));
-                } else {
-                    resolve(ok({ nodeUuid, componentType }, `Component cid '${componentType}' removed successfully from node '${nodeUuid}'`));
-                }
-            } catch (err: any) {
-                resolve(fail(`Failed to remove component: ${err.message}`));
-            }
-        });
+        } catch (err: any) {
+            return fail(`Failed to remove component: ${err.message}`);
+        }
     }
 
     private async getComponentsImpl(nodeUuid: string): Promise<ToolResponse> {
@@ -751,26 +747,23 @@ export class ComponentTools implements ToolExecutor {
     private async setComponentProperty(args: any): Promise<ToolResponse> {
                         const { nodeUuid, componentType, property, propertyType, value } = args;
         
-        return new Promise(async (resolve) => {
-            try {
+        try {
                 debugLog(`[ComponentTools] Setting ${componentType}.${property} (type: ${propertyType}) = ${JSON.stringify(value)} on node ${nodeUuid}`);
                 
                 // Step 0: 檢測是否為節點屬性，如果是則重定向到對應的節點方法
                 const nodeRedirectResult = await this.checkAndRedirectNodeProperties(args);
                 if (nodeRedirectResult) {
-                    resolve(nodeRedirectResult);
-                    return;
+                    return nodeRedirectResult;
                 }
                 
                 // Step 1: 獲取組件信息，使用與getComponents相同的方法
                 const componentsResponse = await this.getComponentsImpl(nodeUuid);
                 if (!componentsResponse.success || !componentsResponse.data) {
-                    resolve({
+                    return {
                         success: false,
                         error: `Failed to get components for node '${nodeUuid}': ${componentsResponse.error}`,
                         instruction: `Please verify that node UUID '${nodeUuid}' is correct. Use get_all_nodes or find_node_by_name to get the correct node UUID.`
-                    });
-                    return;
+                    };
                 }
                 
                 const allComponents = componentsResponse.data.components;
@@ -795,12 +788,11 @@ export class ComponentTools implements ToolExecutor {
                 if (!targetComponent) {
                     // 提供更詳細的錯誤信息和建議
                     const instruction = this.generateComponentSuggestion(componentType, availableTypes, property);
-                    resolve({
+                    return {
                         success: false,
                         error: `Component '${componentType}' not found on node. Available components: ${availableTypes.join(', ')}`,
                         instruction: instruction
-                    });
-                    return;
+                    };
                 }
                 
                 // Step 3: 自動檢測和轉換屬性值
@@ -810,13 +802,11 @@ export class ComponentTools implements ToolExecutor {
                     propertyInfo = this.analyzeProperty(targetComponent, property);
                 } catch (analyzeError: any) {
                     console.error(`[ComponentTools] Error in analyzeProperty:`, analyzeError);
-                    resolve(fail(`Failed to analyze property '${property}': ${analyzeError.message}`));
-                    return;
+                    return fail(`Failed to analyze property '${property}': ${analyzeError.message}`);
                 }
                 
                 if (!propertyInfo.exists) {
-                    resolve(fail(`Property '${property}' not found on component '${componentType}'. Available properties: ${propertyInfo.availableProperties.join(', ')}`));
-                    return;
+                    return fail(`Property '${property}' not found on component '${componentType}'. Available properties: ${propertyInfo.availableProperties.join(', ')}`);
                 }
 
                 // Step 3.5: propertyType vs metadata reference-kind preflight.
@@ -832,8 +822,7 @@ export class ComponentTools implements ToolExecutor {
                     property,
                 );
                 if (mismatch) {
-                    resolve(mismatch);
-                    return;
+                    return mismatch;
                 }
 
                 // Step 4: 處理屬性值和設置
@@ -1319,19 +1308,18 @@ export class ComponentTools implements ToolExecutor {
                 
                 const verification = await this.verifyPropertyChange(nodeUuid, componentType, property, originalValue, actualExpectedValue);
                 
-                resolve(ok({
+                return ok({
                         nodeUuid,
                         componentType,
                         property,
                         actualValue: verification.actualValue,
                         changeVerified: verification.verified
-                    }, `Successfully set ${componentType}.${property}`));
+                    }, `Successfully set ${componentType}.${property}`);
                 
             } catch (error: any) {
                 console.error(`[ComponentTools] Error setting property:`, error);
-                resolve(fail(`Failed to set property: ${error.message}`));
+                return fail(`Failed to set property: ${error.message}`);
             }
-        });
     }
 
 

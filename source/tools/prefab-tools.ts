@@ -52,60 +52,55 @@ export class PrefabTools implements ToolExecutor {
         }),
     })
     async createFromSpec(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                const treeResult = await this.nodeTools.execute('create_tree', {
-                    spec: [args.rootSpec],
-                    parentUuid: args.parentUuid,
-                });
-                if (!treeResult.success) {
-                    resolve(treeResult);
-                    return;
-                }
+        try {
+            const treeResult = await this.nodeTools.execute('create_tree', {
+                spec: [args.rootSpec],
+                parentUuid: args.parentUuid,
+            });
+            if (!treeResult.success) {
+                return treeResult;
+            }
 
-                const createdNodes = treeResult.data?.nodes || {};
-                const rootNodeUuid = createdNodes[args.rootSpec.name];
-                if (!rootNodeUuid) {
-                    resolve(fail('Root node UUID missing from create_tree result'));
-                    return;
-                }
+            const createdNodes = treeResult.data?.nodes || {};
+            const rootNodeUuid = createdNodes[args.rootSpec.name];
+            if (!rootNodeUuid) {
+                return fail('Root node UUID missing from create_tree result');
+            }
 
-                if (args.autoBindMode !== 'none') {
-                    const uuids = Object.values(createdNodes) as string[];
-                    const nodeDataResults = await Promise.allSettled(
-                        uuids.map(uuid => Editor.Message.request('scene', 'query-node', uuid))
-                    );
-                    for (let i = 0; i < uuids.length; i++) {
-                        const r = nodeDataResults[i];
-                        if (r.status !== 'fulfilled') continue;
-                        const comps: any[] = (r.value as any)?.__comps__ || [];
-                        for (const comp of comps) {
-                            const componentType = comp?.__type__;
-                            if (typeof componentType === 'string' && !componentType.startsWith('cc.')) {
-                                await this.componentTools.execute('auto_bind', {
-                                    nodeUuid: uuids[i],
-                                    componentType,
-                                    mode: args.autoBindMode,
-                                });
-                            }
+            if (args.autoBindMode !== 'none') {
+                const uuids = Object.values(createdNodes) as string[];
+                const nodeDataResults = await Promise.allSettled(
+                    uuids.map(uuid => Editor.Message.request('scene', 'query-node', uuid))
+                );
+                for (let i = 0; i < uuids.length; i++) {
+                    const r = nodeDataResults[i];
+                    if (r.status !== 'fulfilled') continue;
+                    const comps: any[] = (r.value as any)?.__comps__ || [];
+                    for (const comp of comps) {
+                        const componentType = comp?.__type__;
+                        if (typeof componentType === 'string' && !componentType.startsWith('cc.')) {
+                            await this.componentTools.execute('auto_bind', {
+                                nodeUuid: uuids[i],
+                                componentType,
+                                mode: args.autoBindMode,
+                            });
                         }
                     }
                 }
-
-                const prefabResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [rootNodeUuid, args.prefabPath]);
-                if (prefabResult.success) {
-                    resolve(ok({
-                        ...(prefabResult.data ?? {}),
-                        createdNodes,
-                    }));
-                    return;
-                }
-
-                resolve(prefabResult);
-            } catch (err: any) {
-                resolve(fail(`Failed to create prefab from spec: ${err.message}`));
             }
-        });
+
+            const prefabResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [rootNodeUuid, args.prefabPath]);
+            if (prefabResult.success) {
+                return ok({
+                    ...(prefabResult.data ?? {}),
+                    createdNodes,
+                });
+            }
+
+            return prefabResult;
+        } catch (err: any) {
+            return fail(`Failed to create prefab from spec: ${err.message}`);
+        }
     }
 
     @mcpTool({
@@ -121,7 +116,7 @@ export class PrefabTools implements ToolExecutor {
         return new Promise((resolve) => {
             const pattern = folder.endsWith('/') ? 
                 `${folder}**/*.prefab` : `${folder}/**/*.prefab`;
-            
+
             Editor.Message.request('asset-db', 'query-assets', {
                 pattern: pattern
             }).then((results: any[]) => {
@@ -185,66 +180,64 @@ export class PrefabTools implements ToolExecutor {
         }),
     })
     async instantiatePrefab(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                // 獲取預製體資源信息
-                const assetInfo = await Editor.Message.request('asset-db', 'query-asset-info', args.prefabPath);
-                if (!assetInfo) {
-                    throw new Error('預製體未找到');
-                }
-
-                // 使用正確的 create-node API 從預製體資源實例化
-                const createNodeOptions: any = {
-                    assetUuid: assetInfo.uuid
-                };
-
-                // 設置父節點
-                if (args.parentUuid) {
-                    createNodeOptions.parent = args.parentUuid;
-                }
-
-                // 設置節點名稱
-                if (args.name) {
-                    createNodeOptions.name = args.name;
-                } else if (assetInfo.name) {
-                    createNodeOptions.name = assetInfo.name;
-                }
-
-                // 設置初始屬性（如位置）
-                if (args.position) {
-                    createNodeOptions.dump = {
-                        position: {
-                            value: args.position
-                        }
-                    };
-                }
-
-                // 創建節點
-                const nodeUuid = await Editor.Message.request('scene', 'create-node', createNodeOptions);
-                const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
-
-                // 注意：create-node API從預製體資源創建時應該自動建立預製體關聯
-                debugLog('預製體節點創建成功:', {
-                    nodeUuid: uuid,
-                    prefabUuid: assetInfo.uuid,
-                    prefabPath: args.prefabPath
-                });
-                
-                resolve(ok({
-                        nodeUuid: uuid,
-                        prefabPath: args.prefabPath,
-                        parentUuid: args.parentUuid,
-                        position: args.position,
-                        message: '預製體實例化成功，已建立預製體關聯'
-                    }));
-            } catch (err: any) {
-                resolve({ 
-                    success: false, 
-                    error: `預製體實例化失敗: ${err.message}`,
-                    instruction: '請檢查預製體路徑是否正確，確保預製體文件格式正確'
-                });
+        try {
+            // 獲取預製體資源信息
+            const assetInfo = await Editor.Message.request('asset-db', 'query-asset-info', args.prefabPath);
+            if (!assetInfo) {
+                throw new Error('預製體未找到');
             }
-        });
+
+            // 使用正確的 create-node API 從預製體資源實例化
+            const createNodeOptions: any = {
+                assetUuid: assetInfo.uuid
+            };
+
+            // 設置父節點
+            if (args.parentUuid) {
+                createNodeOptions.parent = args.parentUuid;
+            }
+
+            // 設置節點名稱
+            if (args.name) {
+                createNodeOptions.name = args.name;
+            } else if (assetInfo.name) {
+                createNodeOptions.name = assetInfo.name;
+            }
+
+            // 設置初始屬性（如位置）
+            if (args.position) {
+                createNodeOptions.dump = {
+                    position: {
+                        value: args.position
+                    }
+                };
+            }
+
+            // 創建節點
+            const nodeUuid = await Editor.Message.request('scene', 'create-node', createNodeOptions);
+            const uuid = Array.isArray(nodeUuid) ? nodeUuid[0] : nodeUuid;
+
+            // 注意：create-node API從預製體資源創建時應該自動建立預製體關聯
+            debugLog('預製體節點創建成功:', {
+                nodeUuid: uuid,
+                prefabUuid: assetInfo.uuid,
+                prefabPath: args.prefabPath
+            });
+
+            return ok({
+                    nodeUuid: uuid,
+                    prefabPath: args.prefabPath,
+                    parentUuid: args.parentUuid,
+                    position: args.position,
+                    message: '預製體實例化成功，已建立預製體關聯'
+                });
+        } catch (err: any) {
+            return {
+                success: false,
+                error: `預製體實例化失敗: ${err.message}`,
+                instruction: '請檢查預製體路徑是否正確，確保預製體文件格式正確'
+            };
+        }
     }
 
     @mcpTool({
@@ -258,51 +251,47 @@ export class PrefabTools implements ToolExecutor {
         }),
     })
     async createPrefab(args: any): Promise<ToolResponse> {
-        return new Promise(async (resolve) => {
-            try {
-                // 支持 prefabPath 和 savePath 兩種參數名
-                const pathParam = args.prefabPath || args.savePath;
-                if (!pathParam) {
-                    resolve(fail('缺少預製體路徑參數。請提供 prefabPath 或 savePath。'));
-                    return;
-                }
-
-                const prefabName = args.prefabName || 'NewPrefab';
-                const fullPath = pathParam.endsWith('.prefab') ?
-                    pathParam : `${pathParam}/${prefabName}.prefab`;
-
-                // The official scene-facade path (cce.Prefab.createPrefab via
-                // execute-scene-script). The legacy hand-rolled JSON fallback
-                // (createPrefabWithAssetDB / createPrefabNative / createPrefabCustom,
-                // ~250 source lines) was removed in v2.1.3 — see commit 547115b
-                // for the pre-removal source if a future Cocos Creator build
-                // breaks the facade path. The facade has been the only path
-                // exercised in v2.1.1 / v2.1.2 real-editor testing across
-                // simple and complex (nested + multi-component) prefab forms.
-                debugLog('Calling scene-script cce.Prefab.createPrefab...');
-                const facadeResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [args.nodeUuid, fullPath]);
-                if (!facadeResult.success) {
-                    resolve(facadeResult);
-                    return;
-                }
-                try {
-                    await Editor.Message.request('asset-db', 'refresh-asset', fullPath);
-                } catch (refreshErr: any) {
-                    debugLog(`refresh-asset after facade createPrefab failed (non-fatal): ${refreshErr?.message ?? refreshErr}`);
-                }
-                resolve({
-                    ...facadeResult,
-                    data: {
-                        ...(facadeResult.data ?? {}),
-                        prefabName,
-                        prefabPath: fullPath,
-                        method: 'scene-facade',
-                    },
-                });
-            } catch (error) {
-                resolve(fail(`創建預製體時發生錯誤: ${error}`));
+        try {
+            // 支持 prefabPath 和 savePath 兩種參數名
+            const pathParam = args.prefabPath || args.savePath;
+            if (!pathParam) {
+                return fail('缺少預製體路徑參數。請提供 prefabPath 或 savePath。');
             }
-        });
+
+            const prefabName = args.prefabName || 'NewPrefab';
+            const fullPath = pathParam.endsWith('.prefab') ?
+                pathParam : `${pathParam}/${prefabName}.prefab`;
+
+            // The official scene-facade path (cce.Prefab.createPrefab via
+            // execute-scene-script). The legacy hand-rolled JSON fallback
+            // (createPrefabWithAssetDB / createPrefabNative / createPrefabCustom,
+            // ~250 source lines) was removed in v2.1.3 — see commit 547115b
+            // for the pre-removal source if a future Cocos Creator build
+            // breaks the facade path. The facade has been the only path
+            // exercised in v2.1.1 / v2.1.2 real-editor testing across
+            // simple and complex (nested + multi-component) prefab forms.
+            debugLog('Calling scene-script cce.Prefab.createPrefab...');
+            const facadeResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [args.nodeUuid, fullPath]);
+            if (!facadeResult.success) {
+                return facadeResult;
+            }
+            try {
+                await Editor.Message.request('asset-db', 'refresh-asset', fullPath);
+            } catch (refreshErr: any) {
+                debugLog(`refresh-asset after facade createPrefab failed (non-fatal): ${refreshErr?.message ?? refreshErr}`);
+            }
+            return {
+                ...facadeResult,
+                data: {
+                    ...(facadeResult.data ?? {}),
+                    prefabName,
+                    prefabPath: fullPath,
+                    method: 'scene-facade',
+                },
+            };
+        } catch (error) {
+            return fail(`創建預製體時發生錯誤: ${error}`);
+        }
     }
 
     @mcpTool({
