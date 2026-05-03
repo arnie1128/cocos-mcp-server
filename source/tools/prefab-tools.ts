@@ -4,6 +4,8 @@ import { debugLog } from '../lib/log';
 import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { runSceneMethodAsToolResponse } from '../lib/scene-bridge';
+import { NodeTools } from './node-tools';
+import { ComponentTools } from './component-tools';
 
 const prefabPositionSchema = z.object({
     x: z.number().optional(),
@@ -13,6 +15,8 @@ const prefabPositionSchema = z.object({
 
 export class PrefabTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
+    private readonly nodeTools = new NodeTools();
+    private readonly componentTools = new ComponentTools();
 
     constructor() {
         this.exec = defineToolsFromDecorators(this);
@@ -20,6 +24,84 @@ export class PrefabTools implements ToolExecutor {
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    @mcpTool({
+        name: 'create_from_spec',
+        title: 'Create prefab from spec',
+        description: '[specialist] Create a scene node tree from a spec, auto-bind custom script references, then save it as a prefab asset.',
+        inputSchema: z.object({
+            prefabPath: z.string().describe('Target prefab db:// path.'),
+            rootSpec: z.object({
+                name: z.string(),
+                nodeType: z.enum(['Node', '2DNode', '3DNode']).default('Node').optional(),
+                components: z.array(z.string()).optional(),
+                layer: z.union([
+                    z.enum(['DEFAULT', 'UI_2D', 'UI_3D', 'SCENE_GIZMO', 'EDITOR', 'GIZMOS', 'IGNORE_RAYCAST', 'PROFILER']),
+                    z.number().int().nonnegative(),
+                ]).optional(),
+                active: z.boolean().optional(),
+                position: z.object({
+                    x: z.number().optional(),
+                    y: z.number().optional(),
+                    z: z.number().optional(),
+                }).optional(),
+                children: z.array(z.any()).optional(),
+            }).describe('Root node spec passed to create_tree.'),
+            autoBindMode: z.enum(['strict', 'fuzzy', 'none']).default('strict').describe('Auto-bind mode for custom script components.'),
+            parentUuid: z.string().optional().describe('Optional parent node UUID for temporary scene construction.'),
+        }),
+    })
+    async createFromSpec(args: any): Promise<ToolResponse> {
+        return new Promise(async (resolve) => {
+            try {
+                const treeResult = await this.nodeTools.execute('create_tree', {
+                    spec: [args.rootSpec],
+                    parentUuid: args.parentUuid,
+                });
+                if (!treeResult.success) {
+                    resolve(treeResult);
+                    return;
+                }
+
+                const createdNodes = treeResult.data?.nodes || {};
+                const rootNodeUuid = createdNodes[args.rootSpec.name];
+                if (!rootNodeUuid) {
+                    resolve(fail('Root node UUID missing from create_tree result'));
+                    return;
+                }
+
+                if (args.autoBindMode !== 'none') {
+                    for (const uuid of Object.values(createdNodes) as string[]) {
+                        const nodeData: any = await Editor.Message.request('scene', 'query-node', uuid);
+                        const comps: any[] = nodeData?.__comps__ || [];
+                        for (const comp of comps) {
+                            const componentType = comp?.__type__;
+                            if (typeof componentType === 'string' && !componentType.startsWith('cc.')) {
+                                await this.componentTools.execute('auto_bind', {
+                                    nodeUuid: uuid,
+                                    componentType,
+                                    mode: args.autoBindMode,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                const prefabResult = await runSceneMethodAsToolResponse('createPrefabFromNode', [rootNodeUuid, args.prefabPath]);
+                if (prefabResult.success) {
+                    resolve(ok({
+                        ...(prefabResult.data ?? {}),
+                        createdNodes,
+                    }));
+                    return;
+                }
+
+                resolve(prefabResult);
+            } catch (err: any) {
+                resolve(fail(`Failed to create prefab from spec: ${err.message}`));
+            }
+        });
+    }
 
     @mcpTool({
         name: 'get_prefab_list',

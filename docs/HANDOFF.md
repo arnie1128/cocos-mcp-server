@@ -3,24 +3,25 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.3 done — v2.11.x cycle live）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.4 done — v2.11.x cycle live）
 
-**當下版本**：v2.11.3（inspector 4 缺口部分 ship）。**18 categories / 183 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方 v2.11.4+ 清單（共 7 項）。
+**當下版本**：v2.11.4（harady #2+#1 批次節點/排版/prefab 三件套）。**18 categories / 187 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方 v2.11.5+ 清單（共 5 項）。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
 - v2.11.1 — 中型檔案 narrative 外化（project / scene / scene-advanced / asset-advanced / scene-view / file-editor → `source/data/<category>-docs.ts`），由 3 支並行 codex 處理
 - v2.11.2 — #6 `component_resolve_script_class` + `lib/ccclass-extractor.ts` 純 helper（regex 解析 `@ccclass('Name')` / `("Name")` / `` (`Name`) ``，dedup，含 multi-class 警告 / no-match 警告）。1 支 codex；本機 7 種 fixture pass
 - v2.11.3 — #5 inspector 4 缺口（部分 ship）：(a) `i18n:` tooltip 解析 ✅；(b) Asset → Importer suffix 分支於 `get_instance_definition`（`data.kind = 'node' \| 'component' \| 'asset'`）✅；(c) `inspector_get_settings_definition` 新工具：`CommonTypes` ✅，`ProjectSettings` / `CurrentSceneGlobals` 因 cocos channel 未驗證 → 回傳明確 `pending` 訊息（部分 ship）；(d) `inspector_set_instance_properties` 通用 batch writer ✅，依 reference type 分派至既有 AssetMetaTools / ComponentTools / NodeTools 實例。1 支 codex；後手修 2 處 implicit any。Tool count 181 → 183 (+2)，inspector 2 → 4
+- v2.11.4 — #2 `component_auto_bind` + #1 批次節點三件套（`node_create_tree` / `node_set_layout` / `prefab_create_from_spec`）：2 支循序 codex；後手修 `z.lazy()` → `z.any()` 避免 Gemini $ref + 移除 `as any` decorator cast。Tool count 183 → 187 (+4)
 
 完整 v2.10.x 紀錄：[`docs/archive/handoff/v2.10.md`](archive/handoff/v2.10.md)，release notes：[`docs/releases/v2.10.md`](releases/v2.10.md)。
 
-**v2.11.4+ 候選清單**（剩 7 項；#5 / #6 已 ship；依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
+**v2.11.5+ 候選清單**（剩 5 項；#1 / #2 / #5 / #6 已 ship；依跨參考 repo gap 排序，2026-05-03 cross-repo refresh 結論）：
 
 | # | 來源 | 項目 | 估時 | 風險 |
 |---|---|---|---|---|
-| 1 | harady | 批次節點/排版三件套（`node_create_tree` / `node_set_layout` / `prefab_create_from_spec`，後者整合 #1+#2） | 1.5 天 | 低 |
-| 2 | harady | `component_auto_bind`（fuzzy/strict + force；同時是 #1 `create_from_spec` 組件） | 0.5 天 | 低 |
+| ~~1~~ | ~~harady~~ | ~~批次節點/排版三件套~~ | ✅ v2.11.4 ship | — |
+| ~~2~~ | ~~harady~~ | ~~`component_auto_bind`~~ | ✅ v2.11.4 ship | — |
 | 3 | Spaydo | `validation_take_snapshot` / `validation_compare_snapshots`（content-level diff，非 cocos undo snapshot） | 1 天 | 低 |
 | 4 | Spaydo | 資產清查兩件：`asset_get_tree` 樹狀 + 升級 `assetAdvanced_get_unused_assets` placeholder 為真正實作。`export_asset_manifest` 已 ship 不算 | 0.7 天 | 低 |
 | ~~5~~ | ~~cocos-code-mode~~ | ~~inspector 4 缺口~~ | ✅ v2.11.3 ship（Settings ProjectSettings/CurrentSceneGlobals 部分 pending） | — |
@@ -53,6 +54,8 @@
 
 | SHA | 內容 |
 |---|---|
+| _(pending)_ | feat(v2.11.4 #2+#1): component_auto_bind + node_create_tree/set_layout + prefab_create_from_spec |
+| `1a636ca` | feat(v2.11.3 #5): close cocos-code-mode inspector parity gaps (3.5/4 ship) |
 | `9a0151e` | feat(v2.11.2 #6): add @ccclass extractor + component_resolve_script_class tool |
 | `e05b889` | docs: tighten v2.11.x candidate list after re-verification against codebase |
 | `0d4c3cf` | docs: correct v2.11 candidate #6 — TS class definition generation already shipped in v2.10.2 |
@@ -112,7 +115,7 @@ v2.2.0 — v2.11.3 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.11.4+ — 跨 repo gap 7 項候選（harady 批次節點 + auto_bind + code_sync / Spaydo snapshot diff + 資產清查 / FunplayAI input simulation + tool profile）+ inspector settings ProjectSettings/CurrentSceneGlobals follow-up，依 docs/research/cross-repo-survey.md
+B-2 ⏳ v2.11.5+ — 跨 repo gap 5 項候選（Spaydo snapshot diff + 資產清查 / harady code_sync / FunplayAI input simulation + tool profile）+ inspector settings ProjectSettings/CurrentSceneGlobals follow-up，依 docs/research/cross-repo-survey.md
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -170,6 +173,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.11.4 改動前（v2.11.3 ship 點）→ `git reset --hard 1a636ca`
 - v2.11.3 改動前（v2.11.2 ship 點）→ `git reset --hard 9a0151e`
 - v2.11.2 改動前（v2.11.1 docs refresh 點）→ `git reset --hard e05b889`
 - v2.11.1 改動前（v2.11.0 ship 點）→ `git reset --hard 3f62c7f`

@@ -184,6 +184,98 @@ export class ComponentTools implements ToolExecutor {
     }
 
     @mcpTool({
+        name: 'auto_bind',
+        title: 'Auto-bind component references',
+        description: '[specialist] Walk a script component\'s @property reference fields and bind each to a matching scene node by name. strict mode requires exact case-sensitive name; fuzzy mode matches case-insensitive substring. force=false skips already-bound fields.',
+        inputSchema: z.object({
+            nodeUuid: z.string().describe('Node UUID that owns the script component.'),
+            componentType: z.string().describe('Component type or cid (from get_components). E.g. "MyScript" or a cid string.'),
+            mode: z.enum(['strict', 'fuzzy']).default('strict').describe('strict=exact case-sensitive name match; fuzzy=case-insensitive substring match.'),
+            force: z.boolean().default(false).describe('If false, skip properties that already have a non-null bound value. If true, overwrite.'),
+        }),
+    })
+    async autoBindComponent(a: any): Promise<ToolResponse> {
+        const dump: any = await Editor.Message.request('scene', 'query-node', a.nodeUuid);
+        if (!dump) {
+            return fail('node not found');
+        }
+
+        const comps: any[] = dump.__comps__ ?? [];
+        const componentIndex = comps.findIndex((c: any) => c?.__type__ === a.componentType || c?.cid === a.componentType);
+        if (componentIndex === -1) {
+            return fail('component not found');
+        }
+
+        const component = comps[componentIndex];
+        const properties = component?.value && typeof component.value === 'object' ? component.value : component;
+        const skippedTypes = new Set([
+            'String', 'Boolean', 'Integer', 'Float', 'Number', 'Enum', 'BitMask',
+            'cc.Vec2', 'cc.Vec3', 'cc.Vec4', 'cc.Color', 'cc.Rect', 'cc.Size',
+            'cc.Quat', 'cc.Mat3', 'cc.Mat4',
+        ]);
+        const referenceProps = Object.entries(properties ?? {})
+            .filter(([propName, entry]: [string, any]) => {
+                if (propName.startsWith('__')) return false;
+                if (!entry || typeof entry !== 'object') return false;
+                if (!entry.type || typeof entry.type !== 'string') return false;
+                if (skippedTypes.has(entry.type)) return false;
+                if (!a.force && entry.value !== null && entry.value !== undefined) return false;
+                return entry.type === 'cc.Node' || entry.type.length > 0;
+            })
+            .map(([property, entry]: [string, any]) => ({ property, entry }));
+
+        const tree: any = await Editor.Message.request('scene', 'query-node-tree');
+        const sceneNodes: Array<{ uuid: string; name: string }> = [];
+        const flatten = (node: any): void => {
+            if (!node) return;
+            const uuid = typeof node.uuid === 'string' ? node.uuid : node.uuid?.value;
+            const name = typeof node.name === 'string' ? node.name : node.name?.value;
+            if (uuid && name) {
+                sceneNodes.push({ uuid, name });
+            }
+            for (const child of node.children ?? []) {
+                flatten(child);
+            }
+        };
+        flatten(tree);
+
+        const bound: Array<{ property: string; matchedNodeUuid: string; matchedNodeName: string }> = [];
+        const skipped: Array<{ property: string; reason: string }> = [];
+
+        for (const { property, entry } of referenceProps) {
+            const matchedNode = a.mode === 'fuzzy'
+                ? sceneNodes.find(node => node.name.toLowerCase().includes(property.toLowerCase()))
+                : sceneNodes.find(node => node.name === property);
+
+            if (!matchedNode) {
+                skipped.push({ property, reason: 'no matching node found' });
+                continue;
+            }
+
+            try {
+                await Editor.Message.request('scene', 'set-property', {
+                    uuid: a.nodeUuid,
+                    path: '__comps__.' + componentIndex + '.' + property,
+                    dump: { type: entry.type, value: { __uuid__: matchedNode.uuid } },
+                });
+                bound.push({
+                    property,
+                    matchedNodeUuid: matchedNode.uuid,
+                    matchedNodeName: matchedNode.name,
+                });
+            } catch (err: any) {
+                skipped.push({ property, reason: err?.message ?? String(err) });
+            }
+        }
+
+        return ok({
+            total: referenceProps.length,
+            bound,
+            skipped,
+        }, `Bound ${bound.length}/${referenceProps.length} references`);
+    }
+
+    @mcpTool({
         name: 'set_component_property',
         title: 'Set component property',
         description: '[specialist] Set one property on a node component. Supports built-in UI and custom script components. Accepts reference={id,type} (preferred), nodeUuid, or nodeName. Note: For node basic properties (name, active, layer, etc.), use set_node_property. For node transform properties (position, rotation, scale, etc.), use set_node_transform.',

@@ -44,9 +44,9 @@ source/
 │   ├── scene-tools.ts             #   8 tools
 │   ├── scene-advanced-tools.ts    #  23 tools
 │   ├── scene-view-tools.ts        #  20 tools
-│   ├── node-tools.ts              #  12 tools
-│   ├── component-tools.ts         #  11 tools  (P4 T-P4-1 added add/remove/list_event_handler)
-│   ├── prefab-tools.ts            #  11 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link)
+│   ├── node-tools.ts              #  14 tools  (v2.11.4 +create_tree / +set_layout)
+│   ├── component-tools.ts         #  12 tools  (P4 T-P4-1 added add/remove/list_event_handler; v2.11.4 +auto_bind)
+│   ├── prefab-tools.ts            #  12 tools  (v2.1.4: dropped dead duplicate_prefab; merged link_prefab+unlink_prefab → set_link; v2.11.4 +create_from_spec)
 │   ├── project-tools.ts           #  24 tools
 │   ├── debug-tools.ts             #  26 tools  (v2.3.0 net +3: execute_javascript/screenshot/batch_screenshot — execute_script kept as compat alias not net-new; v2.4.8 +wait_compile/run_script_diagnostics/get_script_diagnostic_context; v2.6.0 +game_command/game_client_status; v2.7.0 +preview_url/query_devices/capture_preview_screenshot; v2.8.0 +preview_control; v2.8.3 +get_preview_mode; v2.9.0 +check_editor_health/+set_preview_mode; v2.9.4 +record_start/+record_stop)
 │   ├── preferences-tools.ts       #   7 tools
@@ -78,7 +78,7 @@ server registers a `setRequestHandler` for `tools/list` and `tools/call`,
 filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
-Total tool count today: 183 (v2.11.3 added 2 inspector tools:
+Total tool count today: 187 (v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
 `inspector_get_settings_definition` (CommonTypes complete; ProjectSettings /
 CurrentSceneGlobals return `pending` until cocos channel verified) +
 `inspector_set_instance_properties` (generic batch writer that dispatches by

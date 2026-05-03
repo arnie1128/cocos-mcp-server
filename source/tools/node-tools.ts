@@ -47,6 +47,35 @@ const transformScaleSchema = z.object({
     z: z.number().optional().describe('Z scale. Usually 1 for 2D nodes.'),
 });
 
+// nodeSpecSchema: children uses z.any() instead of z.lazy() to avoid
+// $ref in the JSON Schema output (Gemini rejects $ref/$defs — landmine #15).
+const nodeSpecSchema = z.object({
+    name: z.string().describe('Node name.'),
+    nodeType: z.enum(['Node', '2DNode', '3DNode']).default('Node').optional().describe('Empty-node type hint.'),
+    components: z.array(z.string()).optional().describe('Component types to add, e.g. ["cc.Sprite"].'),
+    layer: z.union([
+        z.enum(['DEFAULT', 'UI_2D', 'UI_3D', 'SCENE_GIZMO', 'EDITOR', 'GIZMOS', 'IGNORE_RAYCAST', 'PROFILER']),
+        z.number().int().nonnegative(),
+    ]).optional().describe('Node layer preset or raw bitmask.'),
+    active: z.boolean().optional().describe('Set false to create the node inactive.'),
+    position: z.object({
+        x: z.number().optional(),
+        y: z.number().optional(),
+        z: z.number().optional(),
+    }).optional(),
+    rotation: z.object({
+        x: z.number().optional(),
+        y: z.number().optional(),
+        z: z.number().optional(),
+    }).optional(),
+    scale: z.object({
+        x: z.number().optional(),
+        y: z.number().optional(),
+        z: z.number().optional(),
+    }).optional(),
+    children: z.array(z.any()).optional().describe('Nested node specs (same shape, recursively).'),
+});
+
 export class NodeTools implements ToolExecutor {
     private componentTools = new ComponentTools();
     private readonly exec: ToolExecutor;
@@ -57,6 +86,91 @@ export class NodeTools implements ToolExecutor {
 
     getTools(): ToolDefinition[] { return this.exec.getTools(); }
     execute(toolName: string, args: any): Promise<ToolResponse> { return this.exec.execute(toolName, args); }
+
+    private async createTreeNode(spec: any, parentUuid: string | undefined, pathPrefix: string, results: Record<string, string>): Promise<ToolResponse> {
+        const createArgs: any = {
+            name: spec.name,
+            parentUuid,
+            nodeType: spec.nodeType || 'Node',
+            components: spec.components,
+            layer: spec.layer,
+        };
+        if (spec.position || spec.rotation || spec.scale) {
+            createArgs.initialTransform = {
+                position: spec.position,
+                rotation: spec.rotation,
+                scale: spec.scale,
+            };
+        }
+
+        const createResult = await this.execute('create_node', createArgs);
+        if (!createResult.success) {
+            return createResult;
+        }
+
+        const uuid = createResult.data?.nodeInfo?.uuid || createResult.data?.uuid;
+        if (!uuid) {
+            return fail('create_node did not return a node UUID');
+        }
+
+        if (spec.active === false) {
+            await Editor.Message.request('scene', 'set-property', {
+                uuid,
+                path: 'active',
+                dump: { value: false },
+            });
+        }
+
+        const key = pathPrefix + spec.name;
+        results[key] = uuid;
+
+        for (const child of spec.children || []) {
+            const childResult = await this.createTreeNode(child, uuid, key + '/', results);
+            if (!childResult.success) {
+                return childResult;
+            }
+        }
+
+        return ok({ uuid });
+    }
+
+    @mcpTool({ name: 'create_tree', title: 'Create node tree', description: '[specialist] Create a hierarchy of scene nodes from a compact spec. Mutates scene and returns a path-to-UUID map.',
+                inputSchema: z.object({
+                    parentUuid: z.string().optional().describe('Parent node UUID. Omit to create under the scene root.'),
+                    spec: z.array(nodeSpecSchema).describe('Root node specs to create under parentUuid.'),
+                })
+    })
+    async createTree(args: any): Promise<ToolResponse> {
+        return new Promise(async (resolve) => {
+            try {
+                let parentUuid = args.parentUuid;
+                if (!parentUuid) {
+                    const sceneInfo: any = await Editor.Message.request('scene', 'query-node-tree');
+                    if (sceneInfo && typeof sceneInfo === 'object' && !Array.isArray(sceneInfo)) {
+                        parentUuid = sceneInfo.uuid?.value || sceneInfo.uuid;
+                    } else if (Array.isArray(sceneInfo) && sceneInfo.length > 0) {
+                        parentUuid = sceneInfo[0].uuid?.value || sceneInfo[0].uuid;
+                    }
+                }
+
+                const nodes: Record<string, string> = {};
+                for (const item of args.spec) {
+                    const result = await this.createTreeNode(item, parentUuid, '', nodes);
+                    if (!result.success) {
+                        resolve(result);
+                        return;
+                    }
+                }
+
+                resolve(ok({
+                    nodes,
+                    count: Object.keys(nodes).length,
+                }));
+            } catch (err: any) {
+                resolve(fail(`Failed to create node tree: ${err.message}`));
+            }
+        });
+    }
 
     @mcpTool({ name: 'create_node', title: 'Create scene node', description: '[specialist] Create a node in the current scene. Supports empty, component, or prefab/asset instances; provide parentUuid for predictable placement.',
                 inputSchema: z.object({
@@ -369,6 +483,86 @@ export class NodeTools implements ToolExecutor {
             }).catch((err: Error) => {
                 resolve(fail(err.message));
             });
+        });
+    }
+
+    @mcpTool({ name: 'set_layout', title: 'Set layout component', description: '[specialist] Add or update cc.Layout on a node. Mutates scene and applies only provided layout properties.',
+                inputSchema: z.object({
+                    nodeUuid: z.string().describe('Node UUID that owns or should receive cc.Layout.'),
+                    type: z.enum(['NONE', 'HORIZONTAL', 'VERTICAL', 'GRID']).optional(),
+                    resizeMode: z.enum(['NONE', 'CONTAINER', 'CHILDREN']).optional(),
+                    paddingTop: z.number().optional(),
+                    paddingBottom: z.number().optional(),
+                    paddingLeft: z.number().optional(),
+                    paddingRight: z.number().optional(),
+                    spacingX: z.number().optional(),
+                    spacingY: z.number().optional(),
+                    startAxis: z.enum(['HORIZONTAL', 'VERTICAL']).optional(),
+                    constraintNum: z.number().int().optional(),
+                    autoAlignment: z.boolean().optional(),
+                    affectedByScale: z.boolean().optional(),
+                })
+    })
+    async setLayout(args: any): Promise<ToolResponse> {
+        return new Promise(async (resolve) => {
+            try {
+                const typeMap: Record<string, number> = { NONE: 0, HORIZONTAL: 1, VERTICAL: 2, GRID: 3 };
+                const resizeModeMap: Record<string, number> = { NONE: 0, CONTAINER: 1, CHILDREN: 2 };
+                const startAxisMap: Record<string, number> = { HORIZONTAL: 0, VERTICAL: 1 };
+
+                let nodeData: any = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
+                let comps: any[] = nodeData?.__comps__ || [];
+                let layoutIdx = comps.findIndex((comp: any) => (comp?.__type__ || comp?.type || comp?.cid) === 'cc.Layout');
+
+                if (layoutIdx === -1) {
+                    const addResult = await this.componentTools.execute('add_component', {
+                        nodeUuid: args.nodeUuid,
+                        componentType: 'cc.Layout',
+                    });
+                    if (!addResult.success) {
+                        resolve(addResult);
+                        return;
+                    }
+
+                    nodeData = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
+                    comps = nodeData?.__comps__ || [];
+                    layoutIdx = comps.findIndex((comp: any) => (comp?.__type__ || comp?.type || comp?.cid) === 'cc.Layout');
+                }
+
+                if (layoutIdx === -1) {
+                    resolve(fail('cc.Layout component not found after add_component'));
+                    return;
+                }
+
+                const setProps: Array<{ prop: string; value: any }> = [];
+                if (args.type !== undefined) setProps.push({ prop: 'type', value: typeMap[args.type] });
+                if (args.resizeMode !== undefined) setProps.push({ prop: 'resizeMode', value: resizeModeMap[args.resizeMode] });
+                if (args.paddingTop !== undefined) setProps.push({ prop: 'paddingTop', value: args.paddingTop });
+                if (args.paddingBottom !== undefined) setProps.push({ prop: 'paddingBottom', value: args.paddingBottom });
+                if (args.paddingLeft !== undefined) setProps.push({ prop: 'paddingLeft', value: args.paddingLeft });
+                if (args.paddingRight !== undefined) setProps.push({ prop: 'paddingRight', value: args.paddingRight });
+                if (args.spacingX !== undefined) setProps.push({ prop: 'spacingX', value: args.spacingX });
+                if (args.spacingY !== undefined) setProps.push({ prop: 'spacingY', value: args.spacingY });
+                if (args.startAxis !== undefined) setProps.push({ prop: 'startAxis', value: startAxisMap[args.startAxis] });
+                if (args.constraintNum !== undefined) setProps.push({ prop: 'constraintNum', value: args.constraintNum });
+                if (args.autoAlignment !== undefined) setProps.push({ prop: 'autoAlignment', value: args.autoAlignment });
+                if (args.affectedByScale !== undefined) setProps.push({ prop: 'affectedByScale', value: args.affectedByScale });
+
+                for (const item of setProps) {
+                    await Editor.Message.request('scene', 'set-property', {
+                        uuid: args.nodeUuid,
+                        path: '__comps__.' + layoutIdx + '.' + item.prop,
+                        dump: { value: item.value },
+                    });
+                }
+
+                resolve(ok({
+                    nodeUuid: args.nodeUuid,
+                    applied: setProps.map(item => item.prop),
+                }));
+            } catch (err: any) {
+                resolve(fail(`Failed to set layout: ${err.message}`));
+            }
         });
     }
 
