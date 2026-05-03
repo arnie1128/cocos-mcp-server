@@ -4,6 +4,15 @@ import { z } from '../lib/schema';
 import { mcpTool, defineToolsFromDecorators } from '../lib/decorators';
 import { ASSET_ADVANCED_DOCS } from '../data/asset-advanced-docs';
 
+interface TreeNode {
+    name: string;
+    url: string;
+    uuid?: string;
+    type?: string;
+    isDirectory: boolean;
+    children: TreeNode[];
+}
+
 export class AssetAdvancedTools implements ToolExecutor {
     private readonly exec: ToolExecutor;
 
@@ -102,6 +111,19 @@ export class AssetAdvancedTools implements ToolExecutor {
     }
 
     @mcpTool({
+        name: 'get_tree',
+        title: 'Get asset tree',
+        description: ASSET_ADVANCED_DOCS.get_tree,
+        inputSchema: z.object({
+            directory: z.string().default('db://assets').describe('Asset-db directory to use as the tree root. Default db://assets.'),
+            maxDepth: z.number().min(0).max(32).default(8).describe('Maximum descendant depth to include below the root directory.'),
+        }),
+    })
+    async getTree(args: { directory?: string; maxDepth?: number }): Promise<ToolResponse> {
+        return this.getTreeImpl(args.directory, args.maxDepth);
+    }
+
+    @mcpTool({
         name: 'get_asset_dependencies',
         title: 'Read asset dependencies',
         description: ASSET_ADVANCED_DOCS.get_asset_dependencies,
@@ -119,8 +141,8 @@ export class AssetAdvancedTools implements ToolExecutor {
         title: 'Find unused assets',
         description: ASSET_ADVANCED_DOCS.get_unused_assets,
         inputSchema: z.object({
-            directory: z.string().default('db://assets').describe('Asset-db directory to scan. Current implementation reports unsupported.'),
-            excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from the requested scan. Current implementation reports unsupported.'),
+            directory: z.string().default('db://assets').describe('Asset-db directory to scan. Default db://assets.'),
+            excludeDirectories: z.array(z.string()).default([]).describe('Directories to exclude from unused-asset reporting.'),
         }),
     })
     async getUnusedAssets(args: { directory?: string; excludeDirectories?: string[] }): Promise<ToolResponse> {
@@ -367,6 +389,82 @@ export class AssetAdvancedTools implements ToolExecutor {
             });
     }
 
+    private async getTreeImpl(directory: string = 'db://assets', maxDepth: number = 8): Promise<ToolResponse> {
+        const rootUrl = directory.replace(/\/+$/, '');
+        const boundedDepth = Math.max(0, Math.min(32, Math.floor(maxDepth)));
+        const assets = await Editor.Message.request('asset-db', 'query-assets', { pattern: `${rootUrl}/**/*` });
+        const rootName = rootUrl.split('/').filter(Boolean).pop() ?? rootUrl;
+        const root: TreeNode = {
+            name: rootName,
+            url: rootUrl,
+            isDirectory: true,
+            children: [],
+        };
+        const directories = new Map<string, TreeNode>([[rootUrl, root]]);
+
+        const ensureDirectory = (url: string): TreeNode => {
+            const normalized = url.replace(/\/+$/, '');
+            const existing = directories.get(normalized);
+            if (existing) return existing;
+            const parentUrl = normalized.slice(0, normalized.lastIndexOf('/'));
+            const parent = parentUrl.startsWith(rootUrl) ? ensureDirectory(parentUrl) : root;
+            const node: TreeNode = {
+                name: normalized.split('/').pop() ?? normalized,
+                url: normalized,
+                isDirectory: true,
+                children: [],
+            };
+            directories.set(normalized, node);
+            parent.children.push(node);
+            return node;
+        };
+
+        const depthOf = (url: string): number => {
+            const rel = url.slice(rootUrl.length).replace(/^\/+/, '');
+            if (!rel) return 0;
+            return rel.split('/').filter(Boolean).length;
+        };
+
+        for (const asset of assets) {
+            const url = String(asset.url ?? '').replace(/\/+$/, '');
+            if (!url.startsWith(`${rootUrl}/`) || depthOf(url) > boundedDepth) continue;
+            const parentUrl = url.slice(0, url.lastIndexOf('/'));
+            const parent = parentUrl.startsWith(rootUrl) ? ensureDirectory(parentUrl) : root;
+
+            if (asset.isDirectory) {
+                const dir = ensureDirectory(url);
+                dir.uuid = asset.uuid;
+                dir.type = asset.type;
+                continue;
+            }
+
+            parent.children.push({
+                name: asset.name ?? url.split('/').pop() ?? url,
+                url,
+                uuid: asset.uuid,
+                type: asset.type,
+                isDirectory: false,
+                children: [],
+            });
+        }
+
+        const sortTree = (node: TreeNode): void => {
+            node.children.sort((a, b) => {
+                if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+                return a.name.localeCompare(b.name);
+            });
+            node.children.forEach(sortTree);
+        };
+        sortTree(root);
+
+        return ok({
+                directory: rootUrl,
+                maxDepth: boundedDepth,
+                assetCount: assets.length,
+                tree: root,
+            });
+    }
+
     private async getAssetDependenciesImpl(urlOrUUID: string, direction: string = 'dependencies'): Promise<ToolResponse> {
         return new Promise((resolve) => {
             // Note: This would require scene analysis or additional APIs not available in current documentation
@@ -375,10 +473,70 @@ export class AssetAdvancedTools implements ToolExecutor {
     }
 
     private async getUnusedAssetsImpl(directory: string = 'db://assets', excludeDirectories: string[] = []): Promise<ToolResponse> {
-        return new Promise((resolve) => {
-            // Note: This would require comprehensive project analysis
-            resolve(fail('Unused asset detection requires comprehensive project analysis not available in current Cocos Creator MCP implementation. Consider using the Editor UI or third-party tools for unused asset detection.'));
+        const rootUrl = directory.replace(/\/+$/, '');
+        const excludes = excludeDirectories.map(dir => dir.replace(/\/+$/, ''));
+        const allAssets = await Editor.Message.request('asset-db', 'query-assets', { pattern: `${rootUrl}/**/*` });
+        const scenes = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.SceneAsset' });
+        const prefabs = await Editor.Message.request('asset-db', 'query-assets', { pattern: 'db://assets/**', ccType: 'cc.Prefab' });
+        const roots = Array.from(new Map([...scenes, ...prefabs].map((asset: any) => [asset.uuid, asset])).values());
+        const referencedUuids = new Set<string>();
+        const dependencyErrors: any[] = [];
+
+        const addDependency = (dep: any): void => {
+            if (typeof dep === 'string') {
+                referencedUuids.add(dep);
+            } else if (dep?.uuid && typeof dep.uuid === 'string') {
+                referencedUuids.add(dep.uuid);
+            }
+        };
+
+        for (const asset of roots) {
+            referencedUuids.add(asset.uuid);
+            try {
+                const deps = await Editor.Message.request('asset-db', 'query-asset-depends', asset.uuid);
+                if (Array.isArray(deps)) {
+                    deps.forEach(addDependency);
+                }
+            } catch (err: any) {
+                dependencyErrors.push({
+                    uuid: asset.uuid,
+                    url: asset.url,
+                    error: err?.message ?? String(err),
+                });
+            }
+        }
+
+        const isExcluded = (url: string): boolean => excludes.some(dir => url === dir || url.startsWith(`${dir}/`));
+        const candidates = allAssets.filter((asset: any) => {
+            const url = String(asset.url ?? '');
+            if (!url.startsWith(`${rootUrl}/`)) return false;
+            if (asset.isDirectory) return false;
+            if (!asset.uuid) return false;
+            if (isExcluded(url)) return false;
+            return !referencedUuids.has(asset.uuid);
         });
+
+        return ok({
+                directory: rootUrl,
+                excludeDirectories: excludes,
+                scannedRoots: roots.map((asset: any) => ({
+                    uuid: asset.uuid,
+                    url: asset.url,
+                    name: asset.name,
+                    type: asset.type,
+                })),
+                referencedCount: referencedUuids.size,
+                totalAssets: allAssets.length,
+                unusedCount: candidates.length,
+                unusedAssets: candidates.map((asset: any) => ({
+                    uuid: asset.uuid,
+                    url: asset.url,
+                    name: asset.name,
+                    type: asset.type,
+                })),
+                dependencyErrors,
+                message: `Unused asset scan completed: ${candidates.length} unreferenced assets found`,
+            });
     }
 
     private async compressTexturesImpl(directory: string = 'db://assets', format: string = 'auto', quality: number = 0.8): Promise<ToolResponse> {
@@ -489,7 +647,7 @@ export class AssetAdvancedTools implements ToolExecutor {
         const users: any[] = [];
         for (const asset of uniqueAssets) {
             const deps = await Editor.Message.request('asset-db', 'query-asset-depends', asset.uuid);
-            if (deps && deps.includes(targetUuid)) {
+            if (Array.isArray(deps) && deps.includes(targetUuid)) {
                 let type = 'script';
                 if (asset.type === 'cc.SceneAsset') type = 'scene';
                 else if (asset.type === 'cc.Prefab') type = 'prefab';

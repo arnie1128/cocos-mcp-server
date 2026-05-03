@@ -171,10 +171,34 @@ export class InspectorTools implements ToolExecutor {
         switch (args.settingsType) {
             case 'CommonTypes':
                 return ok({ definition: COMMON_TYPES_DEFINITION });
-            case 'CurrentSceneGlobals':
-                return fail('settings introspection for CurrentSceneGlobals not yet wired — pending cocos channel research.');
-            case 'ProjectSettings':
-                return fail('ProjectSettings introspection not yet wired — pending cocos channel research.');
+            case 'CurrentSceneGlobals': {
+                try {
+                    const tree: any[] = await Editor.Message.request('scene', 'query-node-tree');
+                    const item = tree?.[0];
+                    const rootUuid = item?.uuid?.value ?? item?.uuid;
+                    const dump: any = await Editor.Message.request('scene', 'query-node', rootUuid);
+                    const globals = dump?._globals?.value ?? dump?._globals;
+                    if (!globals) {
+                        return fail('CurrentSceneGlobals: no _globals found on scene root node');
+                    }
+                    const ts = renderTsClass('SceneGlobals', globals, false);
+                    return ok({ definition: ts, settingsType: 'CurrentSceneGlobals' });
+                } catch (err: any) {
+                    return fail(`CurrentSceneGlobals: ${err?.message ?? String(err)}`);
+                }
+            }
+            case 'ProjectSettings': {
+                try {
+                    const projectSettings: any = await Editor.Message.request('project', 'query-config', 'project');
+                    if (!projectSettings || typeof projectSettings !== 'object') {
+                        return fail('ProjectSettings: query-config returned no data');
+                    }
+                    const ts = renderPlainJsonClass('ProjectSettings', projectSettings);
+                    return ok({ definition: ts, settingsType: 'ProjectSettings' });
+                } catch (err: any) {
+                    return fail(`ProjectSettings: ${err?.message ?? String(err)}`);
+                }
+            }
             default:
                 return fail(`Unknown settingsType: ${(args as any).settingsType}`);
         }
@@ -249,6 +273,28 @@ function renderTsClass(className: string, dump: any, isComponent: boolean): stri
     const ctx: RenderContext = { definitions: [], definedNames: new Set<string>() };
     processTsClass(ctx, className, dump, isComponent);
     return ctx.definitions.join('\n\n');
+}
+
+function renderPlainJsonClass(className: string, obj: Record<string, any>): string {
+    const lines: string[] = [`class ${sanitizeTsName(className)} {`];
+    for (const key of Object.keys(obj).sort()) {
+        const propName = isSafeTsIdentifier(key) ? key : JSON.stringify(key);
+        lines.push(`    ${propName}: ${plainJsonToTsType(obj[key])};`);
+    }
+    lines.push('}');
+    return lines.join('\n');
+}
+
+function plainJsonToTsType(value: any): string {
+    if (value === null) return 'null';
+    if (typeof value === 'string') return 'string';
+    if (typeof value === 'number') return 'number';
+    if (typeof value === 'boolean') return 'boolean';
+    if (Array.isArray(value)) {
+        return `Array<${value.length > 0 ? plainJsonToTsType(value[0]) : 'unknown'}>`;
+    }
+    if (typeof value === 'object') return 'Record<string, unknown>';
+    return 'unknown';
 }
 
 function renderAssetImporterClass(className: string, properties: Record<string, any>, arrays: Record<string, any>): string {
