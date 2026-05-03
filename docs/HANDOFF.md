@@ -25,13 +25,11 @@
 | ~~2~~ | ~~harady~~ | ~~`component_auto_bind`~~ | ✅ v2.11.4 ship | — |
 | ~~3~~ | ~~Spaydo~~ | ~~`validation_take_snapshot` / `validation_compare_snapshots`~~ | ✅ v2.11.5 ship | — |
 | ~~4~~ | ~~Spaydo~~ | ~~`asset_get_tree` + `assetAdvanced_get_unused_assets` 真正實作~~ | ✅ v2.11.5 ship | — |
-| ~~5~~ | ~~cocos-code-mode~~ | ~~inspector 4 缺口~~ | ✅ v2.11.3 ship（Settings ProjectSettings/CurrentSceneGlobals 部分 pending） | — |
+| ~~5~~ | ~~cocos-code-mode~~ | ~~inspector 4 缺口~~ | ✅ v2.11.3 ship；ProjectSettings/CurrentSceneGlobals ✅ v2.11.5 補完 | — |
 | ~~6~~ | ~~RomaRogov~~ | ~~`@ccclass` URL → class name 萃取 helper~~ | ✅ v2.11.2 ship | — |
 | 7 | harady | `server_check_code_sync` + `server_get_build_hash` | 0.5 天 | 中 |
 | 8 | FunplayAI | OS 層輸入模擬（`simulate_mouse_*` / `simulate_key_*`） | 1 天 | 中 |
 | 9 | FunplayAI | core/full tool profile（tool-manager 第二層輕量 profile） | 0.5 天 | 中 |
-
-**v2.11.3 部分 ship 餘項**（小型 follow-up，~0.5 天）：`inspector_get_settings_definition` 的 `ProjectSettings` / `CurrentSceneGlobals` 兩支需要驗證 cocos channel 後補實作。建議下一個 cycle 順手做。
 
 詳細 v2.11.x 候選 + 跨 repo 比對見 [`docs/research/cross-repo-survey.md`](research/cross-repo-survey.md)（v2.11.1 refresh）。
 

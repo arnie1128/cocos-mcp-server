@@ -79,8 +79,7 @@ filtering by `updateEnabledTools(...)` so the panel's tool-manager toggles
 take effect immediately.
 
 Total tool count today: 190 (v2.11.5 added 3 tools: `validation_take_snapshot` / `validation_compare_snapshots` / `assetAdvanced_get_tree`; v2.11.5 also replaced `assetAdvanced_get_unused_assets` placeholder with real dependency-scan implementation; v2.11.4 added 4 tools: `node_create_tree` / `node_set_layout` / `prefab_create_from_spec` / `component_auto_bind` — harady #1+#2 batch node/layout/prefab set; v2.11.3 added 2 inspector tools:
-`inspector_get_settings_definition` (CommonTypes complete; ProjectSettings /
-CurrentSceneGlobals return `pending` until cocos channel verified) +
+`inspector_get_settings_definition` (all three branches wired in v2.11.5: CommonTypes; ProjectSettings via `project/query-config 'project'` → renderPlainJsonClass; CurrentSceneGlobals via scene root `_globals` → renderTsClass) +
 `inspector_set_instance_properties` (generic batch writer that dispatches by
 reference type to existing assetMeta / component / node setters); v2.11.3
 also added `i18n:` tooltip resolution + Asset → Importer suffix branch in
