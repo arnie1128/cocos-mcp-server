@@ -3,9 +3,9 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.7 done — v2.11.x cycle wrap COMPLETE）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.12.0 done — tech-debt T1-T5 batch ship）
 
-**當下版本**：v2.11.7（cumulative review + simplify pass on whole project；DNS rebinding 防護 + 並行/TOCTOU/payload 修補；landmine #18 加入）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 候選清單 9/9 全 ship。下一階段進入 v2.12.x，候選見下。
+**當下版本**：v2.12.0（內部 tech-debt 5 件套：3 個 lib 抽出 + Promise antipattern 清掃 + tree/hierarchy caps）。**19 categories / 197 tools（不變，純內部重構 + 1 個附加 schema field）/ 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 全 ship + v2.12.x 內部 tech-debt T1-T5 全 ship。剩下 v2.12.x 跨 repo gap 11 項候選見下。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
@@ -40,12 +40,15 @@
 | 10 | harady | debug 內省（list_messages / list_extensions / get_extension_info）| 0.5 天 | 低 |
 | 11 | cocos-code-mode | editorGetScenePreview（顯式 camera framing 截圖） | 0.5 天 | 低 |
 
-**內部 tech-debt 候選**（v2.11.7 review 結論，建議 v2.12.x 中段順手做）：
-- T1 lib 抽出 `findComponentIndexByType`（9 sites）— 0.5 天
-- T2 lib 抽出 dump-shape unwrap helper（16 sites）— 0.5 天
-- T3 lib 抽出 scene root UUID extractor（14 sites）— 0.5 天
-- T4 `new Promise(async (resolve) => …)` antipattern 清掃（19 sites）— 1 天
-- T5 get_node_tree / get_scene_hierarchy 加 maxDepth/maxNodes/summary cap — 1 天
+**內部 tech-debt（v2.12.0 ship 完成）**：
+- ~~T1~~ ✅ `findComponentIndexByType` → `lib/component-lookup.ts`（commit `7022688`，8 sites 替換）
+- ~~T2~~ ✅ dump-shape unwrap → `lib/dump-unwrap.ts`（commit `ad7af6b`，含 landmine #11 例外）
+- ~~T3~~ ✅ scene root UUID → `lib/scene-root.ts`（commit `5ac06b5`，含 `getSceneRoots()` + `getSceneRootUuid()`）
+- ~~T4~~ ✅ `new Promise(async)` 清掃（commit `52c95ab`，17/19 sites 替換 + 2 個 .then 內 resolve 保留）
+- ~~T5~~ ✅ tree/hierarchy caps（commit `b5a23e6`，`debug_get_node_tree` + `scene_get_scene_hierarchy` + `cocos://scene/hierarchy` resource 加 `maxDepth`/`maxNodes`/`summaryOnly` 與 `truncated`/`truncatedBy`/`nodeCount` 回傳欄位；additive schema，舊 caller 不受影響）
+
+**已知小瑕疵**（v2.12.x 後續可順手）：
+- `get_build_hash` 目前只 hash `dist/main.js`（entry point identity 語意），對 sub-module 改動不敏感。若改成 hash 全 dist tree 會跟 `check_code_sync` 語意更一致；非阻塞，視需求決定。
 
 **未解 issues（不變）**：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（文件已記）
@@ -67,6 +70,11 @@
 
 | SHA | 內容 |
 |---|---|
+| `b5a23e6` | feat(v2.12.x T5): add maxDepth/maxNodes/summary caps to tree tools |
+| `52c95ab` | refactor(v2.12.x T4): sweep new Promise(async) antipattern |
+| `5ac06b5` | refactor(v2.12.x T3): extract scene root UUID extractor to lib |
+| `ad7af6b` | refactor(v2.12.x T2): extract dump-shape unwrap helper to lib |
+| `7022688` | refactor(v2.12.x T1): extract findComponentIndexByType to lib |
 | `987756c` | fix(v2.11.7): cumulative review + simplify pass on whole project |
 | `2fe8f4d` | feat(v2.11.6 #8): input simulation via Electron webContents.sendInputEvent |
 | `a71353e` | feat(v2.11.5 #7+#9): build-hash tools + Core/Full profile + asset-db channel fix |
@@ -129,11 +137,11 @@ P0 ✅ done
 P1 ✅ done
 P4 ✅ done（v2.1.1 程式碼 + v2.1.2 修補 EventHandler 持久化）
 v2.1.2 — v2.1.7 ✅ done（修補 + audit + P2 close + B-1 description sweep；見 docs/archive/handoff/v2.1.md）
-v2.2.0 — v2.11.7 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/；v2.11.x cycle wrap 見上方 NEXT SESSION ENTRY POINT）
+v2.2.0 — v2.12.0 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.2.md ... v2.10.md；release notes v2.7+ 見 docs/releases/；v2.11.x cycle wrap + v2.12.x tech-debt T1-T5 見上方 NEXT SESSION ENTRY POINT）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
 
 待動工（依優先序）：
-B-2 ⏳ v2.12.x+ — 跨 repo gap 11 項候選 + 5 項內部 tech-debt（lib 抽出 + antipattern 清掃），依 docs/research/cross-repo-survey.md v2.11.7 refresh
+B-2 ⏳ v2.12.x+ — 跨 repo gap 11 項候選（內部 tech-debt T1-T5 已於 v2.12.0 ship 完），依 docs/research/cross-repo-survey.md v2.11.7 refresh
 B-3 ⏳ Prefab byte-level 比對（觸發再做）
 ```
 
@@ -191,6 +199,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.12.0 改動前（v2.11.7 ship 點 + tech-debt T1-T5 之前）→ `git reset --hard b2bd98c`
 - v2.11.7 改動前（v2.11.6 ship 點）→ `git reset --hard 93d3c9f`
 - v2.11.6 改動前（v2.11.5 ship 點）→ `git reset --hard 487eb38`
 - v2.11.4 改動前（v2.11.3 ship 點）→ `git reset --hard 1a636ca`
