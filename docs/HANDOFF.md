@@ -5,7 +5,7 @@
 
 ## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.11.5 done — v2.11.x cycle live）
 
-**當下版本**：v2.11.5（Group A #3+#4：場景快照 + 資產清查）。**18 categories / 190 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方清單（#7 / #8 / #9 及 v2.11.3 inspector pending）。
+**當下版本**：v2.11.5（Group C inspector 補完 + Group A #3+#4：場景快照 + 資產清查）。**18 categories / 190 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；剩下候選見下方清單（#7 / #8 / #9）。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
@@ -53,6 +53,8 @@
 
 | SHA | 內容 |
 |---|---|
+| `e0fb6c6` | merge(v2.11.5 group-a): scene snapshots + asset tree + real get_unused_assets |
+| `6c4832e` | feat(v2.11.5): complete inspector_get_settings_definition — wire CurrentSceneGlobals + ProjectSettings |
 | `e4f8115` | feat(v2.11.4 #2+#1): component_auto_bind + node_create_tree/set_layout + prefab_create_from_spec |
 | `1a636ca` | feat(v2.11.3 #5): close cocos-code-mode inspector parity gaps (3.5/4 ship) |
 | `9a0151e` | feat(v2.11.2 #6): add @ccclass extractor + component_resolve_script_class tool |
