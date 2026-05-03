@@ -6,6 +6,7 @@ import { runSceneMethod } from '../lib/scene-bridge';
 import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
 import { SCENE_DOCS } from '../data/scene-docs';
+import { findComponentIndexByType } from '../lib/component-lookup';
 
 const LAYER_UI_2D = 33554432;
 
@@ -488,10 +489,8 @@ export class SceneTools implements ToolExecutor {
     private async findComponentIndex(nodeUuid: string, componentType: string): Promise<number> {
         const data: any = await Editor.Message.request('scene', 'query-node', nodeUuid);
         const comps = Array.isArray(data?.__comps__) ? data.__comps__ : [];
-        for (let i = 0; i < comps.length; i++) {
-            const t = comps[i]?.__type__ ?? comps[i]?.type ?? comps[i]?.cid;
-            if (t === componentType) return i;
-        }
+        const componentIndex = findComponentIndexByType(comps, componentType);
+        if (componentIndex !== -1) return componentIndex;
         debugLog(`[SceneTools] component '${componentType}' not found on node ${nodeUuid}`);
         return -1;
     }

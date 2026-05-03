@@ -9,6 +9,7 @@ import { resolveOrToolError } from '../lib/resolve-node';
 import { batchSetProperties } from '../lib/batch-set';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 import { is2DComponentType, is3DComponentType, BUILTIN_2D_COMPONENTS } from '../lib/node-classifications';
+import { findComponentIndexByType } from '../lib/component-lookup';
 // vec3 shared via lib/schemas.ts — used by create_node's initialTransform.
 import { vec3Schema } from '../lib/schemas';
 
@@ -512,7 +513,7 @@ export class NodeTools implements ToolExecutor {
 
                 let nodeData: any = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
                 let comps: any[] = nodeData?.__comps__ || [];
-                let layoutIdx = comps.findIndex((comp: any) => (comp?.__type__ || comp?.type || comp?.cid) === 'cc.Layout');
+                let layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
 
                 if (layoutIdx === -1) {
                     const addResult = await this.componentTools.execute('add_component', {
@@ -526,7 +527,7 @@ export class NodeTools implements ToolExecutor {
 
                     nodeData = await Editor.Message.request('scene', 'query-node', args.nodeUuid);
                     comps = nodeData?.__comps__ || [];
-                    layoutIdx = comps.findIndex((comp: any) => (comp?.__type__ || comp?.type || comp?.cid) === 'cc.Layout');
+                    layoutIdx = findComponentIndexByType(comps, 'cc.Layout');
                 }
 
                 if (layoutIdx === -1) {

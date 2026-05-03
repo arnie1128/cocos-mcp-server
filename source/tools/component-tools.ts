@@ -7,6 +7,7 @@ import { runSceneMethod, runSceneMethodAsToolResponse } from '../lib/scene-bridg
 import { resolveOrToolError } from '../lib/resolve-node';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 import { resolveCcclassFromAsset } from '../lib/ccclass-extractor';
+import { findComponentIndexByType } from '../lib/component-lookup';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -201,7 +202,7 @@ export class ComponentTools implements ToolExecutor {
         }
 
         const comps: any[] = dump.__comps__ ?? [];
-        const componentIndex = comps.findIndex((c: any) => c?.__type__ === a.componentType || c?.cid === a.componentType);
+        const componentIndex = findComponentIndexByType(comps, a.componentType);
         if (componentIndex === -1) {
             return fail('component not found');
         }
@@ -629,10 +630,8 @@ export class ComponentTools implements ToolExecutor {
             // 優先嚐試直接使用 Editor API 查詢節點信息
             Editor.Message.request('scene', 'query-node', nodeUuid).then((nodeData: any) => {
                 if (nodeData && nodeData.__comps__) {
-                    const component = nodeData.__comps__.find((comp: any) => {
-                        const compType = comp.__type__ || comp.cid || comp.type;
-                        return compType === componentType;
-                    });
+                    const componentIndex = findComponentIndexByType(nodeData.__comps__, componentType);
+                    const component = componentIndex === -1 ? null : nodeData.__comps__[componentIndex];
                     
                     if (component) {
                         resolve(ok({
@@ -651,7 +650,8 @@ export class ComponentTools implements ToolExecutor {
                 // 備用方案：使用場景腳本
                 runSceneMethod('getNodeInfo', [nodeUuid]).then((result: any) => {
                     if (result.success && result.data.components) {
-                        const component = result.data.components.find((comp: any) => comp.type === componentType);
+                        const componentIndex = findComponentIndexByType(result.data.components, componentType);
+                        const component = componentIndex === -1 ? null : result.data.components[componentIndex];
                         if (component) {
                             resolve(ok({
                                     nodeUuid: nodeUuid,
@@ -785,16 +785,11 @@ export class ComponentTools implements ToolExecutor {
                 let targetComponentIndex = -1;
                 const availableTypes: string[] = [];
 
-                for (let i = 0; i < allComponents.length; i++) {
-                    const comp = allComponents[i];
+                for (const comp of allComponents) {
                     availableTypes.push(comp.type);
-
-                    if (comp.type === componentType) {
-                        targetComponent = comp;
-                        targetComponentIndex = i;
-                        break;
-                    }
                 }
+                targetComponentIndex = findComponentIndexByType(allComponents, componentType);
+                targetComponent = targetComponentIndex === -1 ? null : allComponents[targetComponentIndex];
 
                 if (!targetComponent) {
                     // 提供更詳細的錯誤信息和建議
@@ -2042,10 +2037,8 @@ export class ComponentTools implements ToolExecutor {
             }
             
             // 找到組件
-            const component = rawNodeData.__comps__.find((comp: any) => {
-                const compType = comp.__type__ || comp.cid || comp.type;
-                return compType === componentType;
-            });
+            const componentIndex = findComponentIndexByType(rawNodeData.__comps__, componentType);
+            const component = componentIndex === -1 ? null : rawNodeData.__comps__[componentIndex];
             
             if (!component) {
                 return null;
