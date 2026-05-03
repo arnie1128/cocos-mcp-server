@@ -3,9 +3,9 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.12.0 done — tech-debt T1-T5 batch ship）
+## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.12.1 done — tech-debt T1-T5 + build-hash fix）
 
-**當下版本**：v2.12.0（內部 tech-debt 5 件套：3 個 lib 抽出 + Promise antipattern 清掃 + tree/hierarchy caps）。**19 categories / 197 tools（不變，純內部重構 + 1 個附加 schema field）/ 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 全 ship + v2.12.x 內部 tech-debt T1-T5 全 ship。剩下 v2.12.x 跨 repo gap 11 項候選見下。
+**當下版本**：v2.12.1（v2.12.0 tech-debt T1-T5 batch + `gen-build-hash.js` 改為 hash 全 dist tree）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work；v2.11.x 全 ship + v2.12.x 內部 tech-debt 全 ship + build-hash 對齊 `check_code_sync` 語意。剩下 v2.12.x 跨 repo gap 11 項候選見下。
 
 **v2.11 cycle 已 ship**：
 - v2.11.0 — `@mcpTool` decorator 全面化（16 檔 tool 檔案統一），由 6 支並行 codex 處理，後手 `!` non-null assertion polish
@@ -47,8 +47,7 @@
 - ~~T4~~ ✅ `new Promise(async)` 清掃（commit `52c95ab`，17/19 sites 替換 + 2 個 .then 內 resolve 保留）
 - ~~T5~~ ✅ tree/hierarchy caps（commit `b5a23e6`，`debug_get_node_tree` + `scene_get_scene_hierarchy` + `cocos://scene/hierarchy` resource 加 `maxDepth`/`maxNodes`/`summaryOnly` 與 `truncated`/`truncatedBy`/`nodeCount` 回傳欄位；additive schema，舊 caller 不受影響）
 
-**已知小瑕疵**（v2.12.x 後續可順手）：
-- `get_build_hash` 目前只 hash `dist/main.js`（entry point identity 語意），對 sub-module 改動不敏感。若改成 hash 全 dist tree 會跟 `check_code_sync` 語意更一致；非阻塞，視需求決定。
+**已知小瑕疵**：（無；v2.12.0 殘留的 `get_build_hash` 只 hash `dist/main.js` 問題已於 v2.12.1 修為 hash 全 dist tree，commit 待補）
 
 **未解 issues（不變）**：
 - landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（文件已記）
