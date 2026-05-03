@@ -54,6 +54,7 @@
 
 | SHA | 內容 |
 |---|---|
+| `2fe8f4d` | feat(v2.11.6 #8): input simulation via Electron webContents.sendInputEvent |
 | `a71353e` | feat(v2.11.5 #7+#9): build-hash tools + Core/Full profile + asset-db channel fix |
 | `e0fb6c6` | merge(v2.11.5 group-a): scene snapshots + asset tree + real get_unused_assets |
 | `6c4832e` | feat(v2.11.5): complete inspector_get_settings_definition — wire CurrentSceneGlobals + ProjectSettings |
@@ -176,6 +177,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ### Recent
 
+- v2.11.6 改動前（v2.11.5 ship 點）→ `git reset --hard 487eb38`
 - v2.11.4 改動前（v2.11.3 ship 點）→ `git reset --hard 1a636ca`
 - v2.11.3 改動前（v2.11.2 ship 點）→ `git reset --hard 9a0151e`
 - v2.11.2 改動前（v2.11.1 docs refresh 點）→ `git reset --hard e05b889`
