@@ -53,6 +53,7 @@
 
 | SHA | 內容 |
 |---|---|
+| `a71353e` | feat(v2.11.5 #7+#9): build-hash tools + Core/Full profile + asset-db channel fix |
 | `e0fb6c6` | merge(v2.11.5 group-a): scene snapshots + asset tree + real get_unused_assets |
 | `6c4832e` | feat(v2.11.5): complete inspector_get_settings_definition — wire CurrentSceneGlobals + ProjectSettings |
 | `e4f8115` | feat(v2.11.4 #2+#1): component_auto_bind + node_create_tree/set_layout + prefab_create_from_spec |
