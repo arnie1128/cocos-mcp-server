@@ -28,6 +28,7 @@ import { AssetMetaTools } from './asset-meta-tools';
 import { ComponentTools } from './component-tools';
 import { NodeTools } from './node-tools';
 import { dumpUnwrap } from '../lib/dump-unwrap';
+import { getSceneRootUuid } from '../lib/scene-root';
 
 const COMMON_TYPES_DEFINITION = `// Cocos common value types — referenced by instance definitions.
 type InstanceReference<T = unknown> = { id: string; type?: string };
@@ -174,9 +175,10 @@ export class InspectorTools implements ToolExecutor {
                 return ok({ definition: COMMON_TYPES_DEFINITION });
             case 'CurrentSceneGlobals': {
                 try {
-                    const tree: any[] = await Editor.Message.request('scene', 'query-node-tree');
-                    const item = tree?.[0];
-                    const rootUuid = dumpUnwrap(item?.uuid);
+                    const rootUuid = await getSceneRootUuid();
+                    if (!rootUuid) {
+                        return fail('CurrentSceneGlobals: no scene root node found');
+                    }
                     const dump: any = await Editor.Message.request('scene', 'query-node', rootUuid);
                     const globals = dumpUnwrap(dump?._globals);
                     if (!globals) {

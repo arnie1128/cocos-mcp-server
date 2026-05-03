@@ -11,6 +11,7 @@ import { instanceReferenceSchema, resolveReference } from '../lib/instance-refer
 import { is2DComponentType, is3DComponentType, BUILTIN_2D_COMPONENTS } from '../lib/node-classifications';
 import { findComponentIndexByType } from '../lib/component-lookup';
 import { dumpUnwrap } from '../lib/dump-unwrap';
+import { getSceneRootUuid } from '../lib/scene-root';
 // vec3 shared via lib/schemas.ts — used by create_node's initialTransform.
 import { vec3Schema } from '../lib/schemas';
 
@@ -147,12 +148,7 @@ export class NodeTools implements ToolExecutor {
             try {
                 let parentUuid = args.parentUuid;
                 if (!parentUuid) {
-                    const sceneInfo: any = await Editor.Message.request('scene', 'query-node-tree');
-                    if (sceneInfo && typeof sceneInfo === 'object' && !Array.isArray(sceneInfo)) {
-                        parentUuid = dumpUnwrap(sceneInfo.uuid);
-                    } else if (Array.isArray(sceneInfo) && sceneInfo.length > 0) {
-                        parentUuid = dumpUnwrap(sceneInfo[0].uuid);
-                    }
+                    parentUuid = await getSceneRootUuid();
                 }
 
                 const nodes: Record<string, string> = {};
@@ -204,12 +200,8 @@ export class NodeTools implements ToolExecutor {
                 // 如果沒有提供父節點UUID，獲取場景根節點
                 if (!targetParentUuid) {
                     try {
-                        const sceneInfo = await Editor.Message.request('scene', 'query-node-tree');
-                        if (sceneInfo && typeof sceneInfo === 'object' && !Array.isArray(sceneInfo) && Object.prototype.hasOwnProperty.call(sceneInfo, 'uuid')) {
-                            targetParentUuid = (sceneInfo as any).uuid;
-                            debugLog(`No parent specified, using scene root: ${targetParentUuid}`);
-                        } else if (Array.isArray(sceneInfo) && sceneInfo.length > 0 && sceneInfo[0].uuid) {
-                            targetParentUuid = sceneInfo[0].uuid;
+                        targetParentUuid = await getSceneRootUuid();
+                        if (targetParentUuid) {
                             debugLog(`No parent specified, using scene root: ${targetParentUuid}`);
                         } else {
                             const currentScene = await Editor.Message.request('scene', 'query-current-scene');

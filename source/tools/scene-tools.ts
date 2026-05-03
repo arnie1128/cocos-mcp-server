@@ -7,6 +7,7 @@ import { ComponentTools } from './component-tools';
 import { debugLog } from '../lib/log';
 import { SCENE_DOCS } from '../data/scene-docs';
 import { findComponentIndexByType } from '../lib/component-lookup';
+import { getSceneRootUuid } from '../lib/scene-root';
 
 const LAYER_UI_2D = 33554432;
 
@@ -391,8 +392,7 @@ export class SceneTools implements ToolExecutor {
                     await Editor.Message.request('scene', 'open-scene', result.uuid);
                     await new Promise((r) => setTimeout(r, 600));
 
-                    const tree: any = await Editor.Message.request('scene', 'query-node-tree');
-                    const sceneRootUuid: string | undefined = tree?.uuid;
+                    const sceneRootUuid = await getSceneRootUuid();
                     if (!sceneRootUuid) {
                         throw new Error('Could not resolve scene root UUID after open-scene');
                     }
@@ -553,8 +553,7 @@ export class SceneTools implements ToolExecutor {
     private async saveSceneAsImpl(args: { path: string; openAfter?: boolean; overwrite?: boolean }): Promise<ToolResponse> {
         await Editor.Message.request('scene', 'save-scene');
 
-        const tree: any = await Editor.Message.request('scene', 'query-node-tree');
-        const sceneUuid: string | undefined = tree?.uuid;
+        const sceneUuid = await getSceneRootUuid();
         if (!sceneUuid) {
             return fail('No scene is currently open.');
         }
