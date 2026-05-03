@@ -8,6 +8,7 @@ import { resolveOrToolError } from '../lib/resolve-node';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 import { resolveCcclassFromAsset } from '../lib/ccclass-extractor';
 import { findComponentIndexByType } from '../lib/component-lookup';
+import { dumpUnwrap } from '../lib/dump-unwrap';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
@@ -598,7 +599,7 @@ export class ComponentTools implements ToolExecutor {
                 if (nodeData && nodeData.__comps__) {
                     const components = nodeData.__comps__.map((comp: any) => ({
                         type: comp.__type__ || comp.cid || comp.type || 'Unknown',
-                        uuid: comp.uuid?.value || comp.uuid || null,
+                        uuid: dumpUnwrap(comp.uuid, null),
                         enabled: comp.enabled !== undefined ? comp.enabled : true,
                         properties: this.extractComponentProperties(comp)
                     }));

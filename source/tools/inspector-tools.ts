@@ -27,6 +27,7 @@ import { instanceReferenceSchema, InstanceReference } from '../lib/instance-refe
 import { AssetMetaTools } from './asset-meta-tools';
 import { ComponentTools } from './component-tools';
 import { NodeTools } from './node-tools';
+import { dumpUnwrap } from '../lib/dump-unwrap';
 
 const COMMON_TYPES_DEFINITION = `// Cocos common value types — referenced by instance definitions.
 type InstanceReference<T = unknown> = { id: string; type?: string };
@@ -175,9 +176,9 @@ export class InspectorTools implements ToolExecutor {
                 try {
                     const tree: any[] = await Editor.Message.request('scene', 'query-node-tree');
                     const item = tree?.[0];
-                    const rootUuid = item?.uuid?.value ?? item?.uuid;
+                    const rootUuid = dumpUnwrap(item?.uuid);
                     const dump: any = await Editor.Message.request('scene', 'query-node', rootUuid);
-                    const globals = dump?._globals?.value ?? dump?._globals;
+                    const globals = dumpUnwrap(dump?._globals);
                     if (!globals) {
                         return fail('CurrentSceneGlobals: no _globals found on scene root node');
                     }
@@ -381,13 +382,13 @@ async function findComponentInScene(componentUuid: string): Promise<{ nodeUuid: 
         const queue: any[] = Array.isArray(tree) ? [...tree] : [tree];
         while (queue.length > 0) {
             const item = queue.shift();
-            const nodeUuid = item?.uuid?.value ?? item?.uuid;
+            const nodeUuid = dumpUnwrap(item?.uuid);
             if (!nodeUuid) continue;
             try {
                 const dump: any = await Editor.Message.request('scene', 'query-node', nodeUuid);
                 const comps: any[] = Array.isArray(dump?.__comps__) ? dump.__comps__ : [];
                 for (const comp of comps) {
-                    const uuid = comp?.value?.uuid?.value ?? comp?.uuid?.value ?? comp?.uuid;
+                    const uuid = dumpUnwrap(comp?.value?.uuid ?? comp?.uuid);
                     if (uuid === componentUuid) {
                         return {
                             nodeUuid,
@@ -491,7 +492,7 @@ function processTsClass(ctx: RenderContext, className: string, dump: any, isComp
         lines.push('    // Components on this node (inspect each separately via get_instance_definition with the host node UUID first):');
         for (const comp of dump.__comps__) {
             const cType = sanitizeForComment(String(comp?.__type__ ?? comp?.type ?? 'unknown'));
-            const cUuid = sanitizeForComment(String(comp?.value?.uuid?.value ?? comp?.uuid?.value ?? comp?.uuid ?? '?'));
+            const cUuid = sanitizeForComment(String(dumpUnwrap(comp?.value?.uuid ?? comp?.uuid, '?')));
             lines.push(`    // - ${cType}  uuid=${cUuid}`);
         }
     }

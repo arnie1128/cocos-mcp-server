@@ -10,6 +10,7 @@ import { batchSetProperties } from '../lib/batch-set';
 import { instanceReferenceSchema, resolveReference } from '../lib/instance-reference';
 import { is2DComponentType, is3DComponentType, BUILTIN_2D_COMPONENTS } from '../lib/node-classifications';
 import { findComponentIndexByType } from '../lib/component-lookup';
+import { dumpUnwrap } from '../lib/dump-unwrap';
 // vec3 shared via lib/schemas.ts — used by create_node's initialTransform.
 import { vec3Schema } from '../lib/schemas';
 
@@ -148,9 +149,9 @@ export class NodeTools implements ToolExecutor {
                 if (!parentUuid) {
                     const sceneInfo: any = await Editor.Message.request('scene', 'query-node-tree');
                     if (sceneInfo && typeof sceneInfo === 'object' && !Array.isArray(sceneInfo)) {
-                        parentUuid = sceneInfo.uuid?.value || sceneInfo.uuid;
+                        parentUuid = dumpUnwrap(sceneInfo.uuid);
                     } else if (Array.isArray(sceneInfo) && sceneInfo.length > 0) {
-                        parentUuid = sceneInfo[0].uuid?.value || sceneInfo[0].uuid;
+                        parentUuid = dumpUnwrap(sceneInfo[0].uuid);
                     }
                 }
 
@@ -465,20 +466,20 @@ export class NodeTools implements ToolExecutor {
                 
                 // 根據實際返回的數據結構解析節點信息
                 const info: NodeInfo = {
-                    uuid: nodeData.uuid?.value || uuid,
-                    name: nodeData.name?.value || 'Unknown',
+                    uuid: dumpUnwrap(nodeData.uuid, uuid),
+                    name: dumpUnwrap(nodeData.name, 'Unknown'),
                     active: nodeData.active?.value !== undefined ? nodeData.active.value : true,
-                    position: nodeData.position?.value || { x: 0, y: 0, z: 0 },
-                    rotation: nodeData.rotation?.value || { x: 0, y: 0, z: 0 },
-                    scale: nodeData.scale?.value || { x: 1, y: 1, z: 1 },
+                    position: dumpUnwrap(nodeData.position, { x: 0, y: 0, z: 0 }),
+                    rotation: dumpUnwrap(nodeData.rotation, { x: 0, y: 0, z: 0 }),
+                    scale: dumpUnwrap(nodeData.scale, { x: 1, y: 1, z: 1 }),
                     parent: nodeData.parent?.value?.uuid || null,
                     children: nodeData.children || [],
                     components: (nodeData.__comps__ || []).map((comp: any) => ({
                         type: comp.__type__ || 'Unknown',
                         enabled: comp.enabled !== undefined ? comp.enabled : true
                     })),
-                    layer: nodeData.layer?.value || 1073741824,
-                    mobility: nodeData.mobility?.value || 0
+                    layer: dumpUnwrap(nodeData.layer, 1073741824),
+                    mobility: dumpUnwrap(nodeData.mobility, 0)
                 };
                 resolve(ok(info));
             }).catch((err: Error) => {
