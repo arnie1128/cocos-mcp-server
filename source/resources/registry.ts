@@ -7,7 +7,7 @@ import { ToolResponse } from '../types';
 /**
  * MCP Resources for cocos-mcp-server.
  *
- * Surface — see docs/research/t-p3-1-prior-art.md and
+ * Surface — see docs/archive/research/t-p3-1-prior-art.md and
  * docs/roadmap/06-version-plan-v23-v27.md for design rationale.
  *
  * - Tool-backed resources reuse the existing read-only ToolExecutor call so

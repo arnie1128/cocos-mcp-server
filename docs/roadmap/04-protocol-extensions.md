@@ -16,7 +16,7 @@
 
 **落地**：6 個 static resource + 2 個 RFC 6570 template，URI 前綴
 `cocos://`（對齊 cocos-cli + FunplayAI prior art，見
-`docs/research/t-p3-1-prior-art.md`）。
+`docs/archive/research/t-p3-1-prior-art.md`）。
 
 | URI | 對應 tool |
 |---|---|
