@@ -52,6 +52,36 @@ export const methods: { [key: string]: (...any: any) => any } = {
     },
 
     /**
+     * @en Toggle the MCP server from the Extensions menu — starts when
+     *     stopped, stops when running. Cocos cannot update menu labels
+     *     at runtime, so a single "Start / Stop" entry handles both
+     *     directions. State change shows up in any open panel via the
+     *     existing 2s polling loop.
+     * @zh 從擴展選單切換 MCP 服務器 — 未執行時啟動、執行中時停止。
+     */
+    async toggleServer() {
+        if (!mcpServer) {
+            logger.warn('[MCP插件] mcpServer 未初始化，無法 toggle');
+            return;
+        }
+        const wasRunning = mcpServer.getStatus().running;
+        try {
+            if (wasRunning) {
+                await mcpServer.stop();
+                logger.info('[MCP插件] 透過選單關閉 MCP Server');
+            } else {
+                const enabledTools = toolManager.getEnabledTools();
+                mcpServer.updateEnabledTools(enabledTools);
+                await mcpServer.start();
+                const status = mcpServer.getStatus();
+                logger.info(`[MCP插件] 透過選單啟動 MCP Server，listening on http://127.0.0.1:${status.port}/mcp`);
+            }
+        } catch (err: any) {
+            logger.error(`[MCP插件] toggle 失敗：${err?.message ?? err}`);
+        }
+    },
+
+    /**
      * @en Get server status
      * @zh 獲取服務器狀態
      */

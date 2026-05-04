@@ -5,6 +5,7 @@ module.exports = {
     "description": "適用於 Cocos Creator 3.8+ 的 MCP（Model Context Protocol）服務器，讓 Claude / Cursor 等 AI 助手透過 HTTP/MCP 接口操作場景、節點、元件、預製體與專案資源；157 個工具分 14 類，使用官方 @modelcontextprotocol/sdk Streamable HTTP transport。Fork 自 LiDaxian/cocos-mcp-server v1.4.0，詳見 CHANGELOG.md。",
     "panel_title": "MCP 服務器",
     "open_panel": "打開 MCP 面板",
+    "toggle_server": "啟動 / 停止 MCP Server",
     "start_server": "啟動服務器",
     "stop_server": "停止服務器",
     "server_status": "服務器狀態",

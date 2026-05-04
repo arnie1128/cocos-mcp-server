@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.13.8",
+    "version": "2.13.9",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -15,7 +15,7 @@
     },
     "description": "i18n:cocos-mcp-server.description",
     "main": "./dist/main.js",
-    "releaseDate": "2026-05-04T16:30:00+08:00",
+    "releaseDate": "2026-05-04T17:00:00+08:00",
     "homepage": "https://github.com/arnie1128/cocos-mcp-server",
     "repository": {
         "type": "git",
@@ -71,6 +71,11 @@
                 "path": "i18n:menu.extension/Cocos MCP Server",
                 "label": "i18n:cocos-mcp-server.open_panel",
                 "message": "open-panel"
+            },
+            {
+                "path": "i18n:menu.extension/Cocos MCP Server",
+                "label": "i18n:cocos-mcp-server.toggle_server",
+                "message": "toggle-server"
             }
         ],
         "messages": {
@@ -87,6 +92,11 @@
             "stop-server": {
                 "methods": [
                     "stopServer"
+                ]
+            },
+            "toggle-server": {
+                "methods": [
+                    "toggleServer"
                 ]
             },
             "get-server-status": {
