@@ -134,11 +134,13 @@
                     <button class="action" @click="applyProfile('core')">core</button>
                     <button class="action" @click="applyProfile('full')">full</button>
                 </span>
+                <span class="action-divider"></span>
                 <span class="action-group">
                     <span class="group-label">view</span>
                     <button class="action" @click="expandAll">expand</button>
                     <button class="action" @click="collapseAll">collapse</button>
                 </span>
+                <span class="action-divider"></span>
                 <span class="action-group">
                     <span class="group-label">bulk</span>
                     <button class="action" @click="selectAllTools">all on</button>
@@ -162,7 +164,7 @@
             <div v-for="cat in visibleCategories" :key="cat.category" class="cat"
                 :class="{ open: isCategoryExpanded(cat.category) }">
                 <button class="cat-head" @click="toggleCategory(cat.category)">
-                    <span class="cat-chevron mono">{{ isCategoryExpanded(cat.category) ? '▾' : '▸' }}</span>
+                    <span class="cat-chevron mono" aria-hidden="true">{{ isCategoryExpanded(cat.category) ? '−' : '+' }}</span>
                     <span class="cat-name">{{ cat.displayName }}</span>
                     <span class="cat-key mono">{{ cat.category }}</span>
                     <span class="cat-fill"></span>

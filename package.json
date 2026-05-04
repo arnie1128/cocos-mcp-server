@@ -2,7 +2,7 @@
     "$schema": "./@types/schema/package/index.json",
     "package_version": 2,
     "name": "cocos-mcp-server",
-    "version": "2.13.2",
+    "version": "2.13.3",
     "author": "shang (fork of LiDaxian's cocos-mcp-server v1.4.0)",
     "editor": ">=3.8.6",
     "scripts": {
@@ -15,7 +15,7 @@
     },
     "description": "i18n:cocos-mcp-server.description",
     "main": "./dist/main.js",
-    "releaseDate": "2026-05-04T13:30:00+08:00",
+    "releaseDate": "2026-05-04T14:00:00+08:00",
     "homepage": "https://github.com/arnie1128/cocos-mcp-server",
     "repository": {
         "type": "git",
@@ -58,10 +58,10 @@
             "main": "dist/panels/default",
             "icon": "./static/icon.png",
             "size": {
-                "min-width": 480,
-                "min-height": 640,
-                "width": 640,
-                "height": 720
+                "min-width": 560,
+                "min-height": 720,
+                "width": 720,
+                "height": 880
             }
         }
     },

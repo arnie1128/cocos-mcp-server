@@ -5,27 +5,30 @@
 
 :root {
     --mcp-bg: var(--color-panel, #18191c);
-    --mcp-surface: rgba(255, 255, 255, 0.025);
-    --mcp-surface-strong: rgba(255, 255, 255, 0.05);
-    --mcp-line: rgba(255, 255, 255, 0.10);
-    --mcp-line-strong: rgba(255, 255, 255, 0.22);
-    --mcp-text: var(--color-normal-text, #e5e7eb);
-    --mcp-text-dim: rgba(229, 231, 235, 0.72);
-    --mcp-text-faint: rgba(229, 231, 235, 0.42);
+    --mcp-surface: rgba(255, 255, 255, 0.04);
+    --mcp-surface-strong: rgba(255, 255, 255, 0.07);
+    --mcp-input-bg: rgba(0, 0, 0, 0.35);
+    --mcp-line: rgba(255, 255, 255, 0.16);
+    --mcp-line-strong: rgba(255, 255, 255, 0.32);
+    --mcp-text: var(--color-normal-text, #f0f1f4);
+    --mcp-text-dim: rgba(240, 241, 244, 0.78);
+    --mcp-text-faint: rgba(240, 241, 244, 0.50);
 
     --mcp-accent: #22d3ee;
-    --mcp-accent-bright: #06b6d4;
+    --mcp-accent-bright: #67e8f9;
     --mcp-accent-deep: #0891b2;
-    --mcp-accent-soft: rgba(34, 211, 238, 0.18);
-    --mcp-accent-line: rgba(34, 211, 238, 0.5);
-    --mcp-accent-text-on: #0f172a;
-    --mcp-warn: #f59e0b;
-    --mcp-warn-soft: rgba(245, 158, 11, 0.20);
-    --mcp-warn-line: rgba(245, 158, 11, 0.55);
+    --mcp-accent-soft: rgba(34, 211, 238, 0.20);
+    --mcp-accent-line: rgba(34, 211, 238, 0.6);
+    --mcp-accent-text-on: #06222b;
+    --mcp-warn: #fbbf24;
+    --mcp-warn-bright: #fde047;
+    --mcp-warn-soft: rgba(251, 191, 36, 0.22);
+    --mcp-warn-line: rgba(251, 191, 36, 0.65);
+    --mcp-warn-text-on: #1a0e00;
     --mcp-error: #ef4444;
-    --mcp-error-bright: #dc2626;
-    --mcp-error-soft: rgba(239, 68, 68, 0.18);
-    --mcp-error-line: rgba(239, 68, 68, 0.55);
+    --mcp-error-bright: #f87171;
+    --mcp-error-soft: rgba(239, 68, 68, 0.20);
+    --mcp-error-line: rgba(239, 68, 68, 0.65);
 
     --mcp-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code",
         Menlo, Consolas, "Liberation Mono", monospace;
@@ -391,15 +394,16 @@
 /* === micro buttons (inline copy / on / off) === */
 
 .micro-btn {
-    background: transparent;
+    background: var(--mcp-surface-strong);
     border: 1px solid var(--mcp-line-strong);
-    color: var(--mcp-text-dim);
+    color: var(--mcp-text);
     font-family: var(--mcp-mono);
     font-size: 11px;
     letter-spacing: 0.06em;
-    padding: 3px 9px;
+    padding: 4px 10px;
     cursor: pointer;
     transition: all 0.12s ease;
+    border-radius: 2px;
 }
 
 .micro-btn:hover {
@@ -407,6 +411,8 @@
     color: var(--mcp-accent);
     background: var(--mcp-accent-soft);
 }
+
+.micro-btn:active { transform: translateY(1px); }
 
 /* === config block === */
 
@@ -482,14 +488,22 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    border-bottom: 1px solid var(--mcp-line);
-    padding-bottom: 12px;
+    background: var(--mcp-input-bg);
+    border: 1px solid var(--mcp-line-strong);
+    border-radius: 2px;
+    padding: 8px 12px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cmdbar-prompt:focus-within {
+    border-color: var(--mcp-accent);
+    box-shadow: 0 0 0 1px var(--mcp-accent-line), 0 0 16px var(--mcp-accent-soft);
 }
 
 .prompt-glyph {
     color: var(--mcp-accent);
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1;
 }
 
@@ -501,11 +515,11 @@
     font-family: var(--mcp-mono);
     font-size: 14px;
     color: var(--mcp-text);
-    padding: 4px 0;
+    padding: 2px 0;
     min-width: 0;
 }
 
-.cmd-input::placeholder { color: var(--mcp-text-faint); }
+.cmd-input::placeholder { color: var(--mcp-text-faint); font-style: italic; }
 
 .prompt-clear {
     background: none;
@@ -548,30 +562,42 @@
 .cmdbar-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 8px;
     font-size: 12px;
     align-items: center;
 }
 
-.action-group { display: inline-flex; align-items: center; gap: 5px; }
-.group-label {
-    color: var(--mcp-text-faint);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-right: 4px;
+.action-group { display: inline-flex; align-items: center; gap: 4px; }
+
+.action-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--mcp-line-strong);
+    margin: 0 4px;
 }
 
+.group-label {
+    color: var(--mcp-accent);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    margin-right: 6px;
+    font-weight: 600;
+    opacity: 0.85;
+}
+.group-label::before { content: '['; color: var(--mcp-text-faint); margin-right: 2px; }
+.group-label::after { content: ']'; color: var(--mcp-text-faint); margin-left: 2px; }
+
 .action {
-    background: transparent;
+    background: var(--mcp-surface-strong);
     border: 1px solid var(--mcp-line-strong);
     color: var(--mcp-text);
     font-family: var(--mcp-mono);
     font-size: 12px;
     letter-spacing: 0.04em;
-    padding: 5px 11px;
+    padding: 5px 12px;
     cursor: pointer;
     transition: all 0.12s ease;
+    border-radius: 2px;
 }
 
 .action:hover {
@@ -579,6 +605,8 @@
     color: var(--mcp-accent);
     background: var(--mcp-accent-soft);
 }
+
+.action:active { transform: translateY(1px); }
 
 .action.primary {
     color: var(--mcp-accent-text-on);
@@ -654,13 +682,32 @@
 .cat-head:hover { background: var(--mcp-surface-strong); }
 
 .cat-chevron {
-    width: 14px;
-    font-size: 12px;
-    color: var(--mcp-text-dim);
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--mcp-accent);
+    background: var(--mcp-surface-strong);
+    border: 1px solid var(--mcp-accent-line);
+    border-radius: 2px;
     flex-shrink: 0;
+    transition: all 0.15s ease;
 }
 
-.cat.open .cat-chevron { color: var(--mcp-accent); }
+.cat:hover .cat-chevron {
+    background: var(--mcp-accent-soft);
+    border-color: var(--mcp-accent);
+}
+
+.cat.open .cat-chevron {
+    color: var(--mcp-accent-text-on);
+    background: var(--mcp-accent);
+    border-color: var(--mcp-accent);
+}
 
 .cat-name { font-size: 14px; font-weight: 600; color: var(--mcp-text); }
 
@@ -676,22 +723,23 @@
     font-size: 12px;
     letter-spacing: 0.04em;
     border: 1px solid;
-    padding: 3px 10px;
+    padding: 4px 11px;
     display: inline-flex;
     align-items: baseline;
-    font-weight: 600;
+    font-weight: 700;
+    border-radius: 2px;
 }
 
-.cat-count .count-sep { color: currentColor; opacity: 0.45; margin: 0 2px; }
+.cat-count .count-sep { color: currentColor; opacity: 0.55; margin: 0 3px; font-weight: 400; }
 
 .cat-count.all {
-    color: var(--mcp-accent);
-    background: var(--mcp-accent-soft);
-    border-color: var(--mcp-accent-line);
+    color: var(--mcp-accent-text-on);
+    background: var(--mcp-accent);
+    border-color: var(--mcp-accent);
 }
 
 .cat-count.partial {
-    color: #1a0e00;
+    color: var(--mcp-warn-text-on);
     background: var(--mcp-warn);
     border-color: var(--mcp-warn);
 }
@@ -699,7 +747,7 @@
 .cat-count.none {
     color: var(--mcp-text-faint);
     background: transparent;
-    border-color: var(--mcp-line);
+    border-color: var(--mcp-line-strong);
 }
 
 .cat-tools { display: inline-flex; gap: 4px; }
