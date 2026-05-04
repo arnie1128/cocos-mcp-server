@@ -24,6 +24,9 @@ export function useServerStatus(getSettings: () => ServerSettingsLike) {
     }));
 
     const toggleServer = async () => {
+        // Guard against double-click while a transition is in flight.
+        if (isProcessing.value) return;
+        isProcessing.value = true;
         try {
             if (serverRunning.value) {
                 await Editor.Message.request(PACKAGE_NAME, 'stop-server');
@@ -38,8 +41,13 @@ export function useServerStatus(getSettings: () => ServerSettingsLike) {
                 await Editor.Message.request(PACKAGE_NAME, 'start-server');
             }
             logger.debug('[Vue App] Server toggled');
+            // Polling clears isProcessing on next tick after confirming the
+            // new state — leaving the button disabled for up to one poll
+            // interval is the right UX (the server's actual state hasn't
+            // settled until the poll reports it).
         } catch (error) {
             logger.error('[Vue App] Failed to toggle server:', error);
+            isProcessing.value = false;
         }
     };
 
