@@ -6,6 +6,7 @@ export interface ToolConfig {
     name: string;
     enabled: boolean;
     description: string;
+    title?: string;
 }
 
 const PACKAGE_NAME = 'cocos-mcp-server';
@@ -80,6 +81,7 @@ export function useToolConfig() {
 
     const matchesQuery = (tool: ToolConfig, q: string) =>
         tool.name.toLowerCase().includes(q) ||
+        (tool.title ?? '').toLowerCase().includes(q) ||
         (tool.description ?? '').toLowerCase().includes(q) ||
         tool.category.toLowerCase().includes(q) ||
         (CATEGORY_DISPLAY[tool.category] ?? '').toLowerCase().includes(q);

@@ -1,157 +1,181 @@
 <div class="mcp-app">
-    <!-- 選項卡導航 -->
-    <div class="tab-navigation">
-        <button class="tab-button" :class="{ active: activeTab === 'server' }" @click="switchTab('server')">
-            <span>伺服器</span>
+    <nav class="mcp-tabs">
+        <button class="mcp-tab" :class="{ active: activeTab === 'server' }" @click="switchTab('server')">
+            <span class="tab-glyph">▸</span><span class="tab-label">server</span>
         </button>
-        <button class="tab-button" :class="{ active: activeTab === 'tools' }" @click="switchTab('tools')">
-            <span>工具管理</span>
+        <button class="mcp-tab" :class="{ active: activeTab === 'tools' }" @click="switchTab('tools')">
+            <span class="tab-glyph">▸</span><span class="tab-label">tools</span>
         </button>
-    </div>
+        <span class="tab-spacer"></span>
+        <span class="tab-tag mono" v-if="serverRunning">
+            <span class="dot live"></span>{{ connectedClients }} conn
+        </span>
+        <span class="tab-tag mono muted" v-else>
+            <span class="dot"></span>offline
+        </span>
+    </nav>
 
-    <!-- 伺服器選項卡 -->
-    <div class="tab-content" v-show="activeTab === 'server'">
-        <section class="server-status">
-            <h3>伺服器狀態</h3>
-            <div class="status-info">
-                <ui-prop>
-                    <ui-label slot="label">狀態</ui-label>
-                    <ui-label slot="content" class="status-value" :class="statusClass">{{ serverStatus }}</ui-label>
-                </ui-prop>
-                <ui-prop v-if="serverRunning">
-                    <ui-label slot="label">連線數</ui-label>
-                    <ui-label slot="content">{{ connectedClients }}</ui-label>
-                </ui-prop>
-            </div>
-        </section>
-
-        <section class="server-controls">
-            <ui-button @click="toggleServer" :disabled="isProcessing" class="primary">
-                {{ serverRunning ? '停止伺服器' : '啟動伺服器' }}
-            </ui-button>
-        </section>
-
-        <section class="server-settings">
-            <h3>伺服器設定</h3>
-            <ui-prop>
-                <ui-label slot="label">埠</ui-label>
-                <ui-num-input slot="content" v-model="settings.port" :min="1024" :max="65535" :step="1"
-                    :disabled="serverRunning">
-                </ui-num-input>
-            </ui-prop>
-            <ui-prop>
-                <ui-label slot="label">自動啟動</ui-label>
-                <ui-checkbox slot="content" :value="settings.autoStart"
-                    @change="(e) => settings.autoStart = e.target.checked"></ui-checkbox>
-            </ui-prop>
-            <ui-prop>
-                <ui-label slot="label">除錯日誌</ui-label>
-                <ui-checkbox slot="content" :value="settings.debugLog"
-                    @change="(e) => settings.debugLog = e.target.checked"></ui-checkbox>
-            </ui-prop>
-            <ui-prop>
-                <ui-label slot="label">最大連線數</ui-label>
-                <ui-num-input slot="content" v-model="settings.maxConnections" :min="1" :max="100" :step="1">
-                </ui-num-input>
-            </ui-prop>
-        </section>
-
-        <section class="server-info" v-if="serverRunning">
-            <h3>連線資訊</h3>
-            <div class="connection-details">
-                <ui-prop>
-                    <ui-label slot="label">HTTP URL</ui-label>
-                    <ui-input slot="content" :value="httpUrl" readonly>
-                        <ui-button slot="suffix" @click="copyUrl">複製</ui-button>
-                    </ui-input>
-                </ui-prop>
-            </div>
-        </section>
-
-        <footer>
-            <ui-button @click="saveSettings" :disabled="!settingsChanged">儲存設定</ui-button>
-        </footer>
-    </div>
-
-    <!-- 工具管理選項卡 -->
-    <div class="tab-content tab-content-tools" v-show="activeTab === 'tools'">
-        <section class="tool-manager">
-            <div class="tools-toolbar">
-                <div class="tools-search">
-                    <!-- Cocos ui-input emits @input/@change/@confirm at different
-                         lifecycle moments depending on builder version; bind all
-                         three so live search works on every tested 3.8.x build.
-                         Idempotent — assigning same value is a no-op for Vue. -->
-                    <ui-input class="search-input" :value="searchQuery"
-                        @input="(e) => searchQuery = e.target.value"
-                        @change="(e) => searchQuery = e.target.value"
-                        @confirm="(e) => searchQuery = e.target.value"
-                        placeholder="搜尋工具名稱／描述／類別">
-                    </ui-input>
-                    <ui-button v-if="searchQuery" class="small subtle" @click="clearSearch">清除</ui-button>
-                </div>
-                <div class="tools-stats-line">
-                    <span class="stats-pill">共 {{ totalTools }}</span>
-                    <span class="stats-pill enabled">{{ enabledTools }} 啟用</span>
-                    <span class="stats-pill disabled">{{ disabledTools }} 停用</span>
-                    <span class="save-status" :class="saveStatus" v-if="saveStatus !== 'idle'">{{ saveMessage }}</span>
-                </div>
-                <div class="tools-bulk-actions">
-                    <ui-button class="small" @click="applyProfile('core')">套用 Core</ui-button>
-                    <ui-button class="small" @click="applyProfile('full')">套用 Full</ui-button>
-                    <span class="divider"></span>
-                    <ui-button class="small" @click="expandAll">全部展開</ui-button>
-                    <ui-button class="small" @click="collapseAll">全部摺疊</ui-button>
-                    <span class="divider"></span>
-                    <ui-button class="small" @click="selectAllTools">全部啟用</ui-button>
-                    <ui-button class="small" @click="deselectAllTools">全部停用</ui-button>
-                </div>
-            </div>
-
-            <div class="tools-container">
-                <div v-if="loadError" class="tools-empty error">
-                    {{ loadError }}
-                    <div><ui-button class="small" @click="loadToolManagerState">重試</ui-button></div>
-                </div>
-                <div v-else-if="visibleCategories.length === 0 && searchQuery" class="tools-empty">
-                    沒有符合「{{ searchQuery }}」的工具
-                </div>
-                <div v-else-if="visibleCategories.length === 0" class="tools-empty">
-                    載入工具中…
-                </div>
-                <div v-for="cat in visibleCategories" :key="cat.category"
-                    class="tool-category" :class="{ expanded: isCategoryExpanded(cat.category) }">
-                    <div class="category-header" @click="toggleCategory(cat.category)">
-                        <span class="chevron">{{ isCategoryExpanded(cat.category) ? '▼' : '▶' }}</span>
-                        <span class="category-title">{{ cat.displayName }}</span>
-                        <span class="category-key">{{ cat.category }}</span>
-                        <span class="category-badge"
-                            :class="{ partial: cat.stats.enabled > 0 && cat.stats.enabled < cat.stats.total,
-                                       all: cat.stats.enabled === cat.stats.total,
-                                       none: cat.stats.enabled === 0 }">
-                            {{ cat.stats.enabled }} / {{ cat.stats.total }}
-                        </span>
-                        <span class="category-controls" @click.stop>
-                            <ui-button class="small subtle"
-                                @click="toggleCategoryTools(cat.category, true)">全選</ui-button>
-                            <ui-button class="small subtle"
-                                @click="toggleCategoryTools(cat.category, false)">取消</ui-button>
-                        </span>
+    <!-- =================== SERVER PANE =================== -->
+    <div class="mcp-pane" v-show="activeTab === 'server'">
+        <div class="server-hero" :class="{ live: serverRunning }">
+            <div class="hero-status">
+                <span class="dot big" :class="{ live: serverRunning }"></span>
+                <div class="hero-status-text">
+                    <div class="hero-state mono">{{ serverRunning ? 'RUNNING' : 'STOPPED' }}</div>
+                    <div class="hero-state-sub mono">
+                        {{ serverRunning ? 'accepting mcp connections' : 'no http listener' }}
                     </div>
-                    <div class="tool-items" v-show="isCategoryExpanded(cat.category)">
-                        <div v-for="tool in cat.tools" :key="tool.name" class="tool-item"
-                            :class="{ disabled: !tool.enabled }">
-                            <ui-checkbox :value="tool.enabled"
-                                @change="(event) => updateToolStatus(cat.category, tool.name, event.target.checked)">
-                            </ui-checkbox>
-                            <div class="tool-info">
-                                <div class="tool-name">{{ tool.name }}</div>
-                                <div class="tool-description" v-if="tool.description">{{ tool.description }}</div>
+                </div>
+            </div>
+
+            <div class="hero-meta">
+                <div class="hero-row" v-if="serverRunning">
+                    <span class="hero-key mono">endpoint</span>
+                    <span class="hero-val mono">{{ httpUrl }}</span>
+                    <button class="micro-btn" @click="copyUrl">copy</button>
+                </div>
+                <div class="hero-row" v-else>
+                    <span class="hero-key mono">port</span>
+                    <span class="hero-val mono">:{{ settings.port }}</span>
+                    <span class="micro-hint mono">click start to listen</span>
+                </div>
+            </div>
+
+            <button class="hero-toggle" :class="{ stop: serverRunning, start: !serverRunning }"
+                @click="toggleServer" :disabled="isProcessing">
+                <span class="toggle-glyph">{{ serverRunning ? '◼' : '▶' }}</span>
+                <span class="toggle-text mono">{{ serverRunning ? 'stop server' : 'start server' }}</span>
+            </button>
+        </div>
+
+        <section class="config-block">
+            <h3 class="block-title mono"><span class="title-glyph">╱</span>configuration</h3>
+            <div class="config-grid">
+                <div class="config-field">
+                    <label class="config-label mono">port</label>
+                    <ui-num-input class="config-input" v-model="settings.port"
+                        :min="1024" :max="65535" :step="1" :disabled="serverRunning"></ui-num-input>
+                </div>
+                <div class="config-field">
+                    <label class="config-label mono">auto-start</label>
+                    <ui-checkbox class="config-input" :value="settings.autoStart"
+                        @change="(e) => settings.autoStart = e.target.checked"></ui-checkbox>
+                </div>
+                <div class="config-field">
+                    <label class="config-label mono">debug log</label>
+                    <ui-checkbox class="config-input" :value="settings.debugLog"
+                        @change="(e) => settings.debugLog = e.target.checked"></ui-checkbox>
+                </div>
+                <div class="config-field">
+                    <label class="config-label mono">max connections</label>
+                    <ui-num-input class="config-input" v-model="settings.maxConnections"
+                        :min="1" :max="100" :step="1"></ui-num-input>
+                </div>
+            </div>
+            <div class="config-foot">
+                <span class="dirty-flag mono" v-if="settingsChanged">● unsaved</span>
+                <span class="dirty-flag mono clean" v-else>○ saved</span>
+                <button class="action primary" @click="saveSettings" :disabled="!settingsChanged">
+                    save changes
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- =================== TOOLS PANE =================== -->
+    <div class="mcp-pane mcp-pane-tools" v-show="activeTab === 'tools'">
+        <div class="tools-cmdbar">
+            <div class="cmdbar-prompt">
+                <!-- ui-input emits @input/@change/@confirm at different lifecycle
+                     moments depending on cocos build; native input is fully under
+                     our control and styles cleanly with the prompt glyph. -->
+                <span class="prompt-glyph mono">$</span>
+                <input class="cmd-input" type="text" :value="searchQuery"
+                    @input="(e) => searchQuery = e.target.value"
+                    placeholder="filter by name, description, or category…" />
+                <button v-if="searchQuery" class="prompt-clear mono" @click="clearSearch">esc</button>
+                <span class="save-flag mono" :class="saveStatus" v-if="saveStatus !== 'idle'">
+                    {{ saveMessage }}
+                </span>
+            </div>
+
+            <div class="cmdbar-stats mono">
+                <span class="stat"><span class="stat-num">{{ totalTools }}</span> total</span>
+                <span class="sep">│</span>
+                <span class="stat live"><span class="dot small live"></span>{{ enabledTools }} active</span>
+                <span class="sep">│</span>
+                <span class="stat muted"><span class="dot small"></span>{{ disabledTools }} muted</span>
+            </div>
+
+            <div class="cmdbar-actions mono">
+                <span class="action-group">
+                    <span class="group-label">profile</span>
+                    <button class="action" @click="applyProfile('core')">core</button>
+                    <button class="action" @click="applyProfile('full')">full</button>
+                </span>
+                <span class="action-group">
+                    <span class="group-label">view</span>
+                    <button class="action" @click="expandAll">expand</button>
+                    <button class="action" @click="collapseAll">collapse</button>
+                </span>
+                <span class="action-group">
+                    <span class="group-label">bulk</span>
+                    <button class="action" @click="selectAllTools">all on</button>
+                    <button class="action" @click="deselectAllTools">all off</button>
+                </span>
+            </div>
+        </div>
+
+        <div class="tools-list">
+            <div v-if="loadError" class="state-msg error mono">
+                <span class="state-glyph">!</span>{{ loadError }}
+                <button class="action retry" @click="loadToolManagerState">retry</button>
+            </div>
+            <div v-else-if="visibleCategories.length === 0 && searchQuery" class="state-msg mono">
+                <span class="state-glyph">∅</span>no match for "{{ searchQuery }}"
+            </div>
+            <div v-else-if="visibleCategories.length === 0" class="state-msg mono">
+                <span class="state-glyph spin">∙</span>loading tools…
+            </div>
+
+            <div v-for="cat in visibleCategories" :key="cat.category" class="cat"
+                :class="{ open: isCategoryExpanded(cat.category) }">
+                <button class="cat-head" @click="toggleCategory(cat.category)">
+                    <span class="cat-chevron mono">{{ isCategoryExpanded(cat.category) ? '▾' : '▸' }}</span>
+                    <span class="cat-name">{{ cat.displayName }}</span>
+                    <span class="cat-key mono">{{ cat.category }}</span>
+                    <span class="cat-fill"></span>
+                    <span class="cat-count mono"
+                        :class="{
+                            all: cat.stats.enabled === cat.stats.total,
+                            partial: cat.stats.enabled > 0 && cat.stats.enabled < cat.stats.total,
+                            none: cat.stats.enabled === 0
+                        }">
+                        <span class="count-num">{{ cat.stats.enabled }}</span><span
+                            class="count-sep">/</span><span class="count-tot">{{ cat.stats.total }}</span>
+                    </span>
+                    <span class="cat-tools" @click.stop>
+                        <button class="micro-btn" @click="toggleCategoryTools(cat.category, true)">on</button>
+                        <button class="micro-btn" @click="toggleCategoryTools(cat.category, false)">off</button>
+                    </span>
+                </button>
+                <div class="cat-body" v-show="isCategoryExpanded(cat.category)">
+                    <div v-for="tool in cat.tools" :key="tool.name" class="tool-row"
+                        :class="{ muted: !tool.enabled }">
+                        <ui-checkbox class="tool-check" :value="tool.enabled"
+                            @change="(e) => updateToolStatus(cat.category, tool.name, e.target.checked)">
+                        </ui-checkbox>
+                        <div class="tool-text">
+                            <div class="tool-head">
+                                <span class="tool-title" v-if="tool.title">{{ tool.title }}</span>
+                                <code class="tool-name mono">{{ tool.name }}</code>
                             </div>
+                            <p class="tool-desc" v-if="tool.description">{{ tool.description }}</p>
+                            <p class="tool-desc faint" v-else>(no description)</p>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
     </div>
 </div>

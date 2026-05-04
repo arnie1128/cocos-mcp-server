@@ -39,8 +39,17 @@ export class ToolManager {
             const kept: ToolConfig[] = [];
             for (const tool of config.tools) {
                 const k = registryKey(tool);
-                if (registryIndex.has(k)) {
+                const reg = registryIndex.get(k);
+                if (reg) {
                     seen.add(k);
+                    // Refresh display fields from registry every load — title /
+                    // description are source-of-truth in code, not in the
+                    // persisted file. Preserve user's enabled toggle.
+                    if (tool.description !== reg.description || tool.title !== reg.title) {
+                        tool.description = reg.description;
+                        tool.title = reg.title;
+                        configMutated = true;
+                    }
                     kept.push(tool);
                 } else {
                     debugLog(`[ToolManager] Dropping stale tool from config '${config.name}': ${k}`);
@@ -134,6 +143,7 @@ export class ToolManager {
                     name: tool.name,
                     enabled: true, // 默認啟用
                     description: tool.description,
+                    title: tool.annotations?.title,
                 });
             }
         }

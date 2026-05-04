@@ -148,6 +148,7 @@ export interface ToolConfig {
     name: string;
     enabled: boolean;
     description: string;
+    title?: string;
 }
 
 export interface ToolConfiguration {
