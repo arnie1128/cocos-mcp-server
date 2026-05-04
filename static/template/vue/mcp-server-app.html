@@ -74,54 +74,84 @@
     </div>
 
     <!-- 工具管理選項卡 -->
-    <div class="tab-content" v-show="activeTab === 'tools'">
+    <div class="tab-content tab-content-tools" v-show="activeTab === 'tools'">
         <section class="tool-manager">
-            <div class="tool-manager-header">
-                <h3>工具管理</h3>
-            </div>
-
-            <div class="tools-section">
-                <div class="tools-section-header">
-                    <div class="tools-section-title">
-                        <h4>可用工具</h4>
-                        <div class="tools-stats">
-                            {{ totalTools }} 個工具
-                            ({{ enabledTools }} 啟用 / {{ disabledTools }} 禁用)
-                        </div>
-                    </div>
-                    <div class="tools-section-controls">
-                        <ui-button @click="applyProfile('core')" class="small">Core</ui-button>
-                        <ui-button @click="applyProfile('full')" class="small">Full</ui-button>
-                        <ui-button @click="selectAllTools" class="small">全選</ui-button>
-                        <ui-button @click="deselectAllTools" class="small">取消全選</ui-button>
-                        <ui-button @click="saveChanges" class="primary">儲存更改</ui-button>
-                    </div>
+            <div class="tools-toolbar">
+                <div class="tools-search">
+                    <!-- Cocos ui-input emits @input/@change/@confirm at different
+                         lifecycle moments depending on builder version; bind all
+                         three so live search works on every tested 3.8.x build.
+                         Idempotent — assigning same value is a no-op for Vue. -->
+                    <ui-input class="search-input" :value="searchQuery"
+                        @input="(e) => searchQuery = e.target.value"
+                        @change="(e) => searchQuery = e.target.value"
+                        @confirm="(e) => searchQuery = e.target.value"
+                        placeholder="搜尋工具名稱／描述／類別">
+                    </ui-input>
+                    <ui-button v-if="searchQuery" class="small subtle" @click="clearSearch">清除</ui-button>
                 </div>
-
-                <div class="tools-container">
-                    <div v-for="category in toolCategories" :key="category" class="tool-category">
-                        <div class="category-header">
-                            <h5>{{ getCategoryDisplayName(category) }}</h5>
-                            <div class="category-controls">
-                                <ui-button @click="toggleCategoryTools(category, true)" class="small">全選</ui-button>
-                                <ui-button @click="toggleCategoryTools(category, false)" class="small">取消全選</ui-button>
-                            </div>
-                        </div>
-                        <div class="tool-items">
-                            <div v-for="tool in getToolsByCategory(category)" :key="tool.name" class="tool-item">
-                                <ui-checkbox :value="tool.enabled"
-                                    @change="(event) => updateToolStatus(category, tool.name, event.target.checked)"></ui-checkbox>
-                                <div class="tool-info">
-                                    <div class="tool-name">{{ tool.name }}</div>
-                                    <div class="tool-description">{{ tool.description }}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="tools-stats-line">
+                    <span class="stats-pill">共 {{ totalTools }}</span>
+                    <span class="stats-pill enabled">{{ enabledTools }} 啟用</span>
+                    <span class="stats-pill disabled">{{ disabledTools }} 停用</span>
+                    <span class="save-status" :class="saveStatus" v-if="saveStatus !== 'idle'">{{ saveMessage }}</span>
+                </div>
+                <div class="tools-bulk-actions">
+                    <ui-button class="small" @click="applyProfile('core')">套用 Core</ui-button>
+                    <ui-button class="small" @click="applyProfile('full')">套用 Full</ui-button>
+                    <span class="divider"></span>
+                    <ui-button class="small" @click="expandAll">全部展開</ui-button>
+                    <ui-button class="small" @click="collapseAll">全部摺疊</ui-button>
+                    <span class="divider"></span>
+                    <ui-button class="small" @click="selectAllTools">全部啟用</ui-button>
+                    <ui-button class="small" @click="deselectAllTools">全部停用</ui-button>
                 </div>
             </div>
 
-
+            <div class="tools-container">
+                <div v-if="loadError" class="tools-empty error">
+                    {{ loadError }}
+                    <div><ui-button class="small" @click="loadToolManagerState">重試</ui-button></div>
+                </div>
+                <div v-else-if="visibleCategories.length === 0 && searchQuery" class="tools-empty">
+                    沒有符合「{{ searchQuery }}」的工具
+                </div>
+                <div v-else-if="visibleCategories.length === 0" class="tools-empty">
+                    載入工具中…
+                </div>
+                <div v-for="cat in visibleCategories" :key="cat.category"
+                    class="tool-category" :class="{ expanded: isCategoryExpanded(cat.category) }">
+                    <div class="category-header" @click="toggleCategory(cat.category)">
+                        <span class="chevron">{{ isCategoryExpanded(cat.category) ? '▼' : '▶' }}</span>
+                        <span class="category-title">{{ cat.displayName }}</span>
+                        <span class="category-key">{{ cat.category }}</span>
+                        <span class="category-badge"
+                            :class="{ partial: cat.stats.enabled > 0 && cat.stats.enabled < cat.stats.total,
+                                       all: cat.stats.enabled === cat.stats.total,
+                                       none: cat.stats.enabled === 0 }">
+                            {{ cat.stats.enabled }} / {{ cat.stats.total }}
+                        </span>
+                        <span class="category-controls" @click.stop>
+                            <ui-button class="small subtle"
+                                @click="toggleCategoryTools(cat.category, true)">全選</ui-button>
+                            <ui-button class="small subtle"
+                                @click="toggleCategoryTools(cat.category, false)">取消</ui-button>
+                        </span>
+                    </div>
+                    <div class="tool-items" v-show="isCategoryExpanded(cat.category)">
+                        <div v-for="tool in cat.tools" :key="tool.name" class="tool-item"
+                            :class="{ disabled: !tool.enabled }">
+                            <ui-checkbox :value="tool.enabled"
+                                @change="(event) => updateToolStatus(cat.category, tool.name, event.target.checked)">
+                            </ui-checkbox>
+                            <div class="tool-info">
+                                <div class="tool-name">{{ tool.name }}</div>
+                                <div class="tool-description" v-if="tool.description">{{ tool.description }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
     </div>
 </div>
