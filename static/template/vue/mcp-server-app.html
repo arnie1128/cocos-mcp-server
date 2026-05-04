@@ -18,26 +18,47 @@
     <!-- =================== SERVER PANE =================== -->
     <div class="mcp-pane" v-show="activeTab === 'server'">
         <div class="server-hero" :class="{ live: serverRunning }">
-            <div class="hero-status">
-                <span class="dot big" :class="{ live: serverRunning }"></span>
-                <div class="hero-status-text">
-                    <div class="hero-state mono">{{ serverRunning ? 'RUNNING' : 'STOPPED' }}</div>
-                    <div class="hero-state-sub mono">
-                        {{ serverRunning ? 'accepting mcp connections' : 'no http listener' }}
+            <div class="hero-headline">
+                <div class="hero-status">
+                    <span class="dot big" :class="{ live: serverRunning }"></span>
+                    <div class="hero-status-text">
+                        <div class="hero-state mono">{{ serverRunning ? 'RUNNING' : 'STOPPED' }}</div>
+                        <div class="hero-state-sub">
+                            {{ serverRunning ? 'accepting mcp connections' : 'http listener not bound' }}
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-endpoint" v-if="serverRunning">
+                    <div class="endpoint-key mono">endpoint</div>
+                    <div class="endpoint-row">
+                        <span class="endpoint-val mono">{{ httpUrl }}</span>
+                        <button class="micro-btn" @click="copyUrl">copy</button>
+                    </div>
+                </div>
+                <div class="hero-endpoint" v-else>
+                    <div class="endpoint-key mono">port</div>
+                    <div class="endpoint-row">
+                        <span class="endpoint-val mono dim">:{{ settings.port }}</span>
                     </div>
                 </div>
             </div>
 
-            <div class="hero-meta">
-                <div class="hero-row" v-if="serverRunning">
-                    <span class="hero-key mono">endpoint</span>
-                    <span class="hero-val mono">{{ httpUrl }}</span>
-                    <button class="micro-btn" @click="copyUrl">copy</button>
+            <div class="hero-meta-grid">
+                <div class="meta-cell">
+                    <div class="meta-cell-key mono">port</div>
+                    <div class="meta-cell-val mono">{{ settings.port }}</div>
                 </div>
-                <div class="hero-row" v-else>
-                    <span class="hero-key mono">port</span>
-                    <span class="hero-val mono">:{{ settings.port }}</span>
-                    <span class="micro-hint mono">click start to listen</span>
+                <div class="meta-cell">
+                    <div class="meta-cell-key mono">connections</div>
+                    <div class="meta-cell-val mono">{{ serverRunning ? connectedClients : '—' }}</div>
+                </div>
+                <div class="meta-cell">
+                    <div class="meta-cell-key mono">max conn</div>
+                    <div class="meta-cell-val mono">{{ settings.maxConnections }}</div>
+                </div>
+                <div class="meta-cell">
+                    <div class="meta-cell-key mono">debug log</div>
+                    <div class="meta-cell-val mono">{{ settings.debugLog ? 'on' : 'off' }}</div>
                 </div>
             </div>
 
