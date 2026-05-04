@@ -437,6 +437,23 @@
 
 .title-glyph { color: var(--mcp-accent); }
 
+.config-subgroup { margin-bottom: 18px; }
+.config-subgroup:last-of-type { margin-bottom: 0; }
+
+.subgroup-label {
+    display: inline-block;
+    font-size: 10.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mcp-accent);
+    padding: 3px 10px;
+    background: var(--mcp-accent-soft);
+    border: 1px solid var(--mcp-accent-line);
+    border-radius: 2px;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
 .config-grid { display: flex; flex-direction: column; gap: 10px; }
 
 .config-field {
@@ -472,6 +489,71 @@
 
 .dirty-flag.clean { color: var(--mcp-text-faint); }
 
+/* === quick start block === */
+
+.quickstart-block {
+    border: 1px solid var(--mcp-line);
+    background: var(--mcp-surface);
+    padding: 20px 22px;
+    margin-top: 18px;
+}
+
+.quickstart-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.quickstart-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.22);
+    border-left: 2px solid var(--mcp-accent);
+    border-radius: 0 2px 2px 0;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.quickstart-list li:hover {
+    background: rgba(0, 0, 0, 0.32);
+    border-left-color: var(--mcp-accent-bright);
+}
+
+.step-num {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--mcp-accent);
+    min-width: 28px;
+    line-height: 1.1;
+}
+
+.step-text { flex: 1; min-width: 0; }
+.step-head { font-size: 13px; color: var(--mcp-text); margin-bottom: 4px; line-height: 1.45; }
+.step-sub { font-size: 12px; color: var(--mcp-text-faint); line-height: 1.4; }
+
+.kbd {
+    font-family: var(--mcp-mono);
+    font-size: 12px;
+    color: var(--mcp-accent);
+    background: var(--mcp-accent-soft);
+    border: 1px solid var(--mcp-accent-line);
+    padding: 1px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+.step-sub code {
+    color: var(--mcp-text-dim);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 11.5px;
+}
+
 /* === tools cmdbar === */
 
 .tools-cmdbar {
@@ -484,7 +566,30 @@
     gap: 12px;
 }
 
+.cmdbar-search-row,
+.cmdbar-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.field-tag {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--mcp-accent);
+    background: var(--mcp-accent-soft);
+    border: 1px solid var(--mcp-accent-line);
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: center;
+}
+
 .cmdbar-prompt {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -549,15 +654,18 @@
 .cmdbar-stats {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     font-size: 12px;
     color: var(--mcp-text-dim);
+    flex: 1;
 }
 
-.cmdbar-stats .stat { display: inline-flex; align-items: center; gap: 6px; }
-.cmdbar-stats .stat-num { color: var(--mcp-text); font-weight: 700; font-size: 13px; }
-.cmdbar-stats .stat.live { color: var(--mcp-accent); }
-.cmdbar-stats .sep { color: var(--mcp-text-faint); }
+.cmdbar-stats .stat { display: inline-flex; align-items: baseline; gap: 6px; }
+.cmdbar-stats .stat-num { color: var(--mcp-text); font-weight: 700; font-size: 14px; font-family: var(--mcp-mono); }
+.cmdbar-stats .stat-label { color: var(--mcp-text-faint); font-size: 11px; letter-spacing: 0.06em; }
+.cmdbar-stats .stat.live .stat-num { color: var(--mcp-accent); }
+.cmdbar-stats .stat.live .stat-label { color: var(--mcp-accent); opacity: 0.85; }
+.cmdbar-stats .sep { color: var(--mcp-text-faint); font-weight: 300; }
 
 .cmdbar-actions {
     display: flex;
@@ -570,22 +678,22 @@
 .action-group { display: inline-flex; align-items: center; gap: 4px; }
 
 .action-divider {
-    width: 1px;
-    height: 18px;
-    background: var(--mcp-line-strong);
+    color: var(--mcp-text-faint);
+    font-family: var(--mcp-mono);
+    font-size: 14px;
     margin: 0 4px;
+    user-select: none;
 }
 
 .group-label {
     color: var(--mcp-accent);
     font-size: 11px;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     margin-right: 6px;
-    font-weight: 600;
-    opacity: 0.85;
+    font-weight: 700;
 }
-.group-label::before { content: '['; color: var(--mcp-text-faint); margin-right: 2px; }
-.group-label::after { content: ']'; color: var(--mcp-text-faint); margin-left: 2px; }
+.group-label::before { content: '['; color: var(--mcp-text-faint); margin-right: 1px; font-weight: 400; }
+.group-label::after { content: ']'; color: var(--mcp-text-faint); margin-left: 1px; font-weight: 400; }
 
 .action {
     background: var(--mcp-surface-strong);
@@ -778,35 +886,47 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 10px;
-    margin-bottom: 3px;
+    margin-bottom: 6px;
 }
 
 .tool-title {
     font-family: var(--mcp-sans);
     font-size: 14px;
-    font-weight: 600;
-    color: var(--mcp-text);
+    font-weight: 700;
+    color: var(--mcp-accent-bright);
     line-height: 1.3;
 }
 
+.tool-row.muted .tool-title { color: var(--mcp-text); }
+
 .tool-name {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 500;
-    color: var(--mcp-text-faint);
-    background: transparent;
-    padding: 0;
+    color: var(--mcp-text-dim);
+    background: rgba(0, 0, 0, 0.42);
+    padding: 2px 8px;
+    border-radius: 2px;
     letter-spacing: 0.02em;
+    border: 1px solid var(--mcp-line);
 }
 
 .tool-desc {
-    margin: 4px 0 0;
+    margin: 0;
     font-family: var(--mcp-sans);
     font-size: 13px;
     color: var(--mcp-text-dim);
-    line-height: 1.55;
+    line-height: 1.6;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.32);
+    border-left: 2px solid var(--mcp-accent-line);
+    border-radius: 0 2px 2px 0;
 }
 
-.tool-desc.faint { color: var(--mcp-text-faint); font-style: italic; }
+.tool-desc.faint {
+    color: var(--mcp-text-faint);
+    font-style: italic;
+    border-left-color: var(--mcp-line);
+}
 
 /* === states === */
 

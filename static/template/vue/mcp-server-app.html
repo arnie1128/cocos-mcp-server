@@ -71,28 +71,39 @@
 
         <section class="config-block">
             <h3 class="block-title mono"><span class="title-glyph">╱</span>configuration</h3>
-            <div class="config-grid">
-                <div class="config-field">
-                    <label class="config-label mono">port</label>
-                    <ui-num-input class="config-input" v-model="settings.port"
-                        :min="1024" :max="65535" :step="1" :disabled="serverRunning"></ui-num-input>
-                </div>
-                <div class="config-field">
-                    <label class="config-label mono">auto-start</label>
-                    <ui-checkbox class="config-input" :value="settings.autoStart"
-                        @change="(e) => settings.autoStart = e.target.checked"></ui-checkbox>
-                </div>
-                <div class="config-field">
-                    <label class="config-label mono">debug log</label>
-                    <ui-checkbox class="config-input" :value="settings.debugLog"
-                        @change="(e) => settings.debugLog = e.target.checked"></ui-checkbox>
-                </div>
-                <div class="config-field">
-                    <label class="config-label mono">max connections</label>
-                    <ui-num-input class="config-input" v-model="settings.maxConnections"
-                        :min="1" :max="100" :step="1"></ui-num-input>
+
+            <div class="config-subgroup">
+                <div class="subgroup-label mono">network</div>
+                <div class="config-grid">
+                    <div class="config-field">
+                        <label class="config-label mono">port</label>
+                        <ui-num-input class="config-input" v-model="settings.port"
+                            :min="1024" :max="65535" :step="1" :disabled="serverRunning"></ui-num-input>
+                    </div>
+                    <div class="config-field">
+                        <label class="config-label mono">max connections</label>
+                        <ui-num-input class="config-input" v-model="settings.maxConnections"
+                            :min="1" :max="100" :step="1"></ui-num-input>
+                    </div>
                 </div>
             </div>
+
+            <div class="config-subgroup">
+                <div class="subgroup-label mono">behavior</div>
+                <div class="config-grid">
+                    <div class="config-field">
+                        <label class="config-label mono">auto-start on load</label>
+                        <ui-checkbox class="config-input" :value="settings.autoStart"
+                            @change="(e) => settings.autoStart = e.target.checked"></ui-checkbox>
+                    </div>
+                    <div class="config-field">
+                        <label class="config-label mono">debug log</label>
+                        <ui-checkbox class="config-input" :value="settings.debugLog"
+                            @change="(e) => settings.debugLog = e.target.checked"></ui-checkbox>
+                    </div>
+                </div>
+            </div>
+
             <div class="config-foot">
                 <span class="dirty-flag mono" v-if="settingsChanged">● unsaved</span>
                 <span class="dirty-flag mono clean" v-else>○ saved</span>
@@ -101,48 +112,89 @@
                 </button>
             </div>
         </section>
+
+        <section class="quickstart-block">
+            <h3 class="block-title mono"><span class="title-glyph">╱</span>quick start</h3>
+            <ol class="quickstart-list">
+                <li>
+                    <span class="step-num mono">01</span>
+                    <div class="step-text">
+                        <div class="step-head">click <span class="kbd">▶ start server</span> above</div>
+                        <div class="step-sub">binds to <code class="mono">127.0.0.1:{{ settings.port }}</code></div>
+                    </div>
+                </li>
+                <li>
+                    <span class="step-num mono">02</span>
+                    <div class="step-text">
+                        <div class="step-head">point your AI client at the MCP endpoint</div>
+                        <div class="step-sub mono">http://127.0.0.1:{{ settings.port }}/mcp</div>
+                    </div>
+                </li>
+                <li>
+                    <span class="step-num mono">03</span>
+                    <div class="step-text">
+                        <div class="step-head">curate the tool surface in <span class="kbd">▸ tools</span></div>
+                        <div class="step-sub">use <code class="mono">core</code> for a focused subset, <code class="mono">full</code> for everything</div>
+                    </div>
+                </li>
+            </ol>
+        </section>
     </div>
 
     <!-- =================== TOOLS PANE =================== -->
     <div class="mcp-pane mcp-pane-tools" v-show="activeTab === 'tools'">
         <div class="tools-cmdbar">
-            <div class="cmdbar-prompt">
-                <!-- ui-input emits @input/@change/@confirm at different lifecycle
-                     moments depending on cocos build; native input is fully under
-                     our control and styles cleanly with the prompt glyph. -->
-                <span class="prompt-glyph mono">$</span>
-                <input class="cmd-input" type="text" :value="searchQuery"
-                    @input="(e) => searchQuery = e.target.value"
-                    placeholder="filter by name, description, or category…" />
-                <button v-if="searchQuery" class="prompt-clear mono" @click="clearSearch">esc</button>
+            <div class="cmdbar-search-row">
+                <span class="field-tag mono">Search</span>
+                <div class="cmdbar-prompt">
+                    <!-- Cocos ui-input emits @input/@change/@confirm at different lifecycle
+                         moments depending on cocos build; native input is fully under
+                         our control and styles cleanly with the prompt glyph. -->
+                    <span class="prompt-glyph mono">$</span>
+                    <input class="cmd-input" type="text" :value="searchQuery"
+                        @input="(e) => searchQuery = e.target.value"
+                        placeholder="filter by name, description, or category…" />
+                    <button v-if="searchQuery" class="prompt-clear mono" @click="clearSearch">esc</button>
+                </div>
                 <span class="save-flag mono" :class="saveStatus" v-if="saveStatus !== 'idle'">
                     {{ saveMessage }}
                 </span>
             </div>
 
-            <div class="cmdbar-stats mono">
-                <span class="stat"><span class="stat-num">{{ totalTools }}</span> total</span>
-                <span class="sep">│</span>
-                <span class="stat live"><span class="dot small live"></span>{{ enabledTools }} active</span>
-                <span class="sep">│</span>
-                <span class="stat muted"><span class="dot small"></span>{{ disabledTools }} muted</span>
+            <div class="cmdbar-stats-row">
+                <span class="field-tag mono">Tools</span>
+                <div class="cmdbar-stats mono">
+                    <span class="stat">
+                        <span class="stat-num">{{ totalTools }}</span><span class="stat-label">total</span>
+                    </span>
+                    <span class="sep">│</span>
+                    <span class="stat live">
+                        <span class="dot small live"></span>
+                        <span class="stat-num">{{ enabledTools }}</span><span class="stat-label">active</span>
+                    </span>
+                    <span class="sep">│</span>
+                    <span class="stat muted">
+                        <span class="dot small"></span>
+                        <span class="stat-num">{{ disabledTools }}</span><span class="stat-label">muted</span>
+                    </span>
+                </div>
             </div>
 
             <div class="cmdbar-actions mono">
                 <span class="action-group">
-                    <span class="group-label">profile</span>
+                    <span class="group-label">Profile</span>
                     <button class="action" @click="applyProfile('core')">core</button>
                     <button class="action" @click="applyProfile('full')">full</button>
                 </span>
-                <span class="action-divider"></span>
+                <span class="action-divider">│</span>
                 <span class="action-group">
-                    <span class="group-label">view</span>
+                    <span class="group-label">View</span>
                     <button class="action" @click="expandAll">expand</button>
                     <button class="action" @click="collapseAll">collapse</button>
                 </span>
-                <span class="action-divider"></span>
+                <span class="action-divider">│</span>
                 <span class="action-group">
-                    <span class="group-label">bulk</span>
+                    <span class="group-label">Bulk</span>
                     <button class="action" @click="selectAllTools">all on</button>
                     <button class="action" @click="deselectAllTools">all off</button>
                 </span>
