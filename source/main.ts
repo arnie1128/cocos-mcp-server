@@ -271,4 +271,16 @@ export async function unload() {
         await mcpServer.stop();
         mcpServer = null;
     }
+
+    // Invalidate Node.js require.cache for our own dist/ modules so the
+    // next load() actually re-reads from disk. Without this, Cocos's
+    // Extensions → Reload only re-runs main.js but every transitive
+    // require('./tools/...') returns the cached module from first load —
+    // a `npm run build` between reloads would have no observable effect.
+    const ourRoot = require('path').dirname(__filename);
+    for (const key of Object.keys(require.cache)) {
+        if (key.startsWith(ourRoot)) {
+            delete require.cache[key];
+        }
+    }
 }
