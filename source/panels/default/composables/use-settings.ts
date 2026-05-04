@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { logger, setDebugLogEnabled } from '../../../lib/log';
 
 export interface ServerSettings {
@@ -20,15 +20,19 @@ const DEFAULTS: ServerSettings = {
 export function useSettings() {
     const settings = ref<ServerSettings>({ ...DEFAULTS });
     const settingsChanged = ref(false);
+    // Suppress dirty-flag during programmatic loads. Vue's deep watch is
+    // async (post-render), so settingsChanged.value=false set in the same
+    // tick as settings.value=… would be re-flipped to true by the watch
+    // callback firing afterwards. Gating the watch with this flag avoids
+    // the race entirely.
+    let suppressDirty = false;
 
     watch(
         settings,
         () => {
-            settingsChanged.value = true;
-            // Keep panel-side debug logging in sync with the user toggle so
-            // logger.debug calls in this process honour the same gate as the
-            // host process.
             setDebugLogEnabled(settings.value.debugLog);
+            if (suppressDirty) return;
+            settingsChanged.value = true;
         },
         { deep: true },
     );
@@ -51,6 +55,7 @@ export function useSettings() {
     const loadFromServerStatus = async () => {
         try {
             const status: any = await Editor.Message.request(PACKAGE_NAME, 'get-server-status');
+            suppressDirty = true;
             if (status?.settings) {
                 settings.value = {
                     port: status.settings.port ?? DEFAULTS.port,
@@ -63,10 +68,13 @@ export function useSettings() {
                 settings.value.port = status.port;
                 logger.debug('[Vue App] Port loaded from server status:', status.port);
             }
+            await nextTick();
             settingsChanged.value = false;
+            suppressDirty = false;
         } catch (error) {
             logger.error('[Vue App] Failed to get server status:', error);
             logger.debug('[Vue App] Using default server settings');
+            suppressDirty = false;
         }
     };
 
