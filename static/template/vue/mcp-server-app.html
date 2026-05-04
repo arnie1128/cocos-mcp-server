@@ -120,11 +120,11 @@
         <div class="tools-cmdbar">
             <div class="cmdbar-search-row">
                 <span class="field-tag mono">Search</span>
+                <span class="row-arrow mono">›</span>
                 <div class="cmdbar-prompt">
                     <!-- Cocos ui-input emits @input/@change/@confirm at different lifecycle
                          moments depending on cocos build; native input is fully under
                          our control and styles cleanly with the prompt glyph. -->
-                    <span class="prompt-glyph mono">$</span>
                     <input class="cmd-input" type="text" :value="searchQuery"
                         @input="(e) => searchQuery = e.target.value"
                         placeholder="filter by name, description, or category…" />
@@ -137,6 +137,7 @@
 
             <div class="cmdbar-stats-row">
                 <span class="field-tag mono">Tools</span>
+                <span class="row-arrow mono">›</span>
                 <div class="cmdbar-stats mono">
                     <span class="stat">
                         <span class="stat-num">{{ totalTools }}</span><span class="stat-label">total</span>

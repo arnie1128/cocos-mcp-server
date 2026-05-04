@@ -54,16 +54,15 @@
 }
 
 .mcp-server-panel::before {
+    /* Subtle dot grid only — earlier corner radial gradient washed
+       out the offline tab-tag in the top-right and made overall
+       background harder to read. */
     content: '';
     position: absolute;
     inset: 0;
-    background-image:
-        radial-gradient(circle at 0% 0%, var(--mcp-accent-soft), transparent 36%),
-        radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 100% 100%, 18px 18px;
-    background-position: 0 0, 0 0;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 18px 18px;
     pointer-events: none;
-    opacity: 0.9;
     z-index: 0;
 }
 
@@ -156,20 +155,23 @@
 .tab-tag {
     font-size: 12px;
     letter-spacing: 0.06em;
-    color: var(--mcp-text);
-    border: 1px solid var(--mcp-accent-line);
-    background: var(--mcp-accent-soft);
+    color: #67e8f9;
+    border: 1px solid rgba(34, 211, 238, 0.55);
+    background: rgba(0, 0, 0, 0.45);
     padding: 4px 10px;
     display: inline-flex;
     align-items: center;
     gap: 7px;
     margin-bottom: 6px;
+    border-radius: 2px;
+    font-weight: 600;
 }
 
 .tab-tag.muted {
-    color: var(--mcp-text-faint);
-    border-color: var(--mcp-line);
-    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.45);
+    font-weight: 500;
 }
 
 /* === panes === */
@@ -495,10 +497,14 @@
     border: 1px solid var(--mcp-line);
     background: var(--mcp-surface);
     padding: 14px 16px;
-    margin: 22px 22px 14px;
+    /* Right margin compensates for the .tools-list scrollbar gutter
+       so the cmdbar's right edge lines up visually with the category
+       cards inside the scroll area below. */
+    margin: 22px 30px 14px 22px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    border-radius: 2px;
 }
 
 .cmdbar-search-row,
@@ -511,13 +517,13 @@
 .field-tag {
     display: inline-flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     font-size: 11px;
-    letter-spacing: 0.12em;
-    color: #06222b;
-    background: #22d3ee;
-    border: 1px solid #22d3ee;
-    padding: 6px 12px;
+    letter-spacing: 0.14em;
+    color: #67e8f9;
+    background: rgba(34, 211, 238, 0.10);
+    border: 1px solid rgba(34, 211, 238, 0.55);
+    padding: 0;
     border-radius: 2px;
     font-weight: 700;
     flex-shrink: 0;
@@ -525,6 +531,16 @@
     height: 32px;
     box-sizing: border-box;
     text-transform: uppercase;
+    line-height: 1;
+}
+
+.row-arrow {
+    color: rgba(255, 255, 255, 0.30);
+    font-size: 18px;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+    margin: 0 -2px;
 }
 
 .cmdbar-prompt {
@@ -533,7 +549,7 @@
     align-items: center;
     gap: 10px;
     background: #0a0a0c;
-    border: 2px solid rgba(255, 255, 255, 0.28);
+    border: 2px solid rgba(255, 255, 255, 0.32);
     border-radius: 3px;
     padding: 7px 14px;
     height: 32px;
@@ -546,13 +562,6 @@
 .cmdbar-prompt:focus-within {
     border-color: #22d3ee;
     box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.5), 0 0 18px rgba(34, 211, 238, 0.25);
-}
-
-.prompt-glyph {
-    color: var(--mcp-accent);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1;
 }
 
 .cmd-input {
@@ -612,49 +621,67 @@
 
 .cmdbar-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
     font-size: 12px;
     align-items: center;
+    overflow-x: auto;
 }
 
-.action-group { display: inline-flex; align-items: center; gap: 4px; }
+.action-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    height: 28px;
+}
 
 .action-divider {
-    color: var(--mcp-text-faint);
+    color: rgba(255, 255, 255, 0.30);
     font-family: var(--mcp-mono);
-    font-size: 14px;
+    font-size: 16px;
+    line-height: 1;
     margin: 0 4px;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .group-label {
     color: #67e8f9;
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.04em;
-    margin-right: 6px;
+    margin-right: 4px;
     font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
 }
 .group-label::before { content: '['; color: rgba(255, 255, 255, 0.45); margin-right: 1px; font-weight: 400; }
 .group-label::after { content: ']'; color: rgba(255, 255, 255, 0.45); margin-left: 1px; font-weight: 400; }
 
 .action {
-    background: var(--mcp-surface-strong);
-    border: 1px solid var(--mcp-line-strong);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.32);
     color: var(--mcp-text);
     font-family: var(--mcp-mono);
     font-size: 12px;
-    letter-spacing: 0.04em;
-    padding: 5px 12px;
+    letter-spacing: 0.02em;
+    padding: 0 11px;
+    height: 28px;
     cursor: pointer;
     transition: all 0.12s ease;
     border-radius: 2px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .action:hover {
-    border-color: var(--mcp-accent);
-    color: var(--mcp-accent);
-    background: var(--mcp-accent-soft);
+    border-color: #22d3ee;
+    color: #67e8f9;
+    background: rgba(34, 211, 238, 0.12);
 }
 
 .action:active { transform: translateY(1px); }
@@ -698,6 +725,10 @@
     flex: 1;
     overflow-y: auto;
     padding: 0 22px 22px;
+    /* Always reserve scrollbar space so list content right-edge
+       stays at a stable x and matches .tools-cmdbar margin-right
+       (which adds an extra 8px to compensate for this gutter). */
+    scrollbar-gutter: stable;
 }
 
 .tools-list::-webkit-scrollbar { width: 8px; }
