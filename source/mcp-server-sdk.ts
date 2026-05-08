@@ -1,5 +1,7 @@
 import * as http from 'http';
 import * as url from 'url';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -30,17 +32,19 @@ import {
 } from './lib/game-command-queue';
 
 const SERVER_NAME = 'cocos-mcp-server';
-// v2.5.1 round-1 review fix (gemini 🔴): keep this in sync with package.json's
-// version on every minor/major bump. SDK Server initialize response carries
-// this string; clients see it during MCP handshake. Drift since v2.0.0 has
-// been confusing review rounds and live-test verification.
-// v2.9.6 round-2 fix (Codex 🔴): SDK constant tracks behavior compat
-// (minor base), per the project policy established in v2.8.1. v2.8.x →
-// v2.9.x crossed a minor bump but SERVER_VERSION stayed at '2.8.0',
-// so MCP `initialize` clients on v2.9.x see a stale 2.8 handshake.
-// Bump to '2.9.0' — the minor base for the 2.9.x line. Patch tags
-// (2.9.x) live in package.json.version, not here.
-const SERVER_VERSION = '2.9.0';
+const SERVER_VERSION = resolveServerVersion();
+
+function resolveServerVersion(): string {
+    try {
+        const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+        if (typeof packageJson.version === 'string' && packageJson.version.length > 0) {
+            return packageJson.version;
+        }
+    } catch (err: any) {
+        logger.warn(`[MCPServer] Failed to read package.json version: ${err?.message ?? String(err)}`);
+    }
+    return '0.0.0';
+}
 
 // Idle session sweep: drop sessions that haven't been touched in this many ms.
 // Set conservatively long for editor usage where a developer may pause work.
