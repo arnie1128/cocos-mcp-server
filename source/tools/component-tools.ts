@@ -564,16 +564,20 @@ export class ComponentTools implements ToolExecutor {
         if (!allComponentsInfo.success || !allComponentsInfo.data?.components) {
             return fail(`Failed to get components for node '${nodeUuid}': ${allComponentsInfo.error}`);
         }
-        // 2. 只查找type字段等於componentType的組件（即cid）
-        const exists = allComponentsInfo.data.components.some((comp: any) => comp.type === componentType);
-        if (!exists) {
+        // 2. 查找 type 字段等於 componentType（即 cid）的組件，並取其「組件 uuid」
+        const matched = allComponentsInfo.data.components.find((comp: any) => comp.type === componentType);
+        if (!matched) {
             return fail(`Component cid '${componentType}' not found on node '${nodeUuid}'. 請用getComponents獲取type字段（cid）作為componentType。`);
         }
-        // 3. 官方API直接移除
+        // Cocos 3.8 的 remove-component 需要「組件自身的 uuid」，不是節點 uuid。
+        const componentUuid = matched.uuid ?? matched.properties?.uuid?.value;
+        if (!componentUuid) {
+            return fail(`Could not resolve component uuid for cid '${componentType}' on node '${nodeUuid}'.`);
+        }
+        // 3. 官方API直接移除（傳組件 uuid）
         try {
             await Editor.Message.request('scene', 'remove-component', {
-                uuid: nodeUuid,
-                component: componentType
+                uuid: componentUuid,
             });
             // 4. 再查一次確認是否移除
             const afterRemoveInfo = await this.getComponentsImpl(nodeUuid);
@@ -595,7 +599,9 @@ export class ComponentTools implements ToolExecutor {
                 if (nodeData && nodeData.__comps__) {
                     const components = nodeData.__comps__.map((comp: any) => ({
                         type: comp.__type__ || comp.cid || comp.type || 'Unknown',
-                        uuid: dumpUnwrap(comp.uuid, null),
+                        // query-node 的組件 uuid 位於 comp.value.uuid（dump 形式），
+                        // 舊版直接讀 comp.uuid 永遠為 null；兩種形態都涵蓋。
+                        uuid: dumpUnwrap(comp.value?.uuid ?? comp.uuid, null),
                         enabled: comp.enabled !== undefined ? comp.enabled : true,
                         properties: this.extractComponentProperties(comp)
                     }));

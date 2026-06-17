@@ -101,6 +101,11 @@
                         <ui-checkbox class="config-input" :value="settings.debugLog"
                             @change="(e) => settings.debugLog = e.target.checked"></ui-checkbox>
                     </div>
+                    <div class="config-field">
+                        <label class="config-label mono">editor context eval</label>
+                        <ui-checkbox class="config-input" :value="settings.editorContextEval"
+                            @change="(e) => settings.editorContextEval = e.target.checked"></ui-checkbox>
+                    </div>
                 </div>
             </div>
 

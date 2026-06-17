@@ -5,6 +5,7 @@ interface ServerSettingsLike {
     port: number;
     autoStart: boolean;
     debugLog: boolean;
+    editorContextEval: boolean;
     maxConnections: number;
 }
 
@@ -36,6 +37,7 @@ export function useServerStatus(getSettings: () => ServerSettingsLike) {
                     port: s.port,
                     autoStart: s.autoStart,
                     enableDebugLog: s.debugLog,
+                    enableEditorContextEval: s.editorContextEval,
                     maxConnections: s.maxConnections,
                 });
                 await Editor.Message.request(PACKAGE_NAME, 'start-server');

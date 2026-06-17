@@ -5,6 +5,7 @@ export interface ServerSettings {
     port: number;
     autoStart: boolean;
     debugLog: boolean;
+    editorContextEval: boolean;
     maxConnections: number;
 }
 
@@ -14,6 +15,7 @@ const DEFAULTS: ServerSettings = {
     port: 3000,
     autoStart: false,
     debugLog: false,
+    editorContextEval: false,
     maxConnections: 10,
 };
 
@@ -43,6 +45,7 @@ export function useSettings() {
                 port: settings.value.port,
                 autoStart: settings.value.autoStart,
                 enableDebugLog: settings.value.debugLog,
+                enableEditorContextEval: settings.value.editorContextEval,
                 maxConnections: settings.value.maxConnections,
             });
             logger.debug('[Vue App] Save settings result:', result);
@@ -61,6 +64,7 @@ export function useSettings() {
                     port: status.settings.port ?? DEFAULTS.port,
                     autoStart: status.settings.autoStart ?? DEFAULTS.autoStart,
                     debugLog: status.settings.enableDebugLog ?? DEFAULTS.debugLog,
+                    editorContextEval: status.settings.enableEditorContextEval ?? DEFAULTS.editorContextEval,
                     maxConnections: status.settings.maxConnections ?? DEFAULTS.maxConnections,
                 };
                 logger.debug('[Vue App] Server settings loaded from status:', status.settings);
