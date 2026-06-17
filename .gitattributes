@@ -1,0 +1,7 @@
+# Repo standard: LF line endings for all text (Mac/Unix project).
+# text=auto detects text vs binary; eol=lf forces LF on checkout for
+# everyone, so Windows edits cannot reintroduce CRLF.
+* text=auto eol=lf
+
+# Binary assets — never normalize (text=auto also auto-detects these).
+*.png binary
