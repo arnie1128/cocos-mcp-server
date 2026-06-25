@@ -3,9 +3,11 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-05-03 / v2.12.1 done）
+## 🚀 NEXT SESSION ENTRY POINT（2026-06-25 / v2.14.0 done）
 
-**當下版本**：v2.12.1（v2.12.0 tech-debt T1-T5 batch + `gen-build-hash.js` 改為 hash 全 dist tree，build hash 對齊 `check_code_sync` 語意）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**。沒有 in-flight work。
+**當下版本**：v2.14.0（v2.12.2 unload 時清 require.cache 支援 hot-reload；v2.13.0–v2.13.8 tool-manager 面板重新設計；v2.13.9–v2.13.10 Extensions 選單 Start/Stop toggle；v2.14.0 修 `remove_component` uuid + editor-context-eval panel toggle）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**（v2.13/v2.14 皆無新增工具，僅面板/選單/修正）。沒有 in-flight work。
+
+> 註：下方 v2.12.x 候選清單 / tech-debt / commit 表是 v2.12.1 cycle 的工作紀錄（多為仍 open 的 backlog）；v2.13/v2.14 未另寫完整 handoff，重點已併入上方當下版本摘要。
 
 v2.11.x 完整 cycle 紀錄已歸檔：[`docs/archive/handoff/v2.11.md`](archive/handoff/v2.11.md)。
 
@@ -105,7 +107,7 @@ v2.11.x 完整 cycle 紀錄已歸檔：[`docs/archive/handoff/v2.11.md`](archive
 ```text
 P0 / P1 / P4 ✅ done（v2.1.x）
 P2 ❌ closed（量測後否決：lossless +29.4% / lossy -63% 但丟 validation）
-v2.1.x — v2.12.1 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.1-v2.11.md；release notes v2.7+ 見 docs/releases/）
+v2.1.x — v2.14.0 ✅ done（per-cycle 詳細紀錄見 docs/archive/handoff/v2.1-v2.11.md；release notes v2.7+ 見 docs/releases/）
 B-2 ⏳ active（v2.12.x 跨 repo gap）
 B-3 ⏳ deferred（觸發再做）
 ```
@@ -115,7 +117,7 @@ B-3 ⏳ deferred（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 開發起點應確認無意外變更
-git log --oneline -6          # 最頂應為當下版本（v2.12.1 = 72917d5）
+git log --oneline -6          # 當下版本 v2.14.0 = d23cd68（其上有 LF 正規化 chore 05065ac）
 
 # tsc + smoke + Gemini schema compatibility
 npx tsc --noEmit
@@ -130,6 +132,8 @@ node -e "const {createToolRegistry} = require('./dist/tools/registry.js'); const
 node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'); const r=createResourceRegistry({}); console.log('static:', r.list().length, 'templates:', r.listTemplates().length);"
 # 預期：static: 9 templates: 2
 ```
+
+**安裝路徑（本機）**：cocos 專案的 `extensions/cocos-mcp-server` 是指向本 repo 的 **junction**（`D:/1_dev/cocos_cs/cocos_cs_349/extensions/cocos-mcp-server` → `D:/1_dev/cocos-mcp-server`）。因此 `dist/` 一改即時生效，bump 後**不需 cp 同步**，只要在 Cocos 重載外掛（重啟編輯器或 reload extensions）即可。macOS 對應做法是 symlink（`ln -s`），效果相同；junction 與 symlink 在「讀外掛」用途上等價。
 
 **測試場景**：`db://assets/test-mcp/p4-test.scene`（含 TestBtn instance + TestBtn.prefab）。
 

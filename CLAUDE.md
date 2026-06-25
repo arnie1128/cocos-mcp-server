@@ -488,10 +488,17 @@ v2.1.6 after measure showed lossy-only gains).
   the end of the batch — not per-commit. The reason: Cocos Creator reads
   this `version` to display the plugin version in its panel; without
   bumping, reload shows a stale string and the user can't tell whether
-  the plugin actually picked up the change. After bumping, also sync
-  `dist/` + `package.json` to the user's installed plugin path (the
-  current path is in `docs/HANDOFF.md` §環境快速確認 — it is per-machine,
-  not constant, so don't hard-code it elsewhere).
+  the plugin actually picked up the change. After bumping, make sure the
+  installed plugin sees the new `dist/`. How depends on how the plugin
+  folder is wired into the Cocos project (per-machine — see
+  `docs/HANDOFF.md` §環境快速確認 for this machine's setup; don't hard-code
+  the path elsewhere):
+  - **Linked** — the install path is a link back to this repo (junction on
+    Windows via `mklink /J`, symlink on macOS/Linux via `ln -s`), so
+    `dist/` is already live; no copy needed. Just reload the plugin in
+    Cocos (restart editor or reload extensions) so it re-reads `dist/`.
+  - **Copied** — `cp` `dist/` + `package.json` to the install path after
+    each bump, then reload.
 
 ### Three-way review workflow for large changes
 
