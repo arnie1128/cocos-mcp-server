@@ -166,11 +166,14 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 
 ## 回滾錨點
 
-最近兩 cycle（v2.11.x + v2.12.x）；更早的歷史錨點見
+最近幾 cycle（v2.11.x — v2.14.0）；更早的歷史錨點見
 [`docs/archive/rollback-anchors.md`](archive/rollback-anchors.md)。
 
 | 退到哪個狀態 | 指令 |
 |---|---|
+| v2.14.0 改動前（v2.13.x wrap 點） | `git reset --hard 067200d` |
+| v2.13.0 改動前（v2.12.2 ship 點，面板重設計之前） | `git reset --hard e16e8d7` |
+| v2.12.2 改動前（v2.12.1 ship 點） | `git reset --hard 72917d5` |
 | v2.12.1 改動前（v2.12.0 ship 點） | `git reset --hard 38fdb71` |
 | v2.12.0 改動前（v2.11.7 wrap 點 + tech-debt T1-T5 之前） | `git reset --hard b2bd98c` |
 | v2.11.7 改動前（v2.11.6 ship 點） | `git reset --hard 93d3c9f` |
