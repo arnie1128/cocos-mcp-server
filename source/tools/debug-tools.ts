@@ -1,6 +1,7 @@
 import { ok, fail } from '../lib/response';
 import type { ToolDefinition, ToolResponse, ToolExecutor, PerformanceStats, ValidationResult, ValidationIssue } from '../types';
 import { debugLog } from '../lib/log';
+import { dumpUnwrap } from '../lib/dump-unwrap';
 import { filterByLevel, filterByKeyword, searchWithContext } from '../lib/log-parser';
 import { isEditorContextEvalEnabled } from '../lib/runtime-flags';
 import { z } from '../lib/schema';
@@ -453,9 +454,9 @@ export class DebugTools implements ToolExecutor {
                     counter.count++;
                     
                     const tree = {
-                        uuid: nodeData.uuid,
-                        name: nodeData.name,
-                        active: nodeData.active,
+                        uuid: dumpUnwrap(nodeData.uuid),
+                        name: dumpUnwrap(nodeData.name),
+                        active: dumpUnwrap(nodeData.active),
                         components: (nodeData as any).components ? (nodeData as any).components.map((c: any) => c.__type__) : [],
                         childCount: nodeData.children ? nodeData.children.length : 0,
                         ...(summaryOnly ? {} : { children: [] as any[] })
@@ -478,7 +479,14 @@ export class DebugTools implements ToolExecutor {
 
                     if (!summaryOnly && nodeData.children && nodeData.children.length > 0) {
                         tree.children = await Promise.all(
-                            nodeData.children.map((childId: any) => buildTree(childId, depth + 1))
+                            nodeData.children.map((child: any) => {
+                                // query-node children come dump-wrapped as { value: { uuid } };
+                                // extract the real uuid string before recursing (else query-node
+                                // gets a bad arg → undefined node → "reading 'uuid'" crash at depth>=1).
+                                const inner = dumpUnwrap<any>(child);
+                                const childUuid = typeof inner === 'string' ? inner : (inner?.uuid ?? child?.uuid);
+                                return buildTree(childUuid, depth + 1);
+                            })
                         );
                         if (counter.count >= maxNodes) {
                             truncation.truncated = true;

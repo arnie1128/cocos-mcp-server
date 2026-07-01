@@ -5,6 +5,10 @@ Detailed per-minor release notes live in [docs/releases/](docs/releases/); this 
 Original work © LiDaxian (upstream `cocos-mcp-server` v1.4.0). Fork modifications
 © 2026 shang. Both released under the project's existing license.
 
+## v2.14.1 — 2026-07-01
+
+- Fixed `debug_get_node_tree` crash at depth ≥ 2 ("Cannot read properties of undefined (reading 'uuid')"): `query-node` returns children dump-wrapped as `{ value: { uuid } }`, so the recursion passed the wrapper object as a uuid and the next `query-node` returned undefined. Now `dumpUnwrap` the child uuid before recursing, and `dumpUnwrap` the node's `uuid` / `name` / `active` scalar fields.
+
 ## v2.9 — 2026-05-02
 
 - Added `debug_check_editor_health`, `debug_set_preview_mode`, MediaRecorder recording, and macro-tool consolidation for reference images.
