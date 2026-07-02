@@ -62,6 +62,20 @@ $RECYCLE.BIN/
 tmp/
 temp/
 
+# ---- CodeGraph (personal per-machine tooling, not project infra) ----
+# CodeGraph is a per-developer code-intelligence tool, opted into via the
+# user's global ~/.claude/CLAUDE.md — this project does not depend on it.
+# Keep the whole setup local, not in the shared repo:
+#   .codegraph/     index db / WAL / socket / pid / log (rebuilt locally)
+#   .mcp.json       wires up the codegraph MCP server
+#   .claude/CLAUDE.md, .claude/settings.json  codegraph usage hint + permission
+# If a genuine PROJECT-level MCP server or .claude config is added later,
+# force-track that specific file rather than un-ignoring this personal setup.
+.codegraph/
+.mcp.json
+.claude/CLAUDE.md
+.claude/settings.json
+
 # ---- Claude Code session runtime ----
 # Lock file written by ScheduleWakeup / dynamic loop runtime; per-session, no
 # value to share. Project-level rules (if added later) live under
