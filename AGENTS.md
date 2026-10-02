@@ -27,7 +27,7 @@ Source is the truth for behaviour. `dist/` is generated, and documents written a
 | Peer projects and prior art | [Cross-repo survey](docs/research/cross-repo-survey.md), [per-repo notes](docs/research/repos/) |
 | Architecture background | [docs/architecture/](docs/architecture/overview.md) — written at the fork's start; check source before relying on a file name |
 | Runtime client for `debug_game_command` | [client/README.md](client/README.md) |
-| Editor quirks recorded as project memory | [.claude/memory/MEMORY.md](.claude/memory/MEMORY.md) |
+| Project memory: editor quirks and pending per-machine actions | [.claude/memory/MEMORY.md](.claude/memory/MEMORY.md) — Claude Code loads it only when the untracked `.claude/settings.local.json` sets `autoMemoryDirectory` to this repo's `.claude/memory`; create that file on a machine that lacks it |
 | Document placement | [Documentation index](docs/README.md) |
 | `Editor.Message` channels and their parameters | `node_modules/@cocos/creator-types/editor/packages/<module>/@types/message.d.ts` |
 
