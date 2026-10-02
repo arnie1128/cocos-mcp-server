@@ -4,7 +4,7 @@
  * override `importerType` (always) plus optionally `setProperty` /
  * `getProperties` for type-specific layouts.
  *
- * Path-validation policy (CLAUDE.md landmine candidate):
+ * Path-validation policy (candidate entry for docs/landmines.md):
  *   AI-generated property paths run through `VALID_META_PATTERNS`
  *   before any meta mutation. Anything outside `userData.*`,
  *   `subMetas.*`, `platformSettings.*`, or the small allow-list of

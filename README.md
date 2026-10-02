@@ -129,7 +129,7 @@ curl -s http://127.0.0.1:3000/health
 - [`docs/roadmap/`](docs/roadmap/) — P0 / P1 / P2 / P3 / P4 規劃與進度
 - [`docs/adr/`](docs/adr/) — Architectural Decision Records
 
-AI session 操作守則：repo 根目錄 [`CLAUDE.md`](CLAUDE.md)。
+AI session 操作守則：repo 根目錄 [`AGENTS.md`](AGENTS.md)（`CLAUDE.md` 匯入該檔）。
 
 ## 開發
 

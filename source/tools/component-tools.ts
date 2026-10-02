@@ -12,7 +12,7 @@ import { dumpUnwrap } from '../lib/dump-unwrap';
 
 /**
  * Force the editor's serialization model to re-pull a component dump
- * from runtime. CLAUDE.md Landmine #11: scene-script `arr.push` mutations
+ * from runtime. docs/landmines.md landmine #11: scene-script `arr.push` mutations
  * only touch the runtime; the model that `save-scene` writes to disk is
  * only updated when changes flow through the editor's set-property
  * channel.

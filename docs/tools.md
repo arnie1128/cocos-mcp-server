@@ -5,7 +5,7 @@
 > 重新生成。手寫的章節介紹（category 描述、總覽段）放在 generator 內。
 
 Cocos MCP Server 透過 [Model Context Protocol](https://modelcontextprotocol.io/) 對外暴露
-**180 tools across 18 categories**（180 個工具，分 18 個 category）。
+**197 tools across 19 categories**（197 個工具，分 19 個 category）。
 每個工具的 input schema 由 zod 在 `source/tools/&lt;category&gt;-tools.ts` 內定義，
 經過 `lib/schema.ts:toInputSchema` 轉成 JSON Schema 後送出 `tools/list`。
 Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.title`，缺少時由工具名稱自動轉成人類可讀文字。
@@ -28,23 +28,24 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | Category | 工具數 | 涵蓋 |
 |---|---:|---|
 | [`scene`](#scene) | 8 | 場景檔案層級操作：開／關／儲存／新建／另存。`create_scene` 支援 `template` 參數可一次寫入 2D 或 3D 範本。 |
-| [`node`](#node) | 12 | 節點生命週期：建立、查詢、改名、變換、移動、複製、刪除。`create_node` 支援 `layer` 參數；parent 是 Canvas 後代時自動推… |
-| [`component`](#component) | 11 | 組件 CRUD、property 設定、事件綁定（cc.EventHandler）。`set_component_property` 對 reference… |
-| [`prefab`](#prefab) | 11 | Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data、restore。除了 `restore_prefab… |
+| [`node`](#node) | 14 | 節點生命週期：建立、查詢、改名、變換、移動、複製、刪除。`create_node` 支援 `layer` 參數；parent 是 Canvas 後代時自動推… |
+| [`component`](#component) | 13 | 組件 CRUD、property 設定、事件綁定（cc.EventHandler）。`set_component_property` 對 reference… |
+| [`prefab`](#prefab) | 12 | Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data、restore。除了 `restore_prefab… |
 | [`project`](#project) | 24 | 資源管理 + 專案建構：asset CRUD、build / preview server、設定查詢。覆蓋大多數 asset-db 高頻操作。 |
 | [`debug`](#debug) | 26 | console log、截圖、preview 與系統資訊：取得 / 清空 console、讀 project log 檔、編輯器資訊。 |
 | [`preferences`](#preferences) | 1 | 編輯器偏好設定的讀寫。 |
-| [`server`](#server) | 6 | MCP server 自身的狀態與環境資訊。 |
+| [`server`](#server) | 8 | MCP server 自身的狀態與環境資訊。 |
 | [`broadcast`](#broadcast) | 5 | `Editor.Message` 廣播訊息監聽 / 發送。 |
 | [`sceneAdvanced`](#sceneadvanced) | 23 | 場景進階查詢與 scene-script 入口：依 asset uuid 反查節點、執行任意 scene-script 方法、批次節點查詢等。 |
 | [`sceneView`](#sceneview) | 20 | 場景視圖控制：gizmo 工具切換、座標系、視圖模式、參考圖等。會影響編輯器面板，不影響 runtime 行為。 |
 | [`referenceImage`](#referenceimage) | 1 | 場景視圖中參考圖的管理（add / remove / list / 透明度等）。 |
-| [`assetAdvanced`](#assetadvanced) | 12 | asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。 |
-| [`validation`](#validation) | 3 | 場景與資源完整性檢查工具，回報缺失或錯誤的 reference。 |
-| [`inspector`](#inspector) | 2 | Inspector 面板與選取狀態查詢，用於讀取目前編輯器 UI context。 |
+| [`assetAdvanced`](#assetadvanced) | 13 | asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。 |
+| [`validation`](#validation) | 5 | 場景與資源完整性檢查工具，回報缺失或錯誤的 reference。 |
+| [`inspector`](#inspector) | 4 | Inspector 面板與選取狀態查詢，用於讀取目前編輯器 UI context。 |
 | [`assetMeta`](#assetmeta) | 3 | 資源 meta 查詢與設定工具，處理 importer / uuid / meta 層級資訊。 |
 | [`animation`](#animation) | 8 | 動畫 clip、track、keyframe 與 animation component 的建立、查詢和修改。 |
 | [`fileEditor`](#fileeditor) | 4 | 專案檔案讀寫與搜尋工具，適合檢查或小範圍修改腳本與文字資源。 |
+| [`input`](#input) | 5 | _（無描述）_ |
 
 ## 工具總覽
 
@@ -58,8 +59,10 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `scene` | [`scene_save_scene_as`](#scene_save_scene_as) | Copy scene asset | [specialist] Copy the currently open scene to a new .scene asset. |
 | `scene` | [`scene_close_scene`](#scene_close_scene) | Close current scene | [specialist] Close the current scene. |
 | `scene` | [`scene_get_scene_hierarchy`](#scene_get_scene_hierarchy) | Read scene hierarchy | [specialist] Read the complete current scene node hierarchy. |
+| `node` | [`node_create_tree`](#node_create_tree) | Create node tree | [specialist] Create a hierarchy of scene nodes from a compact spec. |
 | `node` | [`node_create_node`](#node_create_node) | Create scene node | [specialist] Create a node in the current scene. |
 | `node` | [`node_get_node_info`](#node_get_node_info) | Read node info | [specialist] Read one node by UUID, including transform, children, and component summary. |
+| `node` | [`node_set_layout`](#node_set_layout) | Set layout component | [specialist] Add or update cc.Layout on a node. |
 | `node` | [`node_find_nodes`](#node_find_nodes) | Find nodes by pattern | [specialist] Search current-scene nodes by name pattern and return multiple matches. |
 | `node` | [`node_find_node_by_name`](#node_find_node_by_name) | Find node by name | [specialist] Find the first node with an exact name. |
 | `node` | [`node_get_all_nodes`](#node_get_all_nodes) | List all nodes | [specialist] List all current-scene nodes with name/uuid/type/path; primary source for nodeUuid/parentUuid. |
@@ -74,24 +77,27 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `component` | [`component_remove_component`](#component_remove_component) | Remove node component | [specialist] Remove a component from a node. |
 | `component` | [`component_get_components`](#component_get_components) | List node components | [specialist] List all components on a node. |
 | `component` | [`component_get_component_info`](#component_get_component_info) | Read component info | [specialist] Read detailed data for one component on a node. |
+| `component` | [`component_auto_bind`](#component_auto_bind) | Auto-bind component references | [specialist] Walk a script component's @property reference fields and bind each to a matching scene node by name. |
 | `component` | [`component_set_component_property`](#component_set_component_property) | Set component property | [specialist] Set one property on a node component. |
 | `component` | [`component_attach_script`](#component_attach_script) | Attach script component | [specialist] Attach a script asset as a component to a node. |
+| `component` | [`component_resolve_script_class`](#component_resolve_script_class) | Resolve script class name | [specialist] Resolve a Cocos TypeScript script asset URL or UUID to @ccclass class names. |
 | `component` | [`component_get_available_components`](#component_get_available_components) | List available components | [specialist] List curated built-in component types by category. |
 | `component` | [`component_add_event_handler`](#component_add_event_handler) | Add event handler | [specialist] Append a cc.EventHandler to a component event array. |
 | `component` | [`component_remove_event_handler`](#component_remove_event_handler) | Remove event handler | [specialist] Remove EventHandler entries from a component event array. |
 | `component` | [`component_list_event_handlers`](#component_list_event_handlers) | List event handlers | [specialist] List EventHandler entries on a component event array. |
 | `component` | [`component_set_component_properties`](#component_set_component_properties) | Set component properties | [specialist] Batch-set multiple properties on the same component in one tool call. |
+| `prefab` | [`prefab_create_from_spec`](#prefab_create_from_spec) | Create prefab from spec | [specialist] Create a scene node tree from a spec, auto-bind custom script references, then save it as a prefab asset. |
 | `prefab` | [`prefab_get_prefab_list`](#prefab_get_prefab_list) | List prefab assets | [specialist] List .prefab assets under a folder with name/path/uuid. |
 | `prefab` | [`prefab_load_prefab`](#prefab_load_prefab) | Read prefab metadata | [specialist] Read prefab asset metadata only. |
 | `prefab` | [`prefab_instantiate_prefab`](#prefab_instantiate_prefab) | Instantiate prefab | [specialist] Instantiate a prefab into the current scene; mutates scene and preserves prefab link. |
 | `prefab` | [`prefab_create_prefab`](#prefab_create_prefab) | Create prefab asset | [specialist] Create a prefab asset from a scene node via cce.Prefab.createPrefab facade. |
 | `prefab` | [`prefab_update_prefab`](#prefab_update_prefab) | Apply prefab edits | [specialist] Apply prefab instance edits back to its linked prefab asset; prefabPath is context only. |
+| `prefab` | [`prefab_set_link`](#prefab_set_link) | Set prefab link | [specialist] Attach or detach a prefab link on a node. |
+| `prefab` | [`prefab_get_prefab_data`](#prefab_get_prefab_data) | Read prefab data | [specialist] Read facade prefab dump for a prefab instance node. |
 | `prefab` | [`prefab_revert_prefab`](#prefab_revert_prefab) | Revert prefab instance | [specialist] Restore a prefab instance from its linked asset; discards unapplied overrides. |
 | `prefab` | [`prefab_get_prefab_info`](#prefab_get_prefab_info) | Read prefab info | [specialist] Read prefab meta/dependency summary before apply/revert. |
 | `prefab` | [`prefab_validate_prefab`](#prefab_validate_prefab) | Validate prefab asset | [specialist] Run basic prefab JSON structural checks; not byte-level Cocos equivalence. |
 | `prefab` | [`prefab_restore_prefab_node`](#prefab_restore_prefab_node) | Restore prefab node | [specialist] Restore a prefab instance through scene/restore-prefab; assetUuid is context only. |
-| `prefab` | [`prefab_set_link`](#prefab_set_link) | Set prefab link | [specialist] Attach or detach a prefab link on a node. |
-| `prefab` | [`prefab_get_prefab_data`](#prefab_get_prefab_data) | Read prefab data | [specialist] Read facade prefab dump for a prefab instance node. |
 | `project` | [`project_run_project`](#project_run_project) | Open preview fallback | [specialist] Open Build panel as preview fallback; does not launch preview automatically. |
 | `project` | [`project_build_project`](#project_build_project) | Open build fallback | [specialist] Open Build panel for the requested platform; does not start the build. |
 | `project` | [`project_get_project_info`](#project_get_project_info) | Read project info | [specialist] Read project name/path/uuid/version/Cocos version and config. |
@@ -143,6 +149,8 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `debug` | [`debug_preview_control`](#debug_preview_control) | Control preview playback | ⚠ PARKED — start FREEZES cocos 3.8.7 (landmine #16). |
 | `debug` | [`debug_get_script_diagnostic_context`](#debug_get_script_diagnostic_context) | Read diagnostic context | [specialist] Read a window of source lines around a diagnostic location so AI can read the offending code without a separate file read. |
 | `preferences` | [`preferences_manage`](#preferences_manage) | Manage preferences | [specialist] Macro tool for cocos editor preferences. |
+| `server` | [`server_get_build_hash`](#server_get_build_hash) | Read extension build hash | [specialist] Read the build identity (MD5 over the whole dist/ tree, plus git SHA + buildTime) from dist/build-hash.json. |
+| `server` | [`server_check_code_sync`](#server_check_code_sync) | Check extension code sync | [specialist] Compare source TypeScript mtime against dist/build-hash.json buildTime. |
 | `server` | [`server_query_server_ip_list`](#server_query_server_ip_list) | Read server IP list | [specialist] Read IPs reported by the Cocos Editor server. |
 | `server` | [`server_query_sorted_server_ip_list`](#server_query_sorted_server_ip_list) | Read sorted server IPs | [specialist] Read the Editor server IP list in preferred order. |
 | `server` | [`server_query_server_port`](#server_query_server_port) | Read server port | [specialist] Read the current Cocos Editor server port. |
@@ -205,31 +213,41 @@ Tool description 來自 zod `.describe()` 文字；title 來自 `annotations.tit
 | `assetAdvanced` | [`assetAdvanced_batch_import_assets`](#assetadvanced_batch_import_assets) | Import assets in batch | [specialist] Import files from a disk directory into asset-db; mutates project assets. |
 | `assetAdvanced` | [`assetAdvanced_batch_delete_assets`](#assetadvanced_batch_delete_assets) | Delete assets in batch | [specialist] Delete multiple asset-db URLs; mutates project assets. |
 | `assetAdvanced` | [`assetAdvanced_validate_asset_references`](#assetadvanced_validate_asset_references) | Validate asset references | [specialist] Lightly scan assets under a directory for broken asset-info references. |
+| `assetAdvanced` | [`assetAdvanced_get_tree`](#assetadvanced_get_tree) | Get asset tree | [primary] Return a recursive asset tree under a directory with UUID/type metadata for browsing project assets. |
 | `assetAdvanced` | [`assetAdvanced_get_asset_dependencies`](#assetadvanced_get_asset_dependencies) | Read asset dependencies | [specialist] Unsupported dependency-analysis placeholder; always reports unsupported. |
-| `assetAdvanced` | [`assetAdvanced_get_unused_assets`](#assetadvanced_get_unused_assets) | Find unused assets | [specialist] Unsupported unused-asset placeholder; always reports unsupported. |
+| `assetAdvanced` | [`assetAdvanced_get_unused_assets`](#assetadvanced_get_unused_assets) | Find unused assets | [specialist] Scan scenes and prefabs for asset dependencies, then report assets under a directory that are not referenced by those scene/prefab roots. |
 | `assetAdvanced` | [`assetAdvanced_compress_textures`](#assetadvanced_compress_textures) | Compress textures | [specialist] Unsupported texture-compression placeholder; always reports unsupported. |
 | `assetAdvanced` | [`assetAdvanced_export_asset_manifest`](#assetadvanced_export_asset_manifest) | Export asset manifest | [specialist] Return asset inventory for a directory as json/csv/xml text; does not write a file. |
 | `assetAdvanced` | [`assetAdvanced_get_users`](#assetadvanced_get_users) | Find asset users | [specialist] Find scenes/prefabs/scripts that reference an asset by UUID. |
+| `validation` | [`validation_take_snapshot`](#validation_take_snapshot) | Take scene snapshot | [specialist] Capture a flat scene node snapshot (positions, components, hierarchy) for later diff with compare_snapshots. |
+| `validation` | [`validation_compare_snapshots`](#validation_compare_snapshots) | Compare scene snapshots | [specialist] Compare two stored scene snapshots by ID and report node-level diff: added, removed, and modified nodes with field-level change list. |
 | `validation` | [`validation_validate_json_params`](#validation_validate_json_params) | Validate/repair JSON args | [specialist] Validate and lightly repair a JSON argument string before calling another tool. |
 | `validation` | [`validation_safe_string_value`](#validation_safe_string_value) | Escape string for JSON | [specialist] Escape a raw string for safe use inside JSON arguments. |
 | `validation` | [`validation_format_mcp_request`](#validation_format_mcp_request) | Format MCP request | [specialist] Format a complete MCP tools/call request and curl example. |
 | `inspector` | [`inspector_get_common_types_definition`](#inspector_get_common_types_definition) | Read cocos common types | [specialist] Return hardcoded TypeScript declarations for cocos value types (Vec2/3/4, Color, Rect, Size, Quat, Mat3/4) and the InstanceReference shape. |
 | `inspector` | [`inspector_get_instance_definition`](#inspector_get_instance_definition) | Read instance TS definition | [specialist] Generate a TypeScript class declaration for a scene node, derived from the live cocos scene/query-node dump. |
+| `inspector` | [`inspector_get_settings_definition`](#inspector_get_settings_definition) | Read settings TS definition | [specialist] Generate a TypeScript class declaration for editor settings dumps. |
+| `inspector` | [`inspector_set_instance_properties`](#inspector_set_instance_properties) | Set instance properties (generic) | [specialist] Generic batch property writer that dispatches to the right setter based on instance kind. |
 | `assetMeta` | [`assetMeta_list_interpreters`](#assetmeta_list_interpreters) | List asset interpreters | [specialist] List the asset importer types this server has specialized interpreters for. |
 | `assetMeta` | [`assetMeta_get_properties`](#assetmeta_get_properties) | Read asset meta properties | [specialist] Read an asset's meta + sub-meta userData via its importer-specific interpreter. |
 | `assetMeta` | [`assetMeta_set_properties`](#assetmeta_set_properties) | Write asset meta properties | [specialist] Batch-write asset meta fields. |
-| `animation` | [`animation_check_animation_finished`](#animation_check_animation_finished) | Check animation finished | [specialist] Check whether a named cc.AnimationState has reached its end time. |
-| `animation` | [`animation_get_animation_state_info`](#animation_get_animation_state_info) | Get animation state info | [specialist] Get speed and timing info for a named cc.AnimationState. |
 | `animation` | [`animation_list_clips`](#animation_list_clips) | List animation clips | [specialist] List animation clips registered on a node's cc.Animation component. |
-| `animation` | [`animation_list_animation_states`](#animation_list_animation_states) | List animation states | [specialist] List cc.AnimationState entries on a node's cc.Animation component. |
 | `animation` | [`animation_play`](#animation_play) | Play animation clip | [specialist] Play an animation clip on a node's cc.Animation component. |
-| `animation` | [`animation_set_animation_speed`](#animation_set_animation_speed) | Set animation speed | [specialist] Set speed on a named cc.AnimationState. |
 | `animation` | [`animation_stop`](#animation_stop) | Stop animation | [specialist] Stop the currently playing animation on a node's cc.Animation component. |
 | `animation` | [`animation_set_clip`](#animation_set_clip) | Configure animation clip | [specialist] Configure a node's cc.Animation: defaultClip name and/or playOnLoad. |
+| `animation` | [`animation_list_animation_states`](#animation_list_animation_states) | List animation states | [specialist] List cc.AnimationState entries on a node's cc.Animation component. |
+| `animation` | [`animation_get_animation_state_info`](#animation_get_animation_state_info) | Get animation state info | [specialist] Get speed and timing info for a named cc.AnimationState. |
+| `animation` | [`animation_set_animation_speed`](#animation_set_animation_speed) | Set animation speed | [specialist] Set speed on a named cc.AnimationState. |
+| `animation` | [`animation_check_animation_finished`](#animation_check_animation_finished) | Check animation finished | [specialist] Check whether a named cc.AnimationState has reached its end time. |
 | `fileEditor` | [`fileEditor_insert_text`](#fileeditor_insert_text) | Insert text at line | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
 | `fileEditor` | [`fileEditor_delete_lines`](#fileeditor_delete_lines) | Delete line range | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
 | `fileEditor` | [`fileEditor_replace_text`](#fileeditor_replace_text) | Replace text in file | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
 | `fileEditor` | [`fileEditor_query_text`](#fileeditor_query_text) | Read line range | [claude-code-redundant] Use Edit/Write tool from your IDE if available. |
+| `input` | [`input_list_windows`](#input_list_windows) | List Electron windows | [specialist] List available Electron BrowserWindow targets for input simulation, including title, bounds, visibility, focus, and inferred kind. |
+| `input` | [`input_simulate_mouse_move`](#input_simulate_mouse_move) | Simulate mouse move | [specialist] Send an Electron mouseMove input event to the focused or selected editor/preview/simulator window. |
+| `input` | [`input_simulate_mouse_click`](#input_simulate_mouse_click) | Simulate mouse click | [specialist] Send Electron mouseMove, mouseDown, and mouseUp input events to click in the focused or selected editor/preview/simulator window. |
+| `input` | [`input_simulate_mouse_drag`](#input_simulate_mouse_drag) | Simulate mouse drag | [specialist] Send Electron mouse input events for a drag gesture in the focused or selected editor/preview/simulator window. |
+| `input` | [`input_simulate_key_press`](#input_simulate_key_press) | Simulate key press | [specialist] Send Electron keyDown/keyUp input events, optionally with a char event, to the focused or selected editor/preview/simulator window. |
 
 ---
 
@@ -354,6 +372,9 @@ _[specialist] Read the complete current scene node hierarchy._
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
 | `includeComponents` | boolean |  | `false` | Include component type/enabled summaries on each node. Increases response size. |
+| `maxDepth` | integer |  | `10` | Maximum tree depth. Default 10; large values can return a lot of data. |
+| `maxNodes` | integer |  | `2000` | Maximum nodes to include before truncating traversal. Default 2000. |
+| `summaryOnly` | boolean |  | `false` | Return childCount without per-node children arrays. Default false. |
 
 </details>
 
@@ -365,7 +386,23 @@ _[specialist] Read the complete current scene node hierarchy._
 
 節點生命週期：建立、查詢、改名、變換、移動、複製、刪除。`create_node` 支援 `layer` 參數；parent 是 Canvas 後代時自動推 UI_2D。
 
-本 category 共 **12** 個工具。
+本 category 共 **14** 個工具。
+
+<a id="node_create_tree"></a>
+
+<details>
+<summary><code>node_create_tree</code> — Create node tree</summary>
+
+_[specialist] Create a hierarchy of scene nodes from a compact spec._
+
+[specialist] Create a hierarchy of scene nodes from a compact spec. Mutates scene and returns a path-to-UUID map.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `parentUuid` | string |  |  | Parent node UUID. Omit to create under the scene root. |
+| `spec` | array&lt;object{name, nodeType, components, layer, active, position, rotation, scale, children}&gt; | ✓ |  | Root node specs to create under parentUuid. |
+
+</details>
 
 <a id="node_create_node"></a>
 
@@ -404,6 +441,33 @@ _[specialist] Read one node by UUID, including transform, children, and componen
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
 | `uuid` | string | ✓ |  | Node UUID to inspect. |
+
+</details>
+
+<a id="node_set_layout"></a>
+
+<details>
+<summary><code>node_set_layout</code> — Set layout component</summary>
+
+_[specialist] Add or update cc.Layout on a node._
+
+[specialist] Add or update cc.Layout on a node. Mutates scene and applies only provided layout properties.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | Node UUID that owns or should receive cc.Layout. |
+| `type` | enum: `NONE` \| `HORIZONTAL` \| `VERTICAL` \| `GRID` |  |  |  |
+| `resizeMode` | enum: `NONE` \| `CONTAINER` \| `CHILDREN` |  |  |  |
+| `paddingTop` | number |  |  |  |
+| `paddingBottom` | number |  |  |  |
+| `paddingLeft` | number |  |  |  |
+| `paddingRight` | number |  |  |  |
+| `spacingX` | number |  |  |  |
+| `spacingY` | number |  |  |  |
+| `startAxis` | enum: `HORIZONTAL` \| `VERTICAL` |  |  |  |
+| `constraintNum` | integer |  |  |  |
+| `autoAlignment` | boolean |  |  |  |
+| `affectedByScale` | boolean |  |  |  |
 
 </details>
 
@@ -579,7 +643,7 @@ _[specialist] Batch-set multiple properties on the same node in one tool call._
 
 組件 CRUD、property 設定、事件綁定（cc.EventHandler）。`set_component_property` 對 reference 屬性會做 propertyType vs metadata 的 preflight 檢查；提供 `preserveContentSize` 旗標處理 Sprite 指派 spriteFrame 後 contentSize 被覆蓋的問題。
 
-本 category 共 **11** 個工具。
+本 category 共 **13** 個工具。
 
 <a id="component_add_component"></a>
 
@@ -646,6 +710,24 @@ _[specialist] Read detailed data for one component on a node._
 
 </details>
 
+<a id="component_auto_bind"></a>
+
+<details>
+<summary><code>component_auto_bind</code> — Auto-bind component references</summary>
+
+_[specialist] Walk a script component's @property reference fields and bind each to a matching scene node by name._
+
+[specialist] Walk a script component's @property reference fields and bind each to a matching scene node by name. strict mode requires exact case-sensitive name; fuzzy mode matches case-insensitive substring. force=false skips already-bound fields.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | Node UUID that owns the script component. |
+| `componentType` | string | ✓ |  | Component type or cid (from get_components). E.g. "MyScript" or a cid string. |
+| `mode` | enum: `strict` \| `fuzzy` |  | `"strict"` | strict=exact case-sensitive name match; fuzzy=case-insensitive substring match. |
+| `force` | boolean |  | `false` | If false, skip properties that already have a non-null bound value. If true, overwrite. |
+
+</details>
+
 <a id="component_set_component_property"></a>
 
 <details>
@@ -681,6 +763,21 @@ _[specialist] Attach a script asset as a component to a node._
 |---|---|---|---|---|
 | `nodeUuid` | string | ✓ |  | Node UUID to attach the script component to. |
 | `scriptPath` | string | ✓ |  | Script asset db:// path, e.g. db://assets/scripts/MyScript.ts. |
+
+</details>
+
+<a id="component_resolve_script_class"></a>
+
+<details>
+<summary><code>component_resolve_script_class</code> — Resolve script class name</summary>
+
+_[specialist] Resolve a Cocos TypeScript script asset URL or UUID to @ccclass class names._
+
+[specialist] Resolve a Cocos TypeScript script asset URL or UUID to @ccclass class names. Use before add_component, add_event_handler, or other calls that need a custom script class name.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `script` | string | ✓ |  | Script asset db:// URL or asset UUID, e.g. db://assets/scripts/MyScript.ts. |
 
 </details>
 
@@ -784,7 +881,25 @@ _[specialist] Batch-set multiple properties on the same component in one tool ca
 
 Prefab façade 工具集：建立、實例化、apply、link/unlink、get-data、restore。除了 `restore_prefab_node` 走 host `restore-prefab` channel，其他都透過 scene façade 介面（execute-scene-script）。
 
-本 category 共 **11** 個工具。
+本 category 共 **12** 個工具。
+
+<a id="prefab_create_from_spec"></a>
+
+<details>
+<summary><code>prefab_create_from_spec</code> — Create prefab from spec</summary>
+
+_[specialist] Create a scene node tree from a spec, auto-bind custom script references, then save it as a prefab asset._
+
+[specialist] Create a scene node tree from a spec, auto-bind custom script references, then save it as a prefab asset.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `prefabPath` | string | ✓ |  | Target prefab db:// path. |
+| `rootSpec` | object{name, nodeType, components, layer, active, position, children} | ✓ |  | Root node spec passed to create_tree. |
+| `autoBindMode` | enum: `strict` \| `fuzzy` \| `none` |  | `"strict"` | Auto-bind mode for custom script components. |
+| `parentUuid` | string |  |  | Optional parent node UUID for temporary scene construction. |
+
+</details>
 
 <a id="prefab_get_prefab_list"></a>
 
@@ -866,6 +981,39 @@ _[specialist] Apply prefab instance edits back to its linked prefab asset; prefa
 
 </details>
 
+<a id="prefab_set_link"></a>
+
+<details>
+<summary><code>prefab_set_link</code> — Set prefab link</summary>
+
+_[specialist] Attach or detach a prefab link on a node._
+
+[specialist] Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `mode` | enum: `link` \| `unlink` | ✓ |  | Operation: "link" attaches a regular node to a prefab asset; "unlink" detaches a prefab instance. |
+| `nodeUuid` | string | ✓ |  | Node UUID. For mode="link", the node to attach; for mode="unlink", the prefab instance to detach. |
+| `assetUuid` | string |  |  | Prefab asset UUID. Required when mode="link"; ignored when mode="unlink". |
+| `removeNested` | boolean |  | `false` | When mode="unlink", also unlink nested prefab instances under this node. Ignored when mode="link". |
+
+</details>
+
+<a id="prefab_get_prefab_data"></a>
+
+<details>
+<summary><code>prefab_get_prefab_data</code> — Read prefab data</summary>
+
+_[specialist] Read facade prefab dump for a prefab instance node._
+
+[specialist] Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | Prefab instance node UUID whose prefab dump should be read. |
+
+</details>
+
 <a id="prefab_revert_prefab"></a>
 
 <details>
@@ -924,39 +1072,6 @@ _[specialist] Restore a prefab instance through scene/restore-prefab; assetUuid 
 |---|---|---|---|---|
 | `nodeUuid` | string | ✓ |  | Prefab instance node UUID passed to scene/restore-prefab. |
 | `assetUuid` | string | ✓ |  | Prefab asset UUID kept for response context; Cocos restore-prefab uses nodeUuid only. |
-
-</details>
-
-<a id="prefab_set_link"></a>
-
-<details>
-<summary><code>prefab_set_link</code> — Set prefab link</summary>
-
-_[specialist] Attach or detach a prefab link on a node._
-
-[specialist] Attach or detach a prefab link on a node. mode="link" wraps cce.SceneFacade.linkPrefab; mode="unlink" wraps cce.SceneFacade.unlinkPrefab.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `mode` | enum: `link` \| `unlink` | ✓ |  | Operation: "link" attaches a regular node to a prefab asset; "unlink" detaches a prefab instance. |
-| `nodeUuid` | string | ✓ |  | Node UUID. For mode="link", the node to attach; for mode="unlink", the prefab instance to detach. |
-| `assetUuid` | string |  |  | Prefab asset UUID. Required when mode="link"; ignored when mode="unlink". |
-| `removeNested` | boolean |  | `false` | When mode="unlink", also unlink nested prefab instances under this node. Ignored when mode="link". |
-
-</details>
-
-<a id="prefab_get_prefab_data"></a>
-
-<details>
-<summary><code>prefab_get_prefab_data</code> — Read prefab data</summary>
-
-_[specialist] Read facade prefab dump for a prefab instance node._
-
-[specialist] Read facade prefab dump for a prefab instance node. No mutation; useful for inspecting instance/link serialized data.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `nodeUuid` | string | ✓ |  | Prefab instance node UUID whose prefab dump should be read. |
 
 </details>
 
@@ -1401,7 +1516,9 @@ _[specialist] Read a debug node tree from a root or scene root for hierarchy/com
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
 | `rootUuid` | string |  |  | Root node UUID to expand. Omit to use the current scene root. |
-| `maxDepth` | number |  | `10` | Maximum tree depth. Default 10; large values can return a lot of data. |
+| `maxDepth` | integer |  | `10` | Maximum tree depth. Default 10; large values can return a lot of data. |
+| `maxNodes` | integer |  | `2000` | Maximum nodes to include before truncating traversal. Default 2000. |
+| `summaryOnly` | boolean |  | `false` | Return childCount without per-node children arrays. Default false. |
 
 </details>
 
@@ -1784,7 +1901,35 @@ _[specialist] Macro tool for cocos editor preferences._
 
 MCP server 自身的狀態與環境資訊。
 
-本 category 共 **6** 個工具。
+本 category 共 **8** 個工具。
+
+<a id="server_get_build_hash"></a>
+
+<details>
+<summary><code>server_get_build_hash</code> — Read extension build hash</summary>
+
+_[specialist] Read the build identity (MD5 over the whole dist/ tree, plus git SHA + buildTime) from dist/build-hash.json._
+
+[specialist] Read the build identity (MD5 over the whole dist/ tree, plus git SHA + buildTime) from dist/build-hash.json. Generated by postbuild script after each npm run build; reflects any source/ change after rebuild.
+
+**參數**：無
+
+</details>
+
+<a id="server_check_code_sync"></a>
+
+<details>
+<summary><code>server_check_code_sync</code> — Check extension code sync</summary>
+
+_[specialist] Compare source TypeScript mtime against dist/build-hash.json buildTime._
+
+[specialist] Compare source TypeScript mtime against dist/build-hash.json buildTime. Returns inSync: true when all .ts files are older than the last build, with a list of stale files otherwise.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `sourceRoot` | string |  |  | Absolute path to the source directory to scan. Defaults to the extension source/ directory. |
+
+</details>
 
 <a id="server_query_server_ip_list"></a>
 
@@ -2633,7 +2778,7 @@ _[specialist] Manage scene reference images through the cocos reference-image mo
 
 asset-db 進階：meta 寫入、URL 生成、相依性查詢、批次匯入 / 刪除、未使用資源偵測等。
 
-本 category 共 **12** 個工具。
+本 category 共 **13** 個工具。
 
 <a id="assetadvanced_save_asset_meta"></a>
 
@@ -2743,6 +2888,22 @@ _[specialist] Lightly scan assets under a directory for broken asset-info refere
 
 </details>
 
+<a id="assetadvanced_get_tree"></a>
+
+<details>
+<summary><code>assetAdvanced_get_tree</code> — Get asset tree</summary>
+
+_[primary] Return a recursive asset tree under a directory with UUID/type metadata for browsing project assets._
+
+[primary] Return a recursive asset tree under a directory with UUID/type metadata for browsing project assets.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `directory` | string |  | `"db://assets"` | Asset-db directory to use as the tree root. Default db://assets. |
+| `maxDepth` | number |  | `8` | Maximum descendant depth to include below the root directory. |
+
+</details>
+
 <a id="assetadvanced_get_asset_dependencies"></a>
 
 <details>
@@ -2764,14 +2925,14 @@ _[specialist] Unsupported dependency-analysis placeholder; always reports unsupp
 <details>
 <summary><code>assetAdvanced_get_unused_assets</code> — Find unused assets</summary>
 
-_[specialist] Unsupported unused-asset placeholder; always reports unsupported._
+_[specialist] Scan scenes and prefabs for asset dependencies, then report assets under a directory that are not referenced by those scene/prefab roots._
 
-[specialist] Unsupported unused-asset placeholder; always reports unsupported.
+[specialist] Scan scenes and prefabs for asset dependencies, then report assets under a directory that are not referenced by those scene/prefab roots.
 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
-| `directory` | string |  | `"db://assets"` | Asset-db directory to scan. Current implementation reports unsupported. |
-| `excludeDirectories` | array&lt;string&gt; |  | `[]` | Directories to exclude from the requested scan. Current implementation reports unsupported. |
+| `directory` | string |  | `"db://assets"` | Asset-db directory to scan. Default db://assets. |
+| `excludeDirectories` | array&lt;string&gt; |  | `[]` | Directories to exclude from unused-asset reporting. |
 
 </details>
 
@@ -2832,7 +2993,38 @@ _[specialist] Find scenes/prefabs/scripts that reference an asset by UUID._
 
 場景與資源完整性檢查工具，回報缺失或錯誤的 reference。
 
-本 category 共 **3** 個工具。
+本 category 共 **5** 個工具。
+
+<a id="validation_take_snapshot"></a>
+
+<details>
+<summary><code>validation_take_snapshot</code> — Take scene snapshot</summary>
+
+_[specialist] Capture a flat scene node snapshot (positions, components, hierarchy) for later diff with compare_snapshots._
+
+[specialist] Capture a flat scene node snapshot (positions, components, hierarchy) for later diff with compare_snapshots. Session-scoped — snapshots are lost on extension reload. No scene mutations.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `label` | string |  |  | Optional human-readable label for this snapshot. |
+
+</details>
+
+<a id="validation_compare_snapshots"></a>
+
+<details>
+<summary><code>validation_compare_snapshots</code> — Compare scene snapshots</summary>
+
+_[specialist] Compare two stored scene snapshots by ID and report node-level diff: added, removed, and modified nodes with field-level change list._
+
+[specialist] Compare two stored scene snapshots by ID and report node-level diff: added, removed, and modified nodes with field-level change list.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `baseId` | string | ✓ |  | Snapshot id to use as the comparison base. |
+| `headId` | string | ✓ |  | Snapshot id to compare against the base. |
+
+</details>
 
 <a id="validation_validate_json_params"></a>
 
@@ -2889,7 +3081,7 @@ _[specialist] Format a complete MCP tools/call request and curl example._
 
 Inspector 面板與選取狀態查詢，用於讀取目前編輯器 UI context。
 
-本 category 共 **2** 個工具。
+本 category 共 **4** 個工具。
 
 <a id="inspector_get_common_types_definition"></a>
 
@@ -2916,6 +3108,37 @@ _[specialist] Generate a TypeScript class declaration for a scene node, derived 
 | 參數 | 型別 | 必填 | 預設 | 說明 |
 |---|---|---|---|---|
 | `reference` | object{id, type} | ✓ |  | Target node or component. {id} = instance UUID, {type} optional cc class label. |
+
+</details>
+
+<a id="inspector_get_settings_definition"></a>
+
+<details>
+<summary><code>inspector_get_settings_definition</code> — Read settings TS definition</summary>
+
+_[specialist] Generate a TypeScript class declaration for editor settings dumps._
+
+[specialist] Generate a TypeScript class declaration for editor settings dumps. settingsType selects which dump: CommonTypes returns the common cocos value types; CurrentSceneGlobals dumps current scene globals; ProjectSettings dumps cocos project settings categories.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `settingsType` | enum: `CommonTypes` \| `CurrentSceneGlobals` \| `ProjectSettings` | ✓ |  | Which settings dump to render. |
+
+</details>
+
+<a id="inspector_set_instance_properties"></a>
+
+<details>
+<summary><code>inspector_set_instance_properties</code> — Set instance properties (generic)</summary>
+
+_[specialist] Generic batch property writer that dispatches to the right setter based on instance kind._
+
+[specialist] Generic batch property writer that dispatches to the right setter based on instance kind. reference.type prefix routes: asset:* → assetMeta path (interpreter-validated); cc.Component / component cid → component path; cc.Node → node path. For single-kind work, the specific tools (component_set_component_property / assetMeta_set_properties / node_set_node_property) are still preferred; use this for heterogeneous batches. Note: kind-specific options like preserveContentSize are not available here — use the dedicated tools for those.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `reference` | object{id, type} | ✓ |  |  |
+| `properties` | array&lt;object{path, type, value}&gt; | ✓ |  |  |
 
 </details>
 
@@ -2987,38 +3210,6 @@ _[specialist] Batch-write asset meta fields._
 
 本 category 共 **8** 個工具。
 
-<a id="animation_check_animation_finished"></a>
-
-<details>
-<summary><code>animation_check_animation_finished</code> — Check animation finished</summary>
-
-_[specialist] Check whether a named cc.AnimationState has reached its end time._
-
-[specialist] Check whether a named cc.AnimationState has reached its end time.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
-| `stateName` | string | ✓ |  | Animation state name. |
-
-</details>
-
-<a id="animation_get_animation_state_info"></a>
-
-<details>
-<summary><code>animation_get_animation_state_info</code> — Get animation state info</summary>
-
-_[specialist] Get speed and timing info for a named cc.AnimationState._
-
-[specialist] Get speed and timing info for a named cc.AnimationState.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
-| `stateName` | string | ✓ |  | Animation state name. |
-
-</details>
-
 <a id="animation_list_clips"></a>
 
 <details>
@@ -3032,21 +3223,6 @@ _[specialist] List animation clips registered on a node's cc.Animation component
 |---|---|---|---|---|
 | `nodeUuid` | string |  |  | Target node UUID. Provide this OR nodeName (UUID wins when both are set). |
 | `nodeName` | string |  |  | Target node name; resolved by depth-first scan of the current scene. Use only when the name is unique. Ignored if nodeUuid is set. |
-
-</details>
-
-<a id="animation_list_animation_states"></a>
-
-<details>
-<summary><code>animation_list_animation_states</code> — List animation states</summary>
-
-_[specialist] List cc.AnimationState entries on a node's cc.Animation component._
-
-[specialist] List cc.AnimationState entries on a node's cc.Animation component.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
 
 </details>
 
@@ -3064,23 +3240,6 @@ _[specialist] Play an animation clip on a node's cc.Animation component._
 | `nodeUuid` | string |  |  | Target node UUID. Provide this OR nodeName (UUID wins when both are set). |
 | `nodeName` | string |  |  | Target node name; resolved by depth-first scan of the current scene. Use only when the name is unique. Ignored if nodeUuid is set. |
 | `clipName` | string |  |  | Clip name registered on the Animation component. Omit to play defaultClip. |
-
-</details>
-
-<a id="animation_set_animation_speed"></a>
-
-<details>
-<summary><code>animation_set_animation_speed</code> — Set animation speed</summary>
-
-_[specialist] Set speed on a named cc.AnimationState._
-
-[specialist] Set speed on a named cc.AnimationState.
-
-| 參數 | 型別 | 必填 | 預設 | 說明 |
-|---|---|---|---|---|
-| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
-| `stateName` | string | ✓ |  | Animation state name. |
-| `speed` | number | ✓ |  | New AnimationState.speed value. |
 
 </details>
 
@@ -3115,6 +3274,70 @@ _[specialist] Configure a node's cc.Animation: defaultClip name and/or playOnLoa
 | `nodeName` | string |  |  | Target node name; resolved by depth-first scan of the current scene. Use only when the name is unique. Ignored if nodeUuid is set. |
 | `defaultClip` | string |  |  | Name of the clip to use as defaultClip. Must already be registered in the component's clips array. |
 | `playOnLoad` | boolean |  |  | Whether the component starts the defaultClip when the scene loads. |
+
+</details>
+
+<a id="animation_list_animation_states"></a>
+
+<details>
+<summary><code>animation_list_animation_states</code> — List animation states</summary>
+
+_[specialist] List cc.AnimationState entries on a node's cc.Animation component._
+
+[specialist] List cc.AnimationState entries on a node's cc.Animation component.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
+
+</details>
+
+<a id="animation_get_animation_state_info"></a>
+
+<details>
+<summary><code>animation_get_animation_state_info</code> — Get animation state info</summary>
+
+_[specialist] Get speed and timing info for a named cc.AnimationState._
+
+[specialist] Get speed and timing info for a named cc.AnimationState.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
+| `stateName` | string | ✓ |  | Animation state name. |
+
+</details>
+
+<a id="animation_set_animation_speed"></a>
+
+<details>
+<summary><code>animation_set_animation_speed</code> — Set animation speed</summary>
+
+_[specialist] Set speed on a named cc.AnimationState._
+
+[specialist] Set speed on a named cc.AnimationState.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
+| `stateName` | string | ✓ |  | Animation state name. |
+| `speed` | number | ✓ |  | New AnimationState.speed value. |
+
+</details>
+
+<a id="animation_check_animation_finished"></a>
+
+<details>
+<summary><code>animation_check_animation_finished</code> — Check animation finished</summary>
+
+_[specialist] Check whether a named cc.AnimationState has reached its end time._
+
+[specialist] Check whether a named cc.AnimationState has reached its end time.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `nodeUuid` | string | ✓ |  | UUID of the node with the cc.Animation component. |
+| `stateName` | string | ✓ |  | Animation state name. |
 
 </details>
 
@@ -3200,8 +3423,124 @@ _[claude-code-redundant] Use Edit/Write tool from your IDE if available._
 
 ---
 
+<a id="input"></a>
+
+## 19. input（input）
+
+_（無描述）_
+
+本 category 共 **5** 個工具。
+
+<a id="input_list_windows"></a>
+
+<details>
+<summary><code>input_list_windows</code> — List Electron windows</summary>
+
+_[specialist] List available Electron BrowserWindow targets for input simulation, including title, bounds, visibility, focus, and inferred kind._
+
+[specialist] List available Electron BrowserWindow targets for input simulation, including title, bounds, visibility, focus, and inferred kind.
+
+**參數**：無
+
+</details>
+
+<a id="input_simulate_mouse_move"></a>
+
+<details>
+<summary><code>input_simulate_mouse_move</code> — Simulate mouse move</summary>
+
+_[specialist] Send an Electron mouseMove input event to the focused or selected editor/preview/simulator window._
+
+[specialist] Send an Electron mouseMove input event to the focused or selected editor/preview/simulator window.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `windowId` | integer |  |  | Exact BrowserWindow id from input_list_windows; takes priority over windowKind and titleContains. |
+| `windowKind` | enum: `focused` \| `editor` \| `simulator` \| `preview` |  | `"focused"` | Target window kind. "focused" prefers the currently focused window. |
+| `titleContains` | string |  |  | Optional case-insensitive substring matched against the Electron BrowserWindow title. |
+| `panel` | string |  |  | Optional editor panel name. When set, x/y are offsets from the panel center. |
+| `x` | number |  | `0` | X coordinate, or offset from panel center when panel is set. |
+| `y` | number |  | `0` | Y coordinate, or offset from panel center when panel is set. |
+| `button` | enum: `left` \| `right` \| `middle` |  | `"left"` | Mouse button context for the move event. Default left. |
+| `modifiers` | array&lt;string&gt; |  | `[]` | Electron input modifiers such as shift, control, alt, meta. |
+
+</details>
+
+<a id="input_simulate_mouse_click"></a>
+
+<details>
+<summary><code>input_simulate_mouse_click</code> — Simulate mouse click</summary>
+
+_[specialist] Send Electron mouseMove, mouseDown, and mouseUp input events to click in the focused or selected editor/preview/simulator window._
+
+[specialist] Send Electron mouseMove, mouseDown, and mouseUp input events to click in the focused or selected editor/preview/simulator window.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `windowId` | integer |  |  | Exact BrowserWindow id from input_list_windows; takes priority over windowKind and titleContains. |
+| `windowKind` | enum: `focused` \| `editor` \| `simulator` \| `preview` |  | `"focused"` | Target window kind. "focused" prefers the currently focused window. |
+| `titleContains` | string |  |  | Optional case-insensitive substring matched against the Electron BrowserWindow title. |
+| `panel` | string |  |  | Optional editor panel name. When set, x/y are offsets from the panel center. |
+| `x` | number |  | `0` | X coordinate, or offset from panel center when panel is set. |
+| `y` | number |  | `0` | Y coordinate, or offset from panel center when panel is set. |
+| `button` | enum: `left` \| `right` \| `middle` |  | `"left"` | Mouse button to click. Default left. |
+| `clickCount` | number |  | `1` | Click count. Default 1. |
+| `modifiers` | array&lt;string&gt; |  | `[]` | Electron input modifiers such as shift, control, alt, meta. |
+
+</details>
+
+<a id="input_simulate_mouse_drag"></a>
+
+<details>
+<summary><code>input_simulate_mouse_drag</code> — Simulate mouse drag</summary>
+
+_[specialist] Send Electron mouse input events for a drag gesture in the focused or selected editor/preview/simulator window._
+
+[specialist] Send Electron mouse input events for a drag gesture in the focused or selected editor/preview/simulator window.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `windowId` | integer |  |  | Exact BrowserWindow id from input_list_windows; takes priority over windowKind and titleContains. |
+| `windowKind` | enum: `focused` \| `editor` \| `simulator` \| `preview` |  | `"focused"` | Target window kind. "focused" prefers the currently focused window. |
+| `titleContains` | string |  |  | Optional case-insensitive substring matched against the Electron BrowserWindow title. |
+| `panel` | string |  |  | Optional editor panel name. When set, start/end coordinates are offsets from the panel center. |
+| `startX` | number |  | `0` | Drag start X coordinate, or offset from panel center when panel is set. |
+| `startY` | number |  | `0` | Drag start Y coordinate, or offset from panel center when panel is set. |
+| `endX` | number |  | `0` | Drag end X coordinate, or offset from panel center when panel is set. |
+| `endY` | number |  | `0` | Drag end Y coordinate, or offset from panel center when panel is set. |
+| `button` | enum: `left` \| `right` \| `middle` |  | `"left"` | Mouse button to hold during the drag. Default left. |
+| `steps` | number |  | `10` | Interpolated move steps between start and end. Default 10, max 60. |
+| `stepDelayMs` | number |  | `0` | Optional delay between drag steps in milliseconds. |
+| `modifiers` | array&lt;string&gt; |  | `[]` | Electron input modifiers such as shift, control, alt, meta. |
+
+</details>
+
+<a id="input_simulate_key_press"></a>
+
+<details>
+<summary><code>input_simulate_key_press</code> — Simulate key press</summary>
+
+_[specialist] Send Electron keyDown/keyUp input events, optionally with a char event, to the focused or selected editor/preview/simulator window._
+
+[specialist] Send Electron keyDown/keyUp input events, optionally with a char event, to the focused or selected editor/preview/simulator window.
+
+| 參數 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `windowId` | integer |  |  | Exact BrowserWindow id from input_list_windows; takes priority over windowKind and titleContains. |
+| `windowKind` | enum: `focused` \| `editor` \| `simulator` \| `preview` |  | `"focused"` | Target window kind. "focused" prefers the currently focused window. |
+| `titleContains` | string |  |  | Optional case-insensitive substring matched against the Electron BrowserWindow title. |
+| `panel` | string |  |  | Optional editor panel to focus before sending the key event. |
+| `keyCode` | string | ✓ |  | Electron keyCode to press, such as A, Enter, Escape, ArrowLeft, or Space. |
+| `text` | string |  |  | Optional text payload for an additional char event between keyDown and keyUp. |
+| `modifiers` | array&lt;string&gt; |  | `[]` | Electron input modifiers such as shift, control, alt, meta. |
+
+</details>
+
+---
+
 ## 衍生連結
 
 - [`README.md`](../README.md) — 安裝、啟動、AI client 配置
 - [`docs/HANDOFF.md`](HANDOFF.md) — 開發進度、最新修補紀錄
-- [`CLAUDE.md`](../CLAUDE.md) — AI session 操作守則與 landmines
+- [`AGENTS.md`](../AGENTS.md) — AI session 操作守則
+- [`docs/landmines.md`](landmines.md) — 編輯器與引擎地雷清單

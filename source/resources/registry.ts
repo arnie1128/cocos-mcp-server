@@ -12,8 +12,8 @@ import { ToolResponse } from '../types';
  *
  * - Tool-backed resources reuse the existing read-only ToolExecutor call so
  *   resource read and tools/call return byte-identical data.
- * - Docs resources read markdown files at request time so user edits to
- *   CLAUDE.md / docs/*.md are reflected immediately, no extension reload.
+ * - Docs resources read markdown files under docs/ at request time so edits
+ *   are reflected immediately, no extension reload.
  *
  * URI prefix is `cocos://` to align with cocos-cli (official) and
  * FunplayAI (closest sibling embedded extension).
@@ -89,7 +89,7 @@ const STATIC_RESOURCES: ResourceDescriptor[] = [
     {
         uri: 'cocos://docs/landmines',
         name: 'Landmines reference',
-        description: 'Project landmines list extracted from CLAUDE.md §Landmines. Read this when a tool call surprises you with editor-state behaviour — most surprises are documented as landmines.',
+        description: 'docs/landmines.md — numbered editor and engine pitfalls with their conditions and mitigations. Read this when a tool call surprises you with editor-state behaviour — most surprises are documented as landmines.',
         mimeType: MIME_MARKDOWN,
     },
     {
@@ -161,10 +161,7 @@ const HANDLERS: Record<string, ResourceHandler> = {
     },
     'cocos://docs/landmines': {
         mimeType: MIME_MARKDOWN,
-        // Extract just the §Landmines section from CLAUDE.md so AI doesn't get
-        // unrelated convention chatter. If the section header changes upstream,
-        // fall back to whole file with a note.
-        fetch: async () => readDocsSection(path.join(getExtensionRoot(), 'CLAUDE.md'), '## Landmines'),
+        fetch: async () => readDocsFile(path.join(getExtensionRoot(), 'docs', 'landmines.md')),
     },
     'cocos://docs/tools': {
         mimeType: MIME_MARKDOWN,
@@ -198,41 +195,6 @@ function readDocsFile(absPath: string): string {
         }
         throw e;
     }
-}
-
-function readDocsSection(absPath: string, sectionHeader: string): string {
-    let raw: string;
-    try {
-        raw = fs.readFileSync(absPath, 'utf8');
-    } catch (e: any) {
-        if (e?.code === 'ENOENT') {
-            return `# Resource unavailable\n\nFile not found at install path: \`${absPath}\`.`;
-        }
-        throw e;
-    }
-    // Strip optional UTF-8 BOM that some editors add to markdown files.
-    const content = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
-    // v2.3.1 review fix: split on CRLF or LF so Windows-saved markdown
-    // doesn't leave \r residue at end of every line and confuse the section
-    // header equality check below.
-    const lines = content.split(/\r?\n/);
-    // Match exact header or "## Header (...)" form. Section headers in CLAUDE.md
-    // sometimes carry a parenthetical hint after the title, e.g.
-    // "## Landmines (read before editing)".
-    const startIdx = lines.findIndex(l => {
-        const t = l.trim();
-        return t === sectionHeader || t.startsWith(sectionHeader + ' ') || t.startsWith(sectionHeader + '(');
-    });
-    if (startIdx === -1) {
-        return `# Section not found\n\nSection header \`${sectionHeader}\` not found in ${path.basename(absPath)}.\nReturning whole file as fallback.\n\n---\n\n${content}`;
-    }
-    // Find the next top-level (## ) heading after the section header to bound it.
-    // sectionHeader is like "## Landmines"; the next sibling heading starts with "## " (2 hashes, space).
-    let endIdx = lines.length;
-    for (let i = startIdx + 1; i < lines.length; i++) {
-        if (/^##\s/.test(lines[i])) { endIdx = i; break; }
-    }
-    return lines.slice(startIdx, endIdx).join('\n');
 }
 
 export class ResourceRegistry {

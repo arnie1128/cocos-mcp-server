@@ -333,7 +333,7 @@ async function main() {
                     prefabName: '__mcp_livetest',
                 });
                 prefabAssetSaved = make.ok;
-                // CLAUDE.md landmine #8: createPrefab repurposes the
+                // docs/landmines.md landmine #8: createPrefab repurposes the
                 // source node — original prefabSrcUuid is invalidated.
                 // The new prefab instance UUID is surfaced as
                 // data.instanceNodeUuid; capture for cleanup.
@@ -349,7 +349,7 @@ async function main() {
     } catch (e) {
         record('prefab write flow', false, e.message);
     } finally {
-        // CLAUDE.md landmine #8: delete the in-scene prefab instance
+        // docs/landmines.md landmine #8: delete the in-scene prefab instance
         // BEFORE deleting the prefab asset. If the asset goes first
         // the instance loses its prefab link and becomes
         // "(Missing Node)" in the scene tree, leaving an orphan.

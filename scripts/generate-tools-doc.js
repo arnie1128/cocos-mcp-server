@@ -305,7 +305,8 @@ function main() {
     out.push('');
     out.push('- [`README.md`](../README.md) — 安裝、啟動、AI client 配置');
     out.push('- [`docs/HANDOFF.md`](HANDOFF.md) — 開發進度、最新修補紀錄');
-    out.push('- [`CLAUDE.md`](../CLAUDE.md) — AI session 操作守則與 landmines');
+    out.push('- [`AGENTS.md`](../AGENTS.md) — AI session 操作守則');
+    out.push('- [`docs/landmines.md`](landmines.md) — 編輯器與引擎地雷清單');
     out.push('');
 
     fs.writeFileSync(OUT_PATH, out.join('\n'), 'utf-8');

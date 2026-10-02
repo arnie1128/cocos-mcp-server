@@ -3,9 +3,9 @@
 > 給下次接手的 session（含未來自己）。看完這份 + `docs/roadmap/README.md`
 > 就能繼續做下去；歷史細節已拆到 `docs/archive/handoff/` 與 `docs/releases/`。
 
-## 🚀 NEXT SESSION ENTRY POINT（2026-06-25 / v2.14.0 done）
+## NEXT SESSION ENTRY POINT（v2.14.2）
 
-**當下版本**：v2.14.0（v2.12.2 unload 時清 require.cache 支援 hot-reload；v2.13.0–v2.13.8 tool-manager 面板重新設計；v2.13.9–v2.13.10 Extensions 選單 Start/Stop toggle；v2.14.0 修 `remove_component` uuid + editor-context-eval panel toggle）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**（v2.13/v2.14 皆無新增工具，僅面板/選單/修正）。沒有 in-flight work。
+**當下版本**：v2.14.2（v2.12.2 unload 時清 require.cache 支援 hot-reload；v2.13.0–v2.13.8 tool-manager 面板重新設計；v2.13.9–v2.13.10 Extensions 選單 Start/Stop toggle；v2.14.0 修 `remove_component` uuid + editor-context-eval panel toggle；v2.14.1 修 `debug_get_node_tree` 深度 ≥ 2 時 children 為 dump-wrapped 的錯誤；v2.14.2 AI 操作守則改為 `AGENTS.md`（`CLAUDE.md` 匯入）、地雷清單移至 `docs/landmines.md`，`cocos://docs/landmines` resource 改讀該檔）。**19 categories / 197 tools / 16 asset-interpreters / 5 prompt templates**（v2.13/v2.14 皆無新增工具，僅面板/選單/修正）。沒有 in-flight work。
 
 > 註：下方 v2.12.x 候選清單 / tech-debt / commit 表是 v2.12.1 cycle 的工作紀錄（多為仍 open 的 backlog）；v2.13/v2.14 未另寫完整 handoff，重點已併入上方當下版本摘要。
 
@@ -42,8 +42,8 @@ v2.11.x 完整 cycle 紀錄已歸檔：[`docs/archive/handoff/v2.11.md`](archive
 
 ## 未解 issues（不變）
 
-- landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（CLAUDE.md 已記）
-- landmine #17 — set_preview_mode 不支援（CLAUDE.md 已記）
+- landmine #16 — preview_control(start) 觸發 cocos 3.8.7 softReloadScene race（[`docs/landmines.md`](landmines.md#landmine-16) 已記）
+- landmine #17 — set_preview_mode 不支援（[`docs/landmines.md`](landmines.md#landmine-17) 已記）
 - pre-existing `node-tools.ts` query-current-scene fallback 收斂到 typed channel
 - MediaRecorder live-test 需 browser-preview 環境 + client wired into game
 
@@ -117,7 +117,7 @@ B-3 ⏳ deferred（觸發再做）
 ```bash
 cd D:/1_dev/cocos-mcp-server
 git status                    # 開發起點應確認無意外變更
-git log --oneline -6          # 當下版本 v2.14.0 = d23cd68（其上有 LF 正規化 chore 05065ac）
+git log --oneline -6          # 當下版本 v2.14.2
 
 # tsc + smoke + Gemini schema compatibility
 npx tsc --noEmit
@@ -162,7 +162,7 @@ node -e "const {createResourceRegistry} = require('./dist/resources/registry.js'
 - Release archives：[`docs/releases/v2.7.md`](releases/v2.7.md) / [`docs/releases/v2.8.md`](releases/v2.8.md) / [`docs/releases/v2.9.md`](releases/v2.9.md) / [`docs/releases/v2.10.md`](releases/v2.10.md)
 - Resolved landmines：[`docs/archive/landmines-resolved.md`](archive/landmines-resolved.md)
 - 工具參考（auto-generated）：[`docs/tools.md`](tools.md)
-- 程式碼地雷清單：`CLAUDE.md` §Landmines
+- 程式碼地雷清單：[`docs/landmines.md`](landmines.md)
 
 ## 回滾錨點
 

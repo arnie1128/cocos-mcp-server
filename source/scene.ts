@@ -732,7 +732,7 @@ export const methods: { [key: string]: (...any: any) => any } = {
      * Append a cc.EventHandler entry to a component's event array
      * (e.g. cc.Button.clickEvents, cc.Toggle.checkEvents).
      *
-     * Persistence note (CLAUDE.md Landmine #11): scene-script `arr.push`
+     * Persistence note (docs/landmines.md, landmine #11): scene-script `arr.push`
      * only mutates the runtime cc.Component instance; the editor's
      * serialization model (what `save-scene` writes to disk) does not see
      * the change. The host-side caller (`component-tools.ts`) is

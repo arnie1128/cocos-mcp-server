@@ -1,7 +1,7 @@
 # 文件索引
 
 本資料夾收錄此 fork 的所有設計、分析與規劃文件。內容以**繁體中文**撰寫，供
-專案維護者閱讀；AI session 的操作守則放在 repo 根目錄的 `CLAUDE.md`。
+專案維護者閱讀；AI session 的操作守則放在 repo 根目錄的 `AGENTS.md`（`CLAUDE.md` 匯入該檔）。
 
 ## 目錄結構
 
@@ -9,7 +9,8 @@
 docs/
 ├── README.md                          # 本檔，整體導覽
 ├── HANDOFF.md                         # session 暫停 / 接手指南（隨進度更新）
-├── tools.md                           # 160 個 MCP 工具完整參考（自動產生，勿手改）
+├── landmines.md                       # 地雷清單 7–18（AI 導向，英文；1–6 見 archive/landmines-resolved.md）
+├── tools.md                           # MCP 工具完整參考（自動產生，勿手改）
 ├── architecture/                      # 系統如何運作（描述現況）
 │   ├── overview.md                    # 整體架構與資料流
 │   └── tool-system.md                 # 工具註冊／分派機制
@@ -39,10 +40,10 @@ docs/
 |---|---|
 | 第一次接觸這個 fork | repo 根目錄 `README.md` → `architecture/overview.md` → `analysis/upstream-status.md` |
 | 想找某個 MCP 工具的用法 | `tools.md`（本檔工具索引） |
-| 想知道有哪些坑 | `analysis/code-quality.md`、repo 根目錄 `CLAUDE.md` §Landmines |
+| 想知道有哪些坑 | `landmines.md`、`analysis/code-quality.md` |
 | 想開始動工 | `roadmap/README.md` 看優先序，再看對應階段檔 |
 | 想理解某個決定為什麼這樣定 | `adr/` |
-| AI session 要操作專案 | repo 根目錄 `CLAUDE.md` |
+| AI session 要操作專案 | repo 根目錄 `AGENTS.md` |
 
 ## 文件維護規則
 

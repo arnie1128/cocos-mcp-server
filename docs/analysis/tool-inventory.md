@@ -6,7 +6,7 @@
 > 實不符的批評）仍然有 reference 價值；**但統計數字早已過期**。
 >
 > **取得當前工具數的正確管道**：
-> - `CLAUDE.md` §What this is（活檔，每次工具增刪都更新）
+> - [`docs/tools.md`](../tools.md)（由 `scripts/generate-tools-doc.js` 從 registry 產生；工具增減後重跑）
 > - `docs/HANDOFF.md` §進度快照 + §環境快速確認的 `health` curl 命令
 > - 直接跑：`node -e "const {createToolRegistry} = require('./dist/tools/registry.js'); …"`（HANDOFF 環境快速確認段有完整 one-liner）
 >

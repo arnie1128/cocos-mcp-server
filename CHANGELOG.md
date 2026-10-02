@@ -5,6 +5,12 @@ Detailed per-minor release notes live in [docs/releases/](docs/releases/); this 
 Original work © LiDaxian (upstream `cocos-mcp-server` v1.4.0). Fork modifications
 © 2026 shang. Both released under the project's existing license.
 
+## v2.14.2 — 2026-10-02
+
+- Moved the agent guidance into a tool-neutral `AGENTS.md` (`CLAUDE.md` now imports it) and landmines 7–18 into `docs/landmines.md`; the landmine numbers are unchanged.
+- `cocos://docs/landmines` now serves `docs/landmines.md` in full instead of extracting the `## Landmines` section of `CLAUDE.md`, which no longer exists; removed the unused section reader.
+- Repointed landmine references from `CLAUDE.md` to `docs/landmines.md` in source comments, the `debug_preview_control` refresh warning, `scripts/live-test.js` and the `docs/tools.md` generator; regenerated `docs/tools.md`.
+
 ## v2.14.1 — 2026-07-01
 
 - Fixed `debug_get_node_tree` crash at depth ≥ 2 ("Cannot read properties of undefined (reading 'uuid')"): `query-node` returns children dump-wrapped as `{ value: { uuid } }`, so the recursion passed the wrapper object as a uuid and the next `query-node` returned undefined. Now `dumpUnwrap` the child uuid before recursing, and `dumpUnwrap` the node's `uuid` / `name` / `active` scalar fields.
